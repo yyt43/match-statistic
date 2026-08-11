@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
-import { generateSwissPairings, calculateAllWinRates, getRankedPlayers, createPlayersFromNames, generateSingleEliminationPairings, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { saveCompetition, loadCompetition, clearCompetition } from '../utils/storage';
+import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
+import { saveCompetition, loadCompetition } from '../utils/storage';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -627,7 +627,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const currentCount = group.players.length;
     if (newCount === currentCount) return;
 
-    let updatedPlayers = [...group.players];
+    const updatedPlayers = [...group.players];
     if (newCount > currentCount) {
       for (let i = currentCount + 1; i <= newCount; i++) {
         updatedPlayers.push({

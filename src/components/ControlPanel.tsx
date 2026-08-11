@@ -12,10 +12,9 @@ import { getSingleEliminationRounds } from '../utils/swissPairing';
 interface ControlPanelProps {
   onShowConfirm: () => void;
   onShowConfirmAll?: () => void;
-  testMode?: boolean;
 }
 
-export function ControlPanel({ onShowConfirm, onShowConfirmAll, testMode = false }: ControlPanelProps) {
+export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
   const {
     competition,
@@ -35,7 +34,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll, testMode = false
     setGameType,
     setPairingType,
     setRoundGameType,
-    updateMatchResult,
     addGroup,
     removeGroup,
     setGroupCount,
@@ -995,31 +993,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll, testMode = false
                 </span>
               </div>
 
-              {isCurrentRoundComplete() && currentGroup.currentRound < currentGroup.totalRounds && (
-                <button
-                  onClick={onShowConfirm}
-                  className="w-full py-2.5 rounded-lg bg-gold-500/15 text-gold-400 hover:bg-gold-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/25"
-                >
-                  <Play className="w-4 h-4" />
-                  生成下一轮对阵
-                </button>
-              )}
-
-              {competition.groups.length > 1 && competition.groups.some(g => {
-                if (g.status !== 'in_progress') return false;
-                if (g.currentRound >= g.totalRounds) return false;
-                const matches = g.matches.filter(m => m.round === g.currentRound);
-                return matches.length > 0 && matches.every(m => m.result !== 'pending');
-              }) && (
-                <button
-                  onClick={() => { onShowConfirmAll?.(); }}
-                  className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
-                >
-                  <Play className="w-4 h-4" />
-                  全部小组开始下一轮
-                </button>
-              )}
-
               {currentGroup.currentRound > 0 && (
                 <button
                   onClick={() => {
@@ -1119,6 +1092,33 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll, testMode = false
           </div>
         </div>
       </div>
+
+      {/* 底部固定操作区：生成下一轮按钮（始终可见，不被滚动隐藏） */}
+      {isInProgress && isCurrentRoundComplete() && currentGroup.currentRound < currentGroup.totalRounds && (
+        <div className="shrink-0 p-3 border-t border-slate-700/50 bg-slate-800/60 space-y-2">
+          <button
+            onClick={onShowConfirm}
+            className="w-full py-2.5 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/40"
+          >
+            <Play className="w-4 h-4" />
+            生成下一轮对阵
+          </button>
+          {competition.groups.length > 1 && competition.groups.some(g => {
+            if (g.status !== 'in_progress') return false;
+            if (g.currentRound >= g.totalRounds) return false;
+            const matches = g.matches.filter(m => m.round === g.currentRound);
+            return matches.length > 0 && matches.every(m => m.result !== 'pending');
+          }) && (
+            <button
+              onClick={() => { onShowConfirmAll?.(); }}
+              className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
+            >
+              <Play className="w-4 h-4" />
+              全部小组开始下一轮
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 重置确认 */}
       {showResetConfirm && (

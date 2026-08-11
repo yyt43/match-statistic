@@ -36,7 +36,7 @@ export function importCompetitionFromFile(file: File): Promise<TournamentCompeti
         }
         
         resolve(data as TournamentCompetition);
-      } catch (error) {
+      } catch {
         reject(new Error('解析文件失败，请确保文件格式正确'));
       }
     };

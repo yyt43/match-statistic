@@ -13,7 +13,7 @@ import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users } from 'lucide-react';
 
 export default function Home() {
-  const { loadSavedCompetition, competition } = useTournamentStore();
+  const { loadSavedCompetition } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
@@ -29,9 +29,6 @@ export default function Home() {
   useEffect(() => {
     loadSavedCompetition();
   }, []);
-
-  const hasMultipleGroups = competition.groups.length > 1;
-  const hasAnyProgress = competition.groups.some(g => g.currentRound > 0);
 
   return (
     <div className="min-h-screen flex flex-col relative">
@@ -116,7 +113,6 @@ export default function Home() {
                 <ControlPanel
                   onShowConfirm={() => { setConfirmType('single'); setShowConfirm(true); }}
                   onShowConfirmAll={() => { setConfirmType('all'); setShowConfirm(true); }}
-                  testMode={testMode}
                 />
               </div>
             </div>

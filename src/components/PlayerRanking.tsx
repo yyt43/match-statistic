@@ -7,7 +7,7 @@ export function PlayerRanking() {
   const currentGroup = useCurrentGroup();
   const { getRankedPlayers } = useTournamentStore();
   const isCompleted = currentGroup.status === 'completed';
-  
+
   const rankedPlayers = useMemo(() => {
     return getRankedPlayers();
   }, [currentGroup.players, currentGroup.matches, currentGroup.gameType, currentGroup.pairingType]);
@@ -22,7 +22,7 @@ export function PlayerRanking() {
     if (rank === 3) {
       return <Award className="w-5 h-5 text-amber-500" />;
     }
-    return <span className="text-lg font-bold text-slate-400">{rank}</span>;
+    return <span className="text-base font-bold text-slate-400 font-mono">{rank}</span>;
   };
 
   const getResultBlock = (result: 'win' | 'loss' | 'draw' | 'bye') => {
@@ -79,7 +79,7 @@ export function PlayerRanking() {
 
   return (
     <div className="glass-panel rounded-2xl p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <h2 className="font-display text-base font-bold text-white flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-gold-400" />
           排行榜
@@ -95,94 +95,57 @@ export function PlayerRanking() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-        <div className="bg-slate-800/40 rounded-lg mb-1.5">
-          <div className="grid grid-cols-12 gap-2 px-3 py-1.5 text-[10px] font-medium text-slate-500 leading-5">
-          <div className="col-span-1">排名</div>
-          {isSingleElimination ? (
-            <>
-              <div className="col-span-4">选手名称</div>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
+        {isSingleElimination ? (
+          /* ============ 单败淘汰：表格式布局 ============ */
+          <div>
+            <div className="grid grid-cols-12 gap-1.5 px-2 py-1.5 text-[10px] font-medium text-slate-500 border-b border-slate-700/40">
+              <div className="col-span-1">#</div>
+              <div className="col-span-5">选手</div>
               <div className="col-span-2 text-center">头衔</div>
               <div className="col-span-2 text-center">战绩</div>
-              <div className="col-span-3 text-center">淘汰轮次</div>
-            </>
-          ) : isMultiGame ? (
-            <>
-              <div className="col-span-2">选手名称</div>
-              <div className="col-span-1 text-center">战绩</div>
-              <div className="col-span-2 text-center">对手胜率</div>
-              <div className="col-span-1 text-center">局胜率</div>
-              <div className="col-span-1 text-center">对手局胜率</div>
-              <div className="col-span-4 text-center">比赛历史</div>
-            </>
-          ) : (
-            <>
-              <div className="col-span-3">选手名称</div>
-              <div className="col-span-1 text-center">战绩</div>
-              <div className="col-span-2 text-center">对手胜率</div>
-              <div className="col-span-2 text-center">对手对手胜率</div>
-              <div className="col-span-3 text-center">比赛历史</div>
-            </>
-          )}
-        </div>
-        </div>
-
-        <div className="space-y-1">
-          {rankedPlayers.map((player, index) => {
-            const rank = index + 1;
-            const history = getPlayerMatchHistory(player.id, currentGroup.matches, currentGroup.totalRounds);
-
-            return (
-              <div
-                key={player.id}
-                className={`
-                  grid grid-cols-12 gap-2 px-3 py-2 rounded-md items-center transition-all
-                  ${rank <= 3 ? 'bg-slate-800/40' : 'bg-slate-800/20'}
-                  ${rank === 1 ? 'border-l-2 border-yellow-400' : ''}
-                  ${player.dropped
-                    ? 'opacity-60'
-                    : (player.eliminated && !(isCompleted && isSingleElimination))
-                      ? 'opacity-60'
-                      : ''}
-                  hover:bg-slate-800/50
-                `}
-              >
-                <div className="col-span-1 flex items-center">
-                  {getRankBadge(rank)}
-                </div>
-
-                <div className={`${isSingleElimination ? 'col-span-4' : isMultiGame ? 'col-span-2' : 'col-span-3'} min-w-0 flex items-center`}>
-                  <div className="flex items-center gap-1.5 w-full">
-                    <span className={`font-medium text-sm truncate ${
-                      rank === 1
-                        ? 'text-yellow-400'
-                        : player.dropped
-                          ? 'text-rose-400'
-                          : (isCompleted && isSingleElimination)
-                            ? 'text-white'
-                            : player.eliminated
-                              ? 'text-slate-400'
-                              : 'text-white'
-                    } ${player.dropped ? 'line-through' : ''}`}>
-                      {player.name}
-                    </span>
-                    {player.eliminated && !(isCompleted && isSingleElimination) && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/30">
-                        淘汰
+              <div className="col-span-2 text-center">淘汰轮</div>
+            </div>
+            <div className="space-y-0.5 mt-1">
+              {rankedPlayers.map((player, index) => {
+                const rank = index + 1;
+                return (
+                  <div
+                    key={player.id}
+                    className={`grid grid-cols-12 gap-1.5 px-2 py-1.5 rounded-md items-center transition-all
+                      ${rank <= 3 ? 'bg-slate-800/40' : 'bg-slate-800/20'}
+                      ${rank === 1 ? 'border-l-2 border-yellow-400' : ''}
+                      ${player.dropped
+                        ? 'opacity-60'
+                        : (player.eliminated && !(isCompleted && isSingleElimination))
+                          ? 'opacity-60'
+                          : ''}
+                      hover:bg-slate-800/50`}
+                  >
+                    <div className="col-span-1 flex items-center">{getRankBadge(rank)}</div>
+                    <div className="col-span-5 min-w-0 flex items-center gap-1.5">
+                      <span className={`font-medium text-sm truncate ${
+                        rank === 1 ? 'text-yellow-400'
+                          : player.dropped ? 'text-rose-400'
+                          : (isCompleted && isSingleElimination) ? 'text-white'
+                          : player.eliminated ? 'text-slate-400'
+                          : 'text-white'
+                      } ${player.dropped ? 'line-through' : ''}`}>
+                        {player.name}
                       </span>
-                    )}
-                    {player.dropped && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                        弃赛
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isSingleElimination ? (
-                  <>
+                      {player.eliminated && !(isCompleted && isSingleElimination) && (
+                        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/30">
+                          淘汰
+                        </span>
+                      )}
+                      {player.dropped && (
+                        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          弃赛
+                        </span>
+                      )}
+                    </div>
                     <div className="col-span-2 flex items-center justify-center">
-                      <span className={`text-sm font-bold ${
+                      <span className={`text-xs font-bold ${
                         rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : 'text-amber-500'
                       }`}>
                         {getEliminationTitle(rank, currentGroup.totalRounds)}
@@ -193,85 +156,98 @@ export function PlayerRanking() {
                         {player.wins}-{player.losses}
                       </span>
                     </div>
-                    <div className="col-span-3 flex items-center justify-center">
+                    <div className="col-span-2 flex items-center justify-center">
                       {getEliminatedRound(player.id, currentGroup.matches) !== null ? (
-                        <span className="text-sm text-slate-300">
-                          第{getEliminatedRound(player.id, currentGroup.matches)}轮
-                        </span>
+                        <span className="text-xs text-slate-300">第{getEliminatedRound(player.id, currentGroup.matches)}轮</span>
                       ) : rank === 1 ? (
-                        <span className="text-sm text-yellow-400">冠军</span>
+                        <span className="text-xs text-yellow-400">冠军</span>
                       ) : (
-                        <span className="text-sm text-slate-500">-</span>
+                        <span className="text-xs text-slate-500">-</span>
                       )}
                     </div>
-                  </>
-                ) : isMultiGame ? (
-                  <>
-                    <div className="col-span-1 flex items-center justify-center">
-                      <span className="font-mono font-bold text-sm text-white">
-                        {player.wins}-{player.losses}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* ============ 瑞士轮：卡片式布局（解决拥挤）============ */
+          <div className="space-y-1">
+            {rankedPlayers.map((player, index) => {
+              const rank = index + 1;
+              const history = getPlayerMatchHistory(player.id, currentGroup.matches, currentGroup.totalRounds);
+              const isDead = player.dropped || (player.eliminated && !isCompleted);
+
+              return (
+                <div
+                  key={player.id}
+                  className={`rounded-md px-2 py-1.5 transition-all
+                    ${rank <= 3 ? 'bg-slate-800/40' : 'bg-slate-800/20'}
+                    ${rank === 1 ? 'border-l-2 border-yellow-400' : ''}
+                    ${isDead ? 'opacity-60' : ''}
+                    hover:bg-slate-800/50`}
+                >
+                  {/* 第一行：排名 + 选手名 + 战绩 + 比赛历史 */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 shrink-0 flex items-center justify-center">
+                      {getRankBadge(rank)}
+                    </span>
+                    <span className={`flex-1 min-w-0 font-medium text-sm truncate ${
+                      rank === 1 ? 'text-yellow-400'
+                        : player.dropped ? 'text-rose-400'
+                        : player.eliminated ? 'text-slate-400'
+                        : 'text-white'
+                    } ${player.dropped ? 'line-through' : ''}`}>
+                      {player.name}
+                    </span>
+                    {player.eliminated && !isCompleted && (
+                      <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/30">
+                        淘汰
                       </span>
-                    </div>
-                    <div className="col-span-2 flex items-center justify-center">
-                      <span className="text-sm text-slate-300 font-mono">
-                        {(player.opponentWinRate * 100).toFixed(2)}%
+                    )}
+                    {player.dropped && (
+                      <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        弃赛
                       </span>
-                    </div>
-                    <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-sm text-slate-300 font-mono">
-                        {(player.gameWinRate * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="col-span-1 flex items-center justify-center">
-                      <span className="text-sm text-slate-300 font-mono">
-                        {(player.opponentGameWinRate * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="col-span-4 flex gap-1 justify-center flex-nowrap min-w-0 items-center">
+                    )}
+                    <span className="shrink-0 font-mono font-bold text-xs text-white">
+                      {player.wins}-{player.losses}
+                    </span>
+                    <div className="shrink-0 flex gap-1 items-center min-w-0">
                       {history.length > 0 ? (
                         history.map((h, i) => (
                           <div key={i} className="shrink-0">{getResultBlock(h.result)}</div>
                         ))
                       ) : (
-                        <span className="text-xs text-slate-500">无结果</span>
+                        <span className="text-[10px] text-slate-500">无</span>
                       )}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-1 flex items-center justify-center">
-                      <span className="font-mono font-bold text-sm text-white">
-                        {player.wins}-{player.losses}
-                      </span>
-                    </div>
-                    <div className="col-span-2 flex items-center justify-center">
-                      <span className="text-sm text-slate-300 font-mono">
-                        {(player.opponentWinRate * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="col-span-2 flex items-center justify-center">
-                      <span className="text-sm text-slate-300 font-mono">
-                        {(player.opponentOpponentWinRate * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="col-span-3 flex gap-1 justify-center flex-nowrap min-w-0 items-center">
-                      {history.length > 0 ? (
-                        history.map((h, i) => (
-                          <div key={i} className="shrink-0">{getResultBlock(h.result)}</div>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-500">无结果</span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                  {/* 第二行：百分比数据（紧凑展示，避免遮挡） */}
+                  <div className="flex items-center gap-2 pl-8 mt-0.5 text-[10px] text-slate-400 font-mono">
+                    <span title="对手胜率">对胜 <span className="text-slate-300">{(player.opponentWinRate * 100).toFixed(1)}%</span></span>
+                    {isMultiGame ? (
+                      <>
+                        <span className="text-slate-700">·</span>
+                        <span title="局胜率">局胜 <span className="text-slate-300">{(player.gameWinRate * 100).toFixed(1)}%</span></span>
+                        <span className="text-slate-700">·</span>
+                        <span title="对手局胜率">对局胜 <span className="text-slate-300">{(player.opponentGameWinRate * 100).toFixed(1)}%</span></span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-slate-700">·</span>
+                        <span title="对手对手胜率">对对胜 <span className="text-slate-300">{(player.opponentOpponentWinRate * 100).toFixed(1)}%</span></span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-      
-      <div className="mt-3 pt-3 border-t border-slate-700/40">
+
+      <div className="mt-3 pt-3 border-t border-slate-700/40 shrink-0">
         <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div>

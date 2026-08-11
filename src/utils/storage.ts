@@ -37,18 +37,26 @@ interface LegacyTournament {
   pairingType?: PairingType;
 }
 
-function migrateGroupPairingType(group: any): TournamentGroup {
-  let migrated = { ...group };
+/** 旧格式中可能缺失新字段的 group（迁移用） */
+type LegacyGroup = Partial<Omit<TournamentGroup, 'gameType' | 'pairingType' | 'players'>> & {
+  gameType?: string;
+  pairingType?: string;
+  players?: Player[];
+  totalRounds?: number;
+};
+
+function migrateGroupPairingType(group: LegacyGroup): TournamentGroup {
+  const migrated: LegacyGroup = { ...group };
 
   // 旧格式：gameType = 'single_elimination'，迁移为 pairingType
   if (migrated.gameType === 'single_elimination' && !migrated.pairingType) {
-    migrated.pairingType = 'single_elimination' as PairingType;
-    migrated.gameType = 'bo1' as GameType;
+    migrated.pairingType = 'single_elimination';
+    migrated.gameType = 'bo1';
   }
 
   // 确保 pairingType 存在
   if (!migrated.pairingType) {
-    migrated.pairingType = 'swiss' as PairingType;
+    migrated.pairingType = 'swiss';
   }
 
   // 确保 roundGameTypes 存在
@@ -58,7 +66,7 @@ function migrateGroupPairingType(group: any): TournamentGroup {
 
   // 确保每个 player 都有上下匹配相关字段（新字段兼容旧数据）
   if (migrated.players && Array.isArray(migrated.players)) {
-    migrated.players = migrated.players.map((p: any) => ({
+    migrated.players = migrated.players.map((p) => ({
       ...p,
       downMatchCount: p.downMatchCount ?? 0,
       upMatchCount: p.upMatchCount ?? 0,
@@ -120,7 +128,7 @@ function tryParse(raw: string | null): { competition: TournamentCompetition; sav
       };
       return { competition };
     }
-  } catch (_) { /* ignore */ }
+  } catch { /* ignore */ }
   return null;
 }
 
@@ -148,7 +156,7 @@ export function saveCompetition(competition: TournamentCompetition): void {
     // 异步/忽略错误写一份备份（防止下次主key读取损坏时有后手）
     try {
       localStorage.setItem(BACKUP_KEY, serialized);
-    } catch (_) { /* 备份失败不影响主流程 */ }
+    } catch { /* 备份失败不影响主流程 */ }
 
     // 成功：若之前是 error/quota_exceeded，则恢复到 ok；容量超限时仍提示
     const sizeBytes = estimateDataSize(competition);
@@ -171,7 +179,7 @@ export function loadCompetition(): TournamentCompetition | null {
 
     // 迁移新格式中缺少 pairingType 的 groups
     if (competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes))) {
-      const migratedGroups = competition.groups.map((g: any) => migrateGroupPairingType(g));
+      const migratedGroups = competition.groups.map((g) => migrateGroupPairingType(g));
       competition = { ...competition, groups: migratedGroups };
       // 保存迁移后的数据
       saveCompetition(competition);
@@ -185,11 +193,11 @@ export function loadCompetition(): TournamentCompetition | null {
     console.warn('[storage] 主数据读取失败，已从备份恢复');
     let { competition } = backupParsed;
     if (competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes))) {
-      const migratedGroups = competition.groups.map((g: any) => migrateGroupPairingType(g));
+      const migratedGroups = competition.groups.map((g) => migrateGroupPairingType(g));
       competition = { ...competition, groups: migratedGroups };
     }
     // 恢复后立刻写回主 key（备份仍保留，双保险）
-    try { saveCompetition(competition); } catch (_) { /* ignore */ }
+    try { saveCompetition(competition); } catch { /* ignore */ }
     notifyStorageStatus('ok', '已从本地备份恢复数据，建议立即「导出比赛数据」备份');
     return competition;
   }
@@ -206,7 +214,7 @@ export function getLastSavedAt(): string | null {
     if (parsed && typeof parsed === 'object' && typeof parsed.savedAt === 'string') {
       return parsed.savedAt;
     }
-  } catch (_) { /* ignore */ }
+  } catch { /* ignore */ }
   return null;
 }
 

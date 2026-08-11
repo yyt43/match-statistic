@@ -1,7 +1,7 @@
-import { Swords, Clock, Check, X, UserMinus, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, ArrowLeftRight, Shuffle, ListOrdered } from 'lucide-react';
+import { Swords, X, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, ArrowLeftRight, Shuffle, ListOrdered } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { RoundTabs } from './RoundTabs';
-import type { Match, MatchResult, GameType, PairingType, Player } from '../types';
+import type { Match, MatchResult, GameType, Player } from '../types';
 import { useMemo, useState, useEffect } from 'react';
 
 interface MatchListProps {
@@ -10,7 +10,7 @@ interface MatchListProps {
 
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, isCurrentRoundComplete, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, isRandomGenerating, randomGenerateProgress } = useTournamentStore();
+  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, isRandomGenerating, randomGenerateProgress } = useTournamentStore();
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
 
@@ -366,7 +366,6 @@ export function MatchList({ testMode = false }: MatchListProps) {
                           <div className="text-[10px] text-slate-400 mb-2 text-center">选择比赛结果</div>
                           <ResultButtons
                             gameType={roundGameType}
-                            pairingType={currentGroup.pairingType}
                             onResult={(result, p1g, p2g) => handleSetResult(match.id, result, p1g, p2g)}
                           />
                         </div>
@@ -383,7 +382,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
   );
 }
 
-function ResultButtons({ gameType, pairingType, onResult }: { gameType: GameType; pairingType: PairingType; onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number) => void }) {
+function ResultButtons({ gameType, onResult }: { gameType: GameType; onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number) => void }) {
   if (gameType === 'bo1') {
     return (
       <div className="grid grid-cols-3 gap-2">

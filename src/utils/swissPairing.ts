@@ -15,6 +15,16 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
+/** Fisher-Yates 洗牌算法，保证无偏随机 */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Player[] {
   return [...players].sort((a, b) => {
     // 活跃 > 被淘汰 > 弃赛
@@ -212,7 +222,7 @@ export function generateSwissPairings(
   // 规则1：第一轮随机配对
   if (round === 1) {
     const activePool = players.filter(p => !p.dropped && !p.eliminated);
-    const shuffled = [...activePool].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(activePool);
 
     let byePlayer: Player | null = null;
     let pairPlayers = shuffled;
@@ -501,7 +511,7 @@ export function generateSingleEliminationPairings(
 
   if (round === 1) {
     const activePlayers = players.filter(p => !p.dropped && !p.eliminated);
-    const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(activePlayers);
 
     let byePlayer: Player | null = null;
     let pairPlayers = shuffled;
