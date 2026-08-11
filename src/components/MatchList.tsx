@@ -1,6 +1,7 @@
-import { Swords, X, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, ArrowLeftRight, Shuffle, ListOrdered } from 'lucide-react';
+import { Swords, X, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, ArrowLeftRight, Shuffle, ListOrdered, GripVertical } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { RoundTabs } from './RoundTabs';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { Match, MatchResult, GameType, Player } from '../types';
 import { useMemo, useState, useEffect } from 'react';
 
@@ -10,9 +11,19 @@ interface MatchListProps {
 
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, isRandomGenerating, randomGenerateProgress } = useTournamentStore();
+  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress } = useTournamentStore();
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  // 拖拽改序状态
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // 统一确认弹窗（替代 window.confirm）
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     if (currentGroup.currentRound === 0) {
@@ -209,9 +220,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
               disabled={isRandomGenerating}
               onClick={() => {
                 if (isRandomGenerating) return;
-                if (window.confirm('确定要随机生成所有小组当前轮次的结果吗？')) {
-                  randomGenerateCurrentRoundAllGroups();
-                }
+                setConfirmState({
+                  open: true,
+                  title: '确认随机生成',
+                  message: '确定要随机生成所有小组当前轮次的结果吗？',
+                  onConfirm: () => randomGenerateCurrentRoundAllGroups(),
+                });
               }}
               className="w-full py-1.5 rounded-md bg-gradient-to-r from-indigo-500/20 to-indigo-600/20 text-indigo-300 hover:from-indigo-500/30 hover:to-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-medium flex items-center justify-center gap-1.5 border border-indigo-500/30"
             >
@@ -232,9 +246,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
                 disabled={isRandomGenerating}
                 onClick={() => {
                   if (isRandomGenerating) return;
-                  if (window.confirm(confirmText)) {
-                    randomGenerateAllGroups();
-                  }
+                  setConfirmState({
+                    open: true,
+                    title: '确认随机生成',
+                    message: confirmText,
+                    onConfirm: () => randomGenerateAllGroups(),
+                  });
                 }}
                 className="w-full py-1.5 rounded-md bg-gradient-to-r from-fuchsia-500/20 to-fuchsia-600/20 text-fuchsia-300 hover:from-fuchsia-500/30 hover:to-fuchsia-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-medium flex items-center justify-center gap-1.5 border border-fuchsia-500/30"
               >
@@ -270,16 +287,59 @@ export function MatchList({ testMode = false }: MatchListProps) {
               {matches.map((match, index) => {
                 const isExpanded = expandedMatch === match.id;
                 const canEditMatch = canEdit(match);
+                const isDragged = draggedId === match.id;
+                const isDragOver = dragOverId === match.id && draggedId !== null && draggedId !== match.id;
 
                 return (
                   <div
                     key={match.id}
+                    draggable={!editMode}
+                    onDragStart={(e) => {
+                      if (editMode) return;
+                      setDraggedId(match.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      try { e.dataTransfer.setData('text/plain', match.id); } catch { /* ignore */ }
+                    }}
+                    onDragEnd={() => {
+                      setDraggedId(null);
+                      setDragOverId(null);
+                    }}
+                    onDragOver={(e) => {
+                      if (editMode || !draggedId) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverId !== match.id) setDragOverId(match.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverId === match.id) setDragOverId(null);
+                    }}
+                    onDrop={(e) => {
+                      if (editMode || !draggedId) return;
+                      e.preventDefault();
+                      if (draggedId !== match.id) {
+                        reorderMatches(viewRound, draggedId, match.id);
+                      }
+                      setDraggedId(null);
+                      setDragOverId(null);
+                    }}
                     className={`
                       bg-slate-800/40 rounded-lg overflow-hidden transition-all
-                      border border-slate-700/40
+                      border border-slate-700/40 relative group
                       ${isExpanded ? 'border-gold-500/30' : ''}
+                      ${!editMode ? 'cursor-grab active:cursor-grabbing' : ''}
+                      ${isDragged ? 'opacity-40 ring-2 ring-gold-500/40' : ''}
+                      ${isDragOver ? 'border-t-2 border-t-gold-500' : ''}
                     `}
                   >
+                    {/* 拖拽手柄（hover 时显示） */}
+                    {!editMode && (
+                      <div
+                        className="absolute top-1.5 left-1.5 z-10 p-0.5 rounded bg-slate-900/60 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                        title="拖拽调整顺序"
+                      >
+                        <GripVertical className="w-3 h-3" />
+                      </div>
+                    )}
                     <div
                       className="p-3"
                       onClick={() => canEditMatch && handleToggleExpand(match.id)}
@@ -378,6 +438,18 @@ export function MatchList({ testMode = false }: MatchListProps) {
           )}
       </div>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmState.open}
+        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText="确认"
+        onConfirm={() => {
+          confirmState.onConfirm();
+          setConfirmState(s => ({ ...s, open: false }));
+        }}
+      />
     </div>
   );
 }

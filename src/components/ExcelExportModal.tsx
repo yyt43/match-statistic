@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { getRankingTableData, getMatchTableData, exportAllGroupsRankingToExcel, exportAllGroupsCurrentRoundMatchesToExcel, exportAllGroupsToExcel, exportGroupSummaryToExcel } from '../utils/excelExport';
 import { useEscapeClose } from '../hooks/useEscapeClose';
@@ -17,10 +16,12 @@ interface ExcelExportModalProps {
 export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: ExcelExportModalProps) {
   const [activeType, setActiveType] = useState<ExportType>(initialType);
   const [exportAllGroups, setExportAllGroups] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'building' | 'saving'>('idle');
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
 
-  useEscapeClose(isOpen, onClose);
+  useEscapeClose(isOpen && !isExporting, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,36 +72,57 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       ? getRankingTableData(previewGroup)
       : getMatchTableData(previewGroup, viewRound);
 
-  const handleDownload = () => {
-    if (isSummary) {
-      if (exportAllGroups) {
-        exportAllGroupsToExcel(availableGroups, competition.name);
-      } else {
-        exportGroupSummaryToExcel(previewGroup, competition.name);
+  const handleDownload = async () => {
+    setIsExporting(true);
+    setExportPhase('loading');
+    try {
+      if (isSummary) {
+        if (exportAllGroups) {
+          await exportAllGroupsToExcel(availableGroups, competition.name);
+        } else {
+          await exportGroupSummaryToExcel(previewGroup, competition.name);
+        }
+        return;
       }
-      return;
-    }
 
-    if (exportAllGroups) {
-      if (isRanking) {
-        exportAllGroupsRankingToExcel(availableGroups, competition.name);
+      setExportPhase('building');
+      if (exportAllGroups) {
+        if (isRanking) {
+          await exportAllGroupsRankingToExcel(availableGroups, competition.name);
+        } else {
+          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name);
+        }
       } else {
-        exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name);
+        // 单小组导出：复用动态加载的 xlsx 模块
+        const XLSX = await import('xlsx');
+        setExportPhase('saving');
+        const { headers, rows } = isRanking
+          ? getRankingTableData(previewGroup)
+          : getMatchTableData(previewGroup, viewRound);
+        const data: (string | number)[][] = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        const sheetName = isRanking ? '排行榜' : `第${viewRound}轮`;
+        const fileName = isRanking
+          ? `${competition.name}-${previewGroup.name}-排行榜.xlsx`
+          : `${competition.name}-${previewGroup.name}-第${viewRound}轮对阵表.xlsx`;
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, fileName);
       }
-    } else {
-      const { headers, rows } = isRanking
-        ? getRankingTableData(previewGroup)
-        : getMatchTableData(previewGroup, viewRound);
-      const data: (string | number)[][] = [headers, ...rows];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      const sheetName = isRanking ? '排行榜' : `第${viewRound}轮`;
-      const fileName = isRanking
-        ? `${competition.name}-${previewGroup.name}-排行榜.xlsx`
-        : `${competition.name}-${previewGroup.name}-第${viewRound}轮对阵表.xlsx`;
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('导出 Excel 失败:', err);
+      alert('导出失败，请重试');
+    } finally {
+      setIsExporting(false);
+      setExportPhase('idle');
     }
+  };
+
+  const exportPhaseText: Record<typeof exportPhase, string> = {
+    idle: '',
+    loading: '加载组件中...',
+    building: '生成工作表中...',
+    saving: '保存文件中...',
   };
 
   return (
@@ -291,17 +313,27 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-700">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            disabled={isExporting}
+            className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             取消
           </button>
           <button
             onClick={handleDownload}
-            disabled={(isRanking || isSummary) && !canExportRanking}
+            disabled={isExporting || ((isRanking || isSummary) && !canExportRanking)}
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="w-4 h-4" />
-            {(isRanking || isSummary) && !canExportRanking ? '本轮未完赛，无法导出' : '下载 Excel'}
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {exportPhaseText[exportPhase] || '导出中...'}
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                {(isRanking || isSummary) && !canExportRanking ? '本轮未完赛，无法导出' : '下载 Excel'}
+              </>
+            )}
           </button>
         </div>
       </div>

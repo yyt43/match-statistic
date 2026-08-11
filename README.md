@@ -11,7 +11,10 @@
 - **精细化配对**：同战绩组对折优先 → 组内穷举回溯 → 下移组与下一组 1V1 匹配
 - **多级 tiebreaker**：胜率 → 对手胜率 → 对手对手胜率 / 局胜率 → 对手局胜率 → 积分
 - **本地持久化**：localStorage 双 key 主备机制，4MB 容量预警，旧格式自动迁移
+- **自动快照备份**：每轮完赛时自动创建快照（保留最近 5 份），可在「备份管理」面板中恢复
 - **数据导入/导出**：JSON 文件、Excel 表格、图片截图
+- **对阵拖拽改序**：非编辑模式下可直接拖拽对阵卡片调整显示顺序
+- **快捷操作**：Ctrl+Z 撤回上一轮、配对预览、统一确认弹窗
 - **响应式 UI**：桌面三栏 / 平板两栏 / 移动单栏
 
 ## 技术栈
@@ -54,6 +57,9 @@ npm run check
 
 # ESLint 检查
 npm run lint
+
+# 运行单元测试
+npm test
 ```
 
 ## 项目结构
@@ -62,26 +68,29 @@ npm run lint
 src/
 ├── types/index.ts              # 类型定义（Player/Match/TournamentGroup/Competition）
 ├── store/
-│   └── useTournamentStore.ts   # Zustand 全局状态（赛事/小组/选手/对阵）
+│   └── useTournamentStore.ts   # Zustand 全局状态（赛事/小组/选手/对阵/快照）
 ├── utils/
 │   ├── swissPairing.ts         # 瑞士轮 + 单败淘汰配对算法（核心）
+│   ├── swissPairing.test.ts    # 配对算法单元测试（Vitest）
 │   ├── ranking.ts              # 排名 / 淘汰头衔 / 比赛历史工具
-│   ├── storage.ts              # localStorage 持久化（主备 + 迁移）
+│   ├── storage.ts              # localStorage 持久化（主备 + 迁移 + 压缩）
+│   ├── snapshot.ts             # 快照管理（自动备份 + 恢复 + 清理）
 │   ├── storageStatus.ts        # 存储状态发布订阅
-│   ├── excelExport.ts          # Excel 导出
-│   ├── imageExport.ts          # 图片导出（html2canvas）
+│   ├── excelExport.ts          # Excel 导出（动态加载 xlsx）
+│   ├── imageExport.ts          # 图片导出（动态加载 html2canvas）
 │   └── fileStorage.ts          # JSON 文件导入/导出
 ├── components/                 # UI 组件
 │   ├── Header.tsx              # 顶部标题栏
 │   ├── PlayerRanking.tsx       # 选手排名面板
-│   ├── MatchList.tsx           # 对阵列表（含编辑/测试模式）
+│   ├── MatchList.tsx           # 对阵列表（含编辑/测试/拖拽改序）
 │   ├── ControlPanel.tsx        # 操作控制面板
 │   ├── RoundTabs.tsx           # 轮次切换标签
+│   ├── BackupManager.tsx       # 备份管理面板（快照列表/恢复/删除）
 │   ├── ImageExportModal.tsx    # 图片导出弹窗
-│   ├── ExcelExportModal.tsx    # Excel 导出弹窗
+│   ├── ExcelExportModal.tsx    # Excel 导出弹窗（含进度指示）
 │   ├── PlayerPreviewModal.tsx  # 选手预览弹窗
 │   ├── HelpPage.tsx            # 帮助说明
-│   ├── ConfirmDialog.tsx       # 确认对话框
+│   ├── ConfirmDialog.tsx       # 确认对话框（统一替代 window.confirm）
 │   ├── StorageBanner.tsx       # 存储状态横幅
 │   ├── MatchImageView.tsx      # 对阵图截图视图
 │   ├── RankingImageView.tsx    # 排名图截图视图
@@ -90,7 +99,7 @@ src/
 │   ├── useTheme.ts             # 主题
 │   └── useEscapeClose.ts       # ESC 关闭弹窗
 ├── lib/utils.ts                # 通用工具（cn = clsx + tailwind-merge）
-├── pages/Home.tsx              # 主页面（三栏布局）
+├── pages/Home.tsx              # 主页面（三栏布局 + Ctrl+Z 撤回 + 配对预览）
 ├── App.tsx                     # 路由入口
 ├── main.tsx                    # 应用入口
 └── index.css                   # 全局样式
@@ -117,8 +126,13 @@ src/
 ### 战绩录入
 - 单场结果录入（胜 / 负 / 双负）
 - 单败淘汰自动标记淘汰
-- 支持撤回上一轮
+- 支持撤回上一轮（按钮 + Ctrl+Z 快捷键）
 - 测试模式：随机批量生成结果
+
+### 对阵管理
+- 非编辑模式下可直接拖拽对阵卡片调整显示顺序
+- 生成下一轮前展示配对预览与本轮摘要（双负/轮空/弃赛）
+- 单败淘汰支持整轮对阵编辑与一键重排
 
 ### 排名统计
 - 多级 tiebreaker 排名
@@ -128,11 +142,12 @@ src/
 
 ### 数据导入导出
 - **JSON**：完整赛事数据导入/导出，含格式校验
-- **Excel**：排名表 / 对阵表，支持导出所有小组
+- **Excel**：排名表 / 对阵表，支持导出所有小组（导出时显示进度指示）
 - **图片**：排名图 / 对阵图，支持导出所有小组
 
 ### 持久化与容错
-- localStorage 主 key + backup key 双写
+- localStorage 主 key + backup key 双写（含压缩，节省 30-40% 空间）
+- **自动快照**：每轮完赛时自动创建快照，保留最近 5 份，可在「备份管理」面板恢复
 - 主 key 损坏时自动从备份恢复
 - 旧版本数据自动迁移
 - 存储容量预警（4MB 阈值）

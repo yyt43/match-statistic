@@ -47,6 +47,29 @@ function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Playe
   });
 }
 
+/** 单败淘汰排序：活跃 > 淘汰 > 弃赛；同状态按胜场降序，败场升序，姓名字典序 */
+function sortPlayersByEliminationRank(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
+    const bActive = b.dropped ? 0 : b.eliminated ? 1 : 2;
+    if (aActive !== bActive) return bActive - aActive;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (a.losses !== b.losses) return a.losses - b.losses;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * 统一的选手排序入口（瑞士轮 + 单败淘汰）。
+ * 供 store / excelExport / imageExport 共用，避免重复实现导致排名不一致。
+ */
+export function sortPlayers(players: Player[], gameType: GameType, pairingType: PairingType): Player[] {
+  if (pairingType === 'single_elimination') {
+    return sortPlayersByEliminationRank(players);
+  }
+  return sortPlayersByRank(players, gameType);
+}
+
 /**
  * 获取选手的完整战绩排序键（与 sortPlayersByRank 的排序指标一致，不含 name）。
  * 只有所有战绩指标完全相同的选手才会被分到同一战绩组。
@@ -99,15 +122,60 @@ function selectUpOpponent(downPlayer: PlayerState, candidates: PlayerState[]): P
   })[0];
 }
 
-/** 规则9a：对折匹配——将排序后的组对折，前半与后半一一配对，检查是否全部未对阵过 */
-function tryFoldMatch(group: PlayerState[]): boolean {
+/**
+ * 规则9a：对折匹配——将排序后的组对折，前半与后半一一配对。
+ * 尝试多种对折方式（正常、反序、错位），只要有一种成功就使用，避免立即进入穷举。
+ * 返回配对列表（成功）或 null（失败）。
+ */
+function tryFoldMatch(group: PlayerState[]): [PlayerState, PlayerState][] | null {
   const n = group.length;
-  if (n % 2 !== 0 || n < 2) return false;
+  if (n % 2 !== 0 || n < 2) return null;
   const half = n / 2;
-  for (let i = 0; i < half; i++) {
-    if (group[i].playedAgainst.has(group[i + half].player.id)) return false;
+
+  // 方式1：正常对折 [0↔half, 1↔half+1, ...]
+  {
+    let ok = true;
+    for (let i = 0; i < half; i++) {
+      if (group[i].playedAgainst.has(group[i + half].player.id)) { ok = false; break; }
+    }
+    if (ok) {
+      const pairs: [PlayerState, PlayerState][] = [];
+      for (let i = 0; i < half; i++) pairs.push([group[i], group[i + half]]);
+      return pairs;
+    }
   }
-  return true;
+
+  // 方式2：反序对折 [0↔n-1, 1↔n-2, ...]
+  {
+    let ok = true;
+    for (let i = 0; i < half; i++) {
+      if (group[i].playedAgainst.has(group[n - 1 - i].player.id)) { ok = false; break; }
+    }
+    if (ok) {
+      const pairs: [PlayerState, PlayerState][] = [];
+      for (let i = 0; i < half; i++) pairs.push([group[i], group[n - 1 - i]]);
+      return pairs;
+    }
+  }
+
+  // 方式3：错位对折（secondHalf 整体左移一位）[0↔half+1, 1↔half+2, ..., half-1↔half]
+  if (half >= 2) {
+    let ok = true;
+    for (let i = 0; i < half; i++) {
+      const j = half + (i + 1) % half;
+      if (group[i].playedAgainst.has(group[j].player.id)) { ok = false; break; }
+    }
+    if (ok) {
+      const pairs: [PlayerState, PlayerState][] = [];
+      for (let i = 0; i < half; i++) {
+        const j = half + (i + 1) % half;
+        pairs.push([group[i], group[j]]);
+      }
+      return pairs;
+    }
+  }
+
+  return null;
 }
 
 /** 规则9b：组内穷举匹配——回溯法寻找无重复对阵的两两配对方案 */
@@ -138,21 +206,17 @@ function findValidPairingStates(group: PlayerState[]): PlayerState[] | null {
   return backtrack(group, 0);
 }
 
-/** 规则9+10：组内匹配——对折优先，失败则穷举，奇数/穷举失败则选人下移并递归 */
+/** 规则9+10：组内匹配——对折优先（多对折方式），失败则穷举，奇数/穷举失败则选人下移并递归 */
 function matchWithinGroup(group: PlayerState[]): { pairs: [PlayerState, PlayerState][]; toDown: PlayerState[] } {
   if (group.length <= 1) {
     return { pairs: [], toDown: group };
   }
 
   if (group.length % 2 === 0) {
-    // 对折匹配
-    if (tryFoldMatch(group)) {
-      const pairs: [PlayerState, PlayerState][] = [];
-      const half = group.length / 2;
-      for (let i = 0; i < half; i++) {
-        pairs.push([group[i], group[i + half]]);
-      }
-      return { pairs, toDown: [] };
+    // 对折匹配（尝试多种对折方式）
+    const foldPairs = tryFoldMatch(group);
+    if (foldPairs) {
+      return { pairs: foldPairs, toDown: [] };
     }
     // 组内穷举
     const pairing = findValidPairingStates(group);
@@ -172,27 +236,48 @@ function matchWithinGroup(group: PlayerState[]): { pairs: [PlayerState, PlayerSt
   return { pairs: result.pairs, toDown: [...result.toDown, downPlayer] };
 }
 
-/** 规则10a：下移组内部优先互相匹配（不改变上下匹配标记/次数） */
+/**
+ * 规则10a：下移组内部优先互相匹配（不改变上下匹配标记/次数）。
+ * 改用穷举回溯（复用 findValidPairingStates），最大化配对成功率，减少不必要的外溢。
+ */
 function matchDownPoolInternal(pool: PlayerState[]): { pairs: [PlayerState, PlayerState][]; remaining: PlayerState[] } {
-  const sorted = [...pool].sort((a, b) => a.rank - b.rank);
-  const matchedIds = new Set<string>();
-  const pairs: [PlayerState, PlayerState][] = [];
-
-  for (let i = 0; i < sorted.length; i++) {
-    if (matchedIds.has(sorted[i].player.id)) continue;
-    for (let j = i + 1; j < sorted.length; j++) {
-      if (matchedIds.has(sorted[j].player.id)) continue;
-      if (!sorted[i].playedAgainst.has(sorted[j].player.id)) {
-        pairs.push([sorted[i], sorted[j]]);
-        matchedIds.add(sorted[i].player.id);
-        matchedIds.add(sorted[j].player.id);
-        break;
-      }
-    }
+  if (pool.length < 2) {
+    return { pairs: [], remaining: [...pool] };
   }
 
-  const remaining = sorted.filter(s => !matchedIds.has(s.player.id));
-  return { pairs, remaining };
+  // 按排名排序，保证配对顺序稳定
+  const sorted = [...pool].sort((a, b) => a.rank - b.rank);
+
+  // 先尝试对折（最快）
+  const foldPairs = tryFoldMatch(sorted);
+  if (foldPairs) {
+    const matchedIds = new Set<string>();
+    for (const [p1, p2] of foldPairs) {
+      matchedIds.add(p1.player.id);
+      matchedIds.add(p2.player.id);
+    }
+    const remaining = sorted.filter(s => !matchedIds.has(s.player.id));
+    return { pairs: foldPairs, remaining };
+  }
+
+  // 对折失败则穷举回溯
+  const pairing = findValidPairingStates(sorted);
+  if (pairing) {
+    const pairs: [PlayerState, PlayerState][] = [];
+    for (let i = 0; i < pairing.length; i += 2) {
+      pairs.push([pairing[i], pairing[i + 1]]);
+    }
+    const matchedIds = new Set<string>();
+    for (const [p1, p2] of pairs) {
+      matchedIds.add(p1.player.id);
+      matchedIds.add(p2.player.id);
+    }
+    const remaining = sorted.filter(s => !matchedIds.has(s.player.id));
+    return { pairs, remaining };
+  }
+
+  // 穷举也失败：返回全部为剩余（流入下一战绩组）
+  return { pairs: [], remaining: sorted };
 }
 
 function createMatch(p1: PlayerState, p2: PlayerState, round: number): Match {
@@ -477,27 +562,13 @@ export function calculateAllWinRates(
 }
 
 export function getRankedPlayers(players: Player[], gameType: GameType = 'bo1', pairingType: PairingType = 'swiss'): Player[] {
-  if (pairingType === 'single_elimination') {
-    return sortPlayersByEliminationRank(players);
-  }
-  return sortPlayersByRank(players, gameType);
+  return sortPlayers(players, gameType, pairingType);
 }
 
 // ===== 单败淘汰制 =====
 
 export function getSingleEliminationRounds(playerCount: number): number {
   return Math.ceil(Math.log2(playerCount));
-}
-
-function sortPlayersByEliminationRank(players: Player[]): Player[] {
-  return [...players].sort((a, b) => {
-    const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
-    const bActive = b.dropped ? 0 : b.eliminated ? 1 : 2;
-    if (aActive !== bActive) return bActive - aActive;
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (a.losses !== b.losses) return a.losses - b.losses;
-    return a.name.localeCompare(b.name);
-  });
 }
 
 export function generateSingleEliminationPairings(

@@ -1,39 +1,10 @@
-import * as XLSX from 'xlsx';
 import type { Player, Match, GameType, PairingType, TournamentGroup } from '../types';
 import { getEliminationTitle, getEliminatedRound, formatPlayerMatchHistoryText } from './ranking';
+import { sortPlayers } from './swissPairing';
 
-function sortPlayers(players: Player[], gameType: GameType, pairingType: PairingType): Player[] {
-  if (pairingType === 'single_elimination') {
-    return [...players].sort((a, b) => {
-      // 活跃 > 被淘汰 > 弃赛
-      const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
-      const bActive = b.dropped ? 0 : b.eliminated ? 1 : 2;
-      if (aActive !== bActive) return bActive - aActive;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (a.losses !== b.losses) return a.losses - b.losses;
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  return [...players].sort((a, b) => {
-    // 活跃 > 被淘汰 > 弃赛
-    const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
-    const bActive = b.dropped ? 0 : b.eliminated ? 1 : 2;
-    if (aActive !== bActive) return bActive - aActive;
-
-    if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-    if (b.opponentWinRate !== a.opponentWinRate) return b.opponentWinRate - a.opponentWinRate;
-
-    if (gameType === 'bo1') {
-      if (b.opponentOpponentWinRate !== a.opponentOpponentWinRate) return b.opponentOpponentWinRate - a.opponentOpponentWinRate;
-    } else {
-      if (b.gameWinRate !== a.gameWinRate) return b.gameWinRate - a.gameWinRate;
-      if (b.opponentGameWinRate !== a.opponentGameWinRate) return b.opponentGameWinRate - a.opponentGameWinRate;
-    }
-
-    if (b.points !== a.points) return b.points - a.points;
-    return a.name.localeCompare(b.name);
-  });
+/** 动态加载 xlsx 库（仅在导出文件时按需加载，减小初始 bundle 体积） */
+async function loadXLSX(): Promise<typeof import('xlsx')> {
+  return await import('xlsx');
 }
 
 function formatPercent(value: number): string {
@@ -144,7 +115,7 @@ export function getMatchTableData(group: TournamentGroup, round: number): { head
   return { headers, rows };
 }
 
-export function exportRankingToExcel(
+export async function exportRankingToExcel(
   players: Player[],
   competitionName: string,
   groupName: string,
@@ -152,7 +123,8 @@ export function exportRankingToExcel(
   matches?: Match[],
   pairingType: PairingType = 'swiss',
   totalRounds?: number
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   // 复用 getRankingTableData，通过构建一个临时 group
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType, pairingType,
@@ -167,13 +139,14 @@ export function exportRankingToExcel(
   XLSX.writeFile(wb, `${competitionName}-${groupName}-排行榜.xlsx`);
 }
 
-export function exportMatchesToExcel(
+export async function exportMatchesToExcel(
   matches: Match[],
   players: Player[],
   competitionName: string,
   groupName: string,
   round: number
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
     totalRounds: round, currentRound: round, matches, status: 'in_progress', createdAt: '',
@@ -186,13 +159,14 @@ export function exportMatchesToExcel(
   XLSX.writeFile(wb, `${competitionName}-${groupName}-第${round}轮对阵表.xlsx`);
 }
 
-export function exportAllRoundsToExcel(
+export async function exportAllRoundsToExcel(
   matches: Match[],
   players: Player[],
   competitionName: string,
   groupName: string,
   totalRounds: number
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
     totalRounds, currentRound: totalRounds, matches, status: 'in_progress', createdAt: '',
@@ -209,10 +183,11 @@ export function exportAllRoundsToExcel(
 }
 
 /** 导出单小组总表（排行榜+全部对阵） */
-export function exportGroupSummaryToExcel(
+export async function exportGroupSummaryToExcel(
   group: TournamentGroup,
   competitionName: string
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const wb = XLSX.utils.book_new();
 
   // 排行榜
@@ -233,10 +208,11 @@ export function exportGroupSummaryToExcel(
   XLSX.writeFile(wb, `${competitionName}-${group.name}-总表.xlsx`);
 }
 
-export function exportAllGroupsToExcel(
+export async function exportAllGroupsToExcel(
   groups: TournamentGroup[],
   competitionName: string
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const wb = XLSX.utils.book_new();
 
   groups.forEach(group => {
@@ -257,10 +233,11 @@ export function exportAllGroupsToExcel(
   XLSX.writeFile(wb, `${competitionName}-全部小组比赛结果.xlsx`);
 }
 
-export function exportAllGroupsRankingToExcel(
+export async function exportAllGroupsRankingToExcel(
   groups: TournamentGroup[],
   competitionName: string
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const wb = XLSX.utils.book_new();
 
   groups.forEach(group => {
@@ -275,10 +252,11 @@ export function exportAllGroupsRankingToExcel(
 }
 
 /** 导出所有小组本轮对阵表 */
-export function exportAllGroupsCurrentRoundMatchesToExcel(
+export async function exportAllGroupsCurrentRoundMatchesToExcel(
   groups: TournamentGroup[],
   competitionName: string
-): void {
+): Promise<void> {
+  const XLSX = await loadXLSX();
   const wb = XLSX.utils.book_new();
 
   groups.forEach(group => {

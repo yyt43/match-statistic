@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
-  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers
+  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History
 } from 'lucide-react';
-import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../store/useTournamentStore';
 import type { GameType, PairingType } from '../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../utils/fileStorage';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
+import { ConfirmDialog } from './ConfirmDialog';
+import { BackupManager } from './BackupManager';
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -16,6 +18,7 @@ interface ControlPanelProps {
 
 export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
+  const isCurrentRoundComplete = useIsCurrentRoundComplete();
   const {
     competition,
     startTournament,
@@ -23,7 +26,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     generateNextRound,
     generateNextRoundAllGroups,
     undoLastRound,
-    isCurrentRoundComplete,
     resetCompetition,
     updateCompetitionName,
     updatePlayerName,
@@ -45,6 +47,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   } = useTournamentStore();
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [showBackupManager, setShowBackupManager] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -995,11 +999,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
               {currentGroup.currentRound > 0 && (
                 <button
-                  onClick={() => {
-                    if (window.confirm(`确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`)) {
-                      undoLastRound();
-                    }
-                  }}
+                  onClick={() => setShowUndoConfirm(true)}
                   className="w-full py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm flex items-center justify-center gap-2 border border-orange-500/25"
                 >
                   <Undo2 className="w-4 h-4" />
@@ -1007,7 +1007,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 </button>
               )}
 
-              {!isCurrentRoundComplete() && currentGroup.currentRound > 0 && (
+              {!isCurrentRoundComplete && currentGroup.currentRound > 0 && (
                 <div className="text-center text-xs text-amber-400 bg-amber-500/10 rounded-lg py-2 px-3">
                   <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
                   请先完成当前轮所有比赛
@@ -1081,7 +1081,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          <div className="pt-2 border-t border-slate-700/40">
+          <div className="pt-2 border-t border-slate-700/40 space-y-1.5">
+            <button
+              onClick={() => setShowBackupManager(true)}
+              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-sky-400 hover:bg-sky-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+            >
+              <History className="w-3.5 h-3.5" />
+              备份管理
+            </button>
             <button
               onClick={() => setShowResetConfirm(true)}
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
@@ -1094,7 +1101,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       </div>
 
       {/* 底部固定操作区：生成下一轮按钮（始终可见，不被滚动隐藏） */}
-      {isInProgress && isCurrentRoundComplete() && currentGroup.currentRound < currentGroup.totalRounds && (
+      {isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds && (
         <div className="shrink-0 p-3 border-t border-slate-700/50 bg-slate-800/60 space-y-2">
           <button
             onClick={onShowConfirm}
@@ -1120,31 +1127,31 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         </div>
       )}
 
-      {/* 重置确认 */}
-      {showResetConfirm && (
-        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-10">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-white mb-2">确认重置</h3>
-            <p className="text-sm text-slate-400 mb-4">
-              此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => { resetCompetition(); setShowResetConfirm(false); }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition-colors text-sm font-medium border border-rose-500/30"
-              >
-                确认重置
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 重置确认（统一使用自制 ConfirmDialog） */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        title="确认重置"
+        message="此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。"
+        confirmText="确认重置"
+        onConfirm={() => resetCompetition()}
+      />
+
+      {/* 撤回确认（替代 window.confirm） */}
+      <ConfirmDialog
+        isOpen={showUndoConfirm}
+        onClose={() => setShowUndoConfirm(false)}
+        title="确认撤回"
+        message={`确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
+        confirmText="确认撤回"
+        onConfirm={() => undoLastRound()}
+      />
+
+      {/* 备份管理面板 */}
+      <BackupManager
+        isOpen={showBackupManager}
+        onClose={() => setShowBackupManager(false)}
+      />
     </div>
   );
 }

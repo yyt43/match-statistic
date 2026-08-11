@@ -1,4 +1,4 @@
-import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield } from 'lucide-react';
+import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 
 interface HelpPageProps {
@@ -88,6 +88,21 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               title="测试模式"
               description="开启后在左侧排行榜面板顶部提供随机生成比赛结果的快捷按钮，便于演示、调试排名算法或预览导出效果，无需逐场手动录入。随机生成多轮结果时显示实时进度条。"
             />
+            <FeatureCard
+              icon={<GripVertical className="w-5 h-5" />}
+              title="对阵拖拽改序"
+              description="非编辑模式下，对阵列表中的比赛卡片可直接拖拽调整显示顺序。鼠标悬停时左上角出现拖拽手柄提示，拖拽中被拖卡片半透明、目标位置顶部高亮，释放后立即保存新顺序。"
+            />
+            <FeatureCard
+              icon={<History className="w-5 h-5" />}
+              title="自动快照备份"
+              description="每轮完赛时自动创建快照（保留最近 5 份），无需手动操作。点击控制面板底部的「备份管理」可查看所有快照、手动创建快照、恢复到任意快照或删除快照。恢复时自动重算所有排名数据。"
+            />
+            <FeatureCard
+              icon={<Keyboard className="w-5 h-5" />}
+              title="快捷操作"
+              description="Ctrl+Z（Mac 为 Cmd+Z）撤回上一轮比赛结果，无需点击按钮；生成下一轮前弹出配对预览面板，展示本轮双负/轮空/弃赛摘要及下一轮对阵预览；所有破坏性操作均使用统一确认弹窗，替代浏览器原生 confirm。"
+            />
           </div>
         </section>
 
@@ -165,6 +180,45 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
 
             <StepBlock
               number={6}
+              title="拖拽调整对阵顺序"
+              steps={[
+                '在非编辑模式下（即正常对阵列表显示时），每张比赛卡片均可拖拽',
+                '鼠标悬停在卡片上时，左上角会出现拖拽手柄图标作为提示',
+                '按住并拖动卡片到目标位置释放：被拖卡片显示半透明 + 金色边框，目标卡片顶部显示金色高亮条',
+                '释放后新顺序立即保存并持久化，刷新页面后仍然保留',
+                '编辑对阵模式下拖拽自动禁用，避免与选手交换操作冲突',
+                '注意：拖拽仅调整显示顺序，不影响比赛结果与配对逻辑'
+              ]}
+            />
+
+            <StepBlock
+              number={7}
+              title="快照备份与恢复"
+              steps={[
+                '系统在每轮完赛时自动创建快照，保留最近 5 份，无需手动操作',
+                '点击右侧控制面板底部的「备份管理」按钮打开快照管理面板',
+                '面板中显示所有快照的标签（如「小组01·第3轮完赛」）和保存时间',
+                '点击「立即创建快照」可手动保存当前状态',
+                '点击「恢复」可将数据回滚到该快照状态（恢复前会弹出确认，恢复后自动重算所有排名）',
+                '点击「删除」可删除单条快照（需确认）',
+                '快照存储在浏览器 localStorage 中，清除浏览器数据会同时清除快照'
+              ]}
+            />
+
+            <StepBlock
+              number={8}
+              title="快捷键与配对预览"
+              steps={[
+                'Ctrl+Z（Mac 为 Cmd+Z）：撤回上一轮比赛结果，页面底部显示橙色提示条',
+                '快捷键在以下情况下不生效：任意弹窗打开时、焦点在输入框/文本域中、比赛未开始或无可撤回轮次',
+                '点击「生成下一轮」按钮后会弹出确认面板，包含本轮摘要（双负/轮空/弃赛信息）和下一轮配对预览',
+                '配对预览展示下一轮的完整对阵，便于在确认前核对配对结果',
+                '所有破坏性操作（撤回/重置/随机生成）均使用统一风格的自制确认弹窗，替代浏览器原生 confirm'
+              ]}
+            />
+
+            <StepBlock
+              number={9}
               title="导出数据"
               steps={[
                 '导出图片：点击页面顶部工具栏的「导出图片」按钮，将排行榜或对阵表生成为 PNG 图片，可选择「当前小组」或「所有小组」。图片左下角自动添加系统标题水印',
@@ -291,6 +345,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
                 <li>采用浏览器 localStorage 持久化存储，关闭浏览器/标签页后数据保留</li>
                 <li><strong className="text-white">双 key 备份</strong>：每次保存同时写入主键（swiss_tournament_data）和备份键（swiss_tournament_data_backup），主键损坏时自动从备份键恢复</li>
                 <li>每次保存写入时间戳，便于追踪数据保存时机</li>
+                <li><strong className="text-white">自动快照</strong>：每轮完赛时自动创建快照（保留最近 5 份），可在控制面板的「备份管理」中恢复或删除</li>
                 <li>容量预警：数据接近 4MB 时顶部横幅提示「建议导出备份」</li>
                 <li>旧数据自动迁移：兼容 Envelope v2、原始 v1、以及最老的 LegacyTournament 三种格式，加载时自动补全新字段</li>
               </ul>
@@ -386,6 +441,22 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
             <FAQItem
               question="导出的图片有水印吗？"
               answer="有。导出的排行榜和对阵表图片左下角自动添加「诗意 · 比赛战绩统计系统」水印，与图例同行，不影响图片主体内容。水印样式为半透明灰色文字 + 金色装饰圆点，与网站主题色呼应。"
+            />
+            <FAQItem
+              question="如何拖拽调整对阵卡片的顺序？"
+              answer="在非编辑模式下（即正常显示对阵列表时），每张比赛卡片都可以直接拖拽。鼠标悬停在卡片上时左上角会出现拖拽手柄图标提示。按住卡片拖到目标位置释放即可：被拖卡片会半透明显示，目标位置顶部出现金色高亮条。释放后新顺序立即保存并持久化。编辑对阵模式下拖拽自动禁用。拖拽仅调整显示顺序，不影响比赛结果与配对逻辑。"
+            />
+            <FAQItem
+              question="快照备份是什么？和 JSON 导出有什么区别？"
+              answer="快照是系统在每轮完赛时自动保存的比赛数据副本，保留最近 5 份，存储在浏览器 localStorage 中。与 JSON 文件导出的区别：① 快照是自动的，无需手动操作；② 快照在浏览器内，恢复只需一键；③ JSON 文件需要手动导出/导入，可跨设备迁移。建议两者结合使用：快照用于赛中快速回滚，JSON 导出用于跨设备迁移和长期备份。"
+            />
+            <FAQItem
+              question="恢复快照后排名数据会正确吗？"
+              answer="会。快照为节省存储空间将胜率字段置零，恢复时系统会自动为每个小组重新计算所有胜率指标（胜率、对手胜率、局胜率等）和排名，确保恢复后的数据与快照时的状态完全一致。"
+            />
+            <FAQItem
+              question="Ctrl+Z 撤回快捷键什么时候可用？"
+              answer="当比赛进行中且当前轮有可撤回的轮次时，按 Ctrl+Z（Mac 为 Cmd+Z）可撤回上一轮。以下情况快捷键不生效：① 任意弹窗打开时（导出/确认/帮助/预览）；② 焦点在输入框或文本域中（此时 Ctrl+Z 为浏览器原生撤销文本）；③ 比赛未开始或当前无可撤回轮次。撤回成功后页面底部显示橙色提示条。"
             />
           </div>
         </section>

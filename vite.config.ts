@@ -9,6 +9,26 @@ export default defineConfig({
   base: './',
   build: {
     sourcemap: 'hidden',
+    rollupOptions: {
+      output: {
+        // 拆分大型第三方依赖到独立 chunk，减小初始 bundle 体积
+        // 注意：xlsx / html2canvas 在源码中通过动态 import() 加载，
+        // Rollup 会自动将其拆为懒加载 chunk，无需在此显式声明。
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react-router-dom') || id.includes('/react/') || id.includes('/react-dom/')) {
+              return 'react-vendor';
+            }
+            if (id.includes('zustand')) {
+              return 'state-vendor';
+            }
+            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
+              return 'ui-vendor';
+            }
+          }
+        },
+      },
+    },
   },
   plugins: [
     react({

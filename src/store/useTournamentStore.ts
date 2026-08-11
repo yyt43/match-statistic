@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
+import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
+import { saveSnapshot, getSnapshot } from '../utils/snapshot';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -92,18 +93,29 @@ interface CompetitionState {
   updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => void;
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => void;
   batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string }[]) => void;
+  reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
+  restoreFromSnapshot: (snapshotId: string) => boolean;
+  createSnapshot: (label?: string) => void;
 
   setViewRound: (round: number) => void;
   resetCompetition: () => void;
-
-  getMatchesForRound: (round: number) => Match[];
-  getRankedPlayers: () => Player[];
-  isCurrentRoundComplete: () => boolean;
 }
 
 // 便捷 hook：获取当前小组（响应式）
 export function useCurrentGroup(): TournamentGroup {
   return useTournamentStore(state => state.competition.groups[state.competition.currentGroupIndex]);
+}
+
+/**
+ * 便捷 hook：当前轮是否已全部完成（响应式）。
+ * 替代原先挂在 store 上的 isCurrentRoundComplete() getter，
+ * 现在基于响应式 selector 派生，组件无需手动重新计算。
+ */
+export function useIsCurrentRoundComplete(): boolean {
+  const group = useCurrentGroup();
+  if (group.currentRound === 0) return false;
+  const currentMatches = group.matches.filter(m => m.round === group.currentRound);
+  return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
 }
 
 // ===== 随机生成专用纯函数（不触发 set/save，避免批量操作时频繁重渲染与磁盘 IO） =====
@@ -1096,6 +1108,13 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated });
     saveCompetition(updated);
+
+    // 本轮全部完赛时自动创建快照（不阻断主流程）
+    if (allDone) {
+      try {
+        saveSnapshot(updated, `${group.name}·第${group.currentRound}轮完赛`);
+      } catch { /* 快照失败不影响主流程 */ }
+    }
   },
 
   setViewRound: (round: number) => {
@@ -1291,6 +1310,79 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(updated);
   },
 
+  reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => {
+    const { competition } = get();
+    if (fromMatchId === toMatchId) return;
+    const idx = competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group) return;
+
+    // 仅在同一轮内重排：将 fromMatch 移动到 toMatch 的位置
+    const roundMatchIds = group.matches.filter(m => m.round === round).map(m => m.id);
+    const fromIdx = roundMatchIds.indexOf(fromMatchId);
+    const toIdx = roundMatchIds.indexOf(toMatchId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+
+    // 在 round 范围内重排：提取本轮 matches，重排后写回原位置
+    const roundMatches = group.matches.filter(m => m.round === round);
+    const otherMatches = group.matches.filter(m => m.round !== round);
+    const [moved] = roundMatches.splice(fromIdx, 1);
+    roundMatches.splice(toIdx, 0, moved);
+
+    // 保持原 matches 数组中其他轮次的相对位置：按 round 顺序插入
+    // 简化处理：将 otherMatches + roundMatches 按 round 分组后重组
+    const roundOrder: number[] = [];
+    const byRound = new Map<number, typeof roundMatches>();
+    for (const m of otherMatches) {
+      if (!byRound.has(m.round)) { byRound.set(m.round, []); roundOrder.push(m.round); }
+      byRound.get(m.round)!.push(m);
+    }
+    byRound.set(round, roundMatches);
+    if (!roundOrder.includes(round)) roundOrder.push(round);
+    roundOrder.sort((a, b) => a - b);
+
+    const newMatches: typeof roundMatches = [];
+    for (const r of roundOrder) {
+      newMatches.push(...(byRound.get(r) || []));
+    }
+
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = { ...group, matches: newMatches };
+    const updated = { ...competition, groups: updatedGroups };
+    set({ competition: updated });
+    saveCompetition(updated);
+  },
+
+  createSnapshot: (label?: string) => {
+    const { competition } = get();
+    const currentGroup = competition.groups[competition.currentGroupIndex];
+    const defaultLabel = currentGroup
+      ? `${currentGroup.name}·第${currentGroup.currentRound}轮`
+      : '手动备份';
+    saveSnapshot(competition, label || defaultLabel);
+  },
+
+  restoreFromSnapshot: (snapshotId: string) => {
+    const snapshot = getSnapshot(snapshotId);
+    if (!snapshot) return false;
+    const restored = snapshot.data;
+    // 快照压缩时将胜率字段置 0，恢复后需要为每个小组重算胜率与排名
+    const recalcGroups = restored.groups.map(g => {
+      const updatedPlayers = calculateAllWinRates(g.players, g.matches, g.gameType);
+      const rankedPlayers = getRankedPlayers(updatedPlayers, g.gameType, g.pairingType);
+      // 恢复时 previousRank 设为当前 rank（避免显示异常升降箭头）
+      const finalPlayers = rankedPlayers.map((p, i) => ({ ...p, previousRank: i + 1 }));
+      return { ...g, players: finalPlayers };
+    });
+    const finalCompetition = { ...restored, groups: recalcGroups };
+    const viewRound = finalCompetition.groups[finalCompetition.currentGroupIndex]?.currentRound > 0
+      ? finalCompetition.groups[finalCompetition.currentGroupIndex].currentRound
+      : 0;
+    set({ competition: finalCompetition, viewRound, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
+    saveCompetition(finalCompetition);
+    return true;
+  },
+
   randomGenerateAllGroups: async () => {
     if (get().isRandomGenerating) return;
     const { competition } = get();
@@ -1437,25 +1529,5 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const competition = createNewCompetition('新建赛事');
     set({ competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
     saveCompetition(competition);
-  },
-
-  getMatchesForRound: (round: number) => {
-    const { competition } = get();
-    const group = competition.groups[competition.currentGroupIndex];
-    return group.matches.filter(m => m.round === round);
-  },
-
-  getRankedPlayers: () => {
-    const { competition } = get();
-    const group = competition.groups[competition.currentGroupIndex];
-    return getRankedPlayers(group.players, group.gameType, group.pairingType);
-  },
-
-  isCurrentRoundComplete: () => {
-    const { competition } = get();
-    const group = competition.groups[competition.currentGroupIndex];
-    if (group.currentRound === 0) return false;
-    const currentMatches = group.matches.filter(m => m.round === group.currentRound);
-    return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
   },
 }));

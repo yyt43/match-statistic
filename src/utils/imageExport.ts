@@ -1,10 +1,11 @@
-import html2canvas from 'html2canvas';
-
 export async function generateImage(elementId: string, fileName: string): Promise<void> {
   const element = document.getElementById(elementId);
   if (!element) {
     throw new Error(`Element with id "${elementId}" not found`);
   }
+
+  // 动态加载 html2canvas（仅在导出图片时按需加载，减小初始 bundle 体积）
+  const { default: html2canvas } = await import('html2canvas');
 
   // 保存当前滚动位置
   const originalScrollY = window.scrollY;

@@ -1,13 +1,13 @@
-import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo, useState, useEffect } from 'react';
 import { getEliminationTitle, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
+import { getRankedPlayers } from '../utils/swissPairing';
 
 export function RankingImageView() {
   const currentGroup = useCurrentGroup();
-  const { getRankedPlayers } = useTournamentStore();
 
   const rankedPlayers = useMemo(() => {
-    return getRankedPlayers();
+    return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
   }, [currentGroup.players, currentGroup.matches, currentGroup.gameType, currentGroup.pairingType]);
 
   const isMultiGame = currentGroup.gameType !== 'bo1';

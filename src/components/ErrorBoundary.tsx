@@ -9,6 +9,7 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  showResetConfirm: boolean;
 }
 
 /**
@@ -18,11 +19,11 @@ interface ErrorBoundaryState {
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, showResetConfirm: false };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return { hasError: true, error, showResetConfirm: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
@@ -45,19 +46,27 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   };
 
   handleReset = (): void => {
-    if (!window.confirm('确定要清空所有数据并重新开始吗？此操作不可恢复。')) return;
+    // 改为显示自定义确认弹窗，替代 window.confirm
+    this.setState({ showResetConfirm: true });
+  };
+
+  confirmReset = (): void => {
     try {
       localStorage.removeItem('swiss_tournament_data');
     } catch (e) {
       console.error('清理 localStorage 失败:', e);
     }
-    this.setState({ hasError: false, error: null }, () => {
+    this.setState({ hasError: false, error: null, showResetConfirm: false }, () => {
       window.location.reload();
     });
   };
 
+  cancelReset = (): void => {
+    this.setState({ showResetConfirm: false });
+  };
+
   handleRetry = (): void => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, showResetConfirm: false });
   };
 
   render(): ReactNode {
@@ -120,6 +129,45 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             若问题反复出现，请将上述错误信息反馈给开发者
           </p>
         </div>
+
+        {/* 重置确认弹窗（替代 window.confirm，类组件无法使用 ConfirmDialog hook） */}
+        {this.state.showResetConfirm && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={this.cancelReset}
+          >
+            <div
+              className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white">确认清空数据</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    确定要清空所有数据并重新开始吗？此操作不可恢复。
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={this.cancelReset}
+                  className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={this.confirmReset}
+                  className="px-4 py-2 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30 transition-colors text-sm font-medium"
+                >
+                  确认清空
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
