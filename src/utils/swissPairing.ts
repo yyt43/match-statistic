@@ -94,12 +94,46 @@ interface PlayerState {
   rank: number; // 本轮排序中的位置（0 = 最高排名）
 }
 
+/**
+ * 规则6：如相同战绩的选手均已向上或向下匹配过，若需再次向上或向下匹配，
+ * 则再赋予该组排名第一或最末的人第二次向上/向下匹配次数（重置标记与次数计数）。
+ * - 向下场景：给「排名最靠后」的人重置 hasDownPriority=true + downMatchCount=0
+ * - 向上场景：给「排名最靠前」的人重置 hasUpPriority=true + upMatchCount=0
+ *
+ * 判定"全员均已上下匹配过"：组内每人 downMatchCount+upMatchCount >= 1。
+ * 通过规则6二次赋予后，该组整体状态变为「存在至少一个人是新赋予的权限」，不再满足全员条件，
+ * 因此每次只会赋予一次，不会无限循环。
+ */
+function applyRule6Grant(group: PlayerState[], direction: 'down' | 'up'): void {
+  if (group.length === 0) return;
+  const allExperienced = group.every(
+    s => (s.downMatchCount ?? 0) + (s.upMatchCount ?? 0) > 0,
+  );
+  if (!allExperienced) return;
+  if (direction === 'down') {
+    // 排名最靠后（rank 最大）
+    const last = [...group].sort((a, b) => b.rank - a.rank)[0];
+    last.hasDownPriority = true;
+    last.downMatchCount = 0;
+    last.hasUpPriority = false;
+  } else {
+    // 排名最靠前（rank 最小）
+    const first = [...group].sort((a, b) => a.rank - b.rank)[0];
+    first.hasUpPriority = true;
+    first.upMatchCount = 0;
+    first.hasDownPriority = false;
+  }
+}
+
 /** 规则3：选择进入下移组的人（优先级从高到低）
  * a. 有向下标记(hasDownPriority) 优先
  * b. 向下匹配次数(downMatchCount) 最少
  * c. 排名最靠后（rank 最大）
+ *
+ * 前置：按规则6检测并赋予第二次向下机会。
  */
 function selectDownPlayer(group: PlayerState[]): PlayerState {
+  applyRule6Grant(group, 'down');
   return [...group].sort((a, b) => {
     if (a.hasDownPriority !== b.hasDownPriority) return a.hasDownPriority ? -1 : 1;
     if (a.downMatchCount !== b.downMatchCount) return a.downMatchCount - b.downMatchCount;
@@ -111,8 +145,11 @@ function selectDownPlayer(group: PlayerState[]): PlayerState {
  * a. 有向上标记(hasUpPriority) 优先
  * b. 向上匹配次数(upMatchCount) 最少
  * c. 排名最靠前（rank 最小）
+ *
+ * 前置：按规则6检测并赋予第二次向上机会。
  */
 function selectUpOpponent(downPlayer: PlayerState, candidates: PlayerState[]): PlayerState | null {
+  applyRule6Grant(candidates, 'up');
   const available = candidates.filter(s => !downPlayer.playedAgainst.has(s.player.id));
   if (available.length === 0) return null;
   return available.sort((a, b) => {
@@ -433,7 +470,14 @@ export function generateSwissPairings(
     downPool.push(...groupResult.toDown);
   }
 
-  // ===== 步骤C：所有组处理完，下移组剩余的轮空（规则7） =====
+  // ===== 步骤C：所有组处理完，对最终下移组优先做内部互相匹配（规则10a），剩余的轮空（规则7） =====
+  {
+    const finalInternal = matchDownPoolInternal(downPool);
+    for (const [p1, p2] of finalInternal.pairs) {
+      matches.push(createMatch(p1, p2, round));
+    }
+    downPool = finalInternal.remaining;
+  }
   for (const p of downPool) {
     matches.push({
       id: generateId(),
@@ -497,21 +541,30 @@ export function calculateAllWinRates(
   gameType: GameType = 'bo1'
 ): Player[] {
   const playerMap = new Map(players.map(p => [p.id, { ...p }]));
+  const BYE_ID = '__bye_virtual__';
+  // 规则8：轮空视为一场有效比赛，需要计入对手胜率、本人局胜率等小分统计。
+  // 'bye' 被当作一个虚拟对手：其 winRate=0, gameWinRate=0, opponentWinRate=0 (全胜对手的SOS不受轮空影响下限, 轮空者SOS因多一个0对手被稀释)。
 
   for (const player of playerMap.values()) {
     player.winRate = calculateWinRate(player);
     player.gameWinRate = calculateGameWinRate(player);
   }
 
-  // 预构建对手索引：playerId → Set<对手Id>（过滤掉轮空/待定对阵）
+  // 预构建对手索引：playerId → Set<对手Id>
+  // 非轮空/待定对阵加入真实对手；轮空对阵加入虚拟对手 BYE_ID（规则8）
   const opponentIdsByPlayer = new Map<string, Set<string>>();
   for (const player of playerMap.values()) {
     opponentIdsByPlayer.set(player.id, new Set());
   }
   for (const match of matches) {
-    if (match.isBye || match.result === 'pending') continue;
-    opponentIdsByPlayer.get(match.player1Id)?.add(match.player2Id);
-    opponentIdsByPlayer.get(match.player2Id)?.add(match.player1Id);
+    if (match.result === 'pending') continue;
+    if (match.isBye) {
+      // 规则8：轮空的该轮得分为2-0，该场次有效，计入本人对手胜率（虚拟对手BYE贡献WR=0）
+      opponentIdsByPlayer.get(match.player1Id)?.add(BYE_ID);
+    } else {
+      opponentIdsByPlayer.get(match.player1Id)?.add(match.player2Id);
+      opponentIdsByPlayer.get(match.player2Id)?.add(match.player1Id);
+    }
   }
 
   for (let iteration = 0; iteration < 2; iteration++) {
@@ -523,6 +576,8 @@ export function calculateAllWinRates(
         currentRates.set(id, player.opponentWinRate);
       }
     }
+    // 虚拟对手 'bye'：0胜（即轮空相当于输给了不存在的对手？不：轮空者是赢了BYE，所以BYE本人被认为是一个0胜率的对手）
+    currentRates.set(BYE_ID, 0);
 
     for (const player of playerMap.values()) {
       const opponentIds = opponentIdsByPlayer.get(player.id);
@@ -532,11 +587,12 @@ export function calculateAllWinRates(
         continue;
       }
       let sum = 0;
+      let count = 0;
       for (const oid of opponentIds) {
         const r = currentRates.get(oid);
-        if (r !== undefined) sum += r;
+        if (r !== undefined) { sum += r; count += 1; }
       }
-      const avg = sum / opponentIds.size;
+      const avg = count === 0 ? 0 : sum / count;
       if (iteration === 0) player.opponentWinRate = avg;
       else player.opponentOpponentWinRate = avg;
     }
@@ -550,11 +606,18 @@ export function calculateAllWinRates(
         continue;
       }
       let sum = 0;
+      let count = 0;
       for (const oid of opponentIds) {
+        if (oid === BYE_ID) {
+          // 虚拟 bye 对手的局胜率为 0（轮空者2-0赢了BYE，BYE本人局胜率0）
+          sum += 0;
+          count += 1;
+          continue;
+        }
         const o = playerMap.get(oid);
-        if (o) sum += o.gameWinRate;
+        if (o) { sum += o.gameWinRate; count += 1; }
       }
-      player.opponentGameWinRate = sum / opponentIds.size;
+      player.opponentGameWinRate = count === 0 ? 0 : sum / count;
     }
   }
 
