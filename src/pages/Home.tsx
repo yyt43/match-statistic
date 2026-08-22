@@ -258,79 +258,83 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
   const totalDropped = groupsToShow.reduce((sum, g) => sum + g.players.filter(p => p.dropped).length, 0);
 
   return (
-    <div className="space-y-3 mb-5 border-y border-slate-700/50 py-4">
-      {groupsToShow.map(group => {
-        const drawMatches = group.matches.filter(m => m.round === group.currentRound && m.result === 'draw');
-        const byeMatches = group.matches.filter(m => m.round === group.currentRound && m.isBye);
-        const droppedPlayers = group.players.filter(p => p.dropped);
+    <div className="mb-5 border-y border-slate-700/50 py-4">
+      <div className="space-y-3 max-h-64 overflow-y-auto pr-1 -mr-1">
+        {groupsToShow.map(group => {
+          const drawMatches = group.matches.filter(m => m.round === group.currentRound && m.result === 'draw');
+          const byeMatches = group.matches.filter(m => m.round === group.currentRound && m.isBye);
+          const droppedPlayers = group.players.filter(p => p.dropped);
 
-        if (drawMatches.length === 0 && byeMatches.length === 0 && droppedPlayers.length === 0) return null;
+          if (drawMatches.length === 0 && byeMatches.length === 0 && droppedPlayers.length === 0) return null;
 
-        const playerMap = new Map(group.players.map(p => [p.id, p.name]));
+          const playerMap = new Map(group.players.map(p => [p.id, p.name]));
 
-        return (
-          <div key={group.id} className="space-y-2">
-            {groupsToShow.length > 1 && (
-              <div className="text-xs font-medium text-slate-300">{group.name} · 第{group.currentRound}轮</div>
-            )}
+          return (
+            <div key={group.id} className="space-y-2">
+              {groupsToShow.length > 1 && (
+                <div className="text-xs font-medium text-slate-300 sticky top-0 bg-slate-800/90 backdrop-blur-sm py-1 -my-1 rounded z-10">
+                  {group.name} · 第{group.currentRound}轮
+                </div>
+              )}
 
-            {drawMatches.length > 0 && (
-              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Scale className="w-4 h-4 text-orange-400" />
-                  <span className="text-xs font-medium text-orange-300">双负比赛：{drawMatches.length} 场</span>
+              {drawMatches.length > 0 && (
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Scale className="w-4 h-4 text-orange-400 shrink-0" />
+                    <span className="text-xs font-medium text-orange-300">双负比赛：{drawMatches.length} 场</span>
+                  </div>
+                  <div className="text-xs text-orange-400/80 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
+                    {drawMatches.map(m => (
+                      <div key={m.id}>
+                        {playerMap.get(m.player1Id) || '未知'} vs {playerMap.get(m.player2Id) || '未知'}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-xs text-orange-400/80 space-y-0.5 pl-6">
-                  {drawMatches.map(m => (
-                    <div key={m.id}>
-                      {playerMap.get(m.player1Id) || '未知'} vs {playerMap.get(m.player2Id) || '未知'}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
 
-            {byeMatches.length > 0 && (
-              <div className="bg-slate-600/20 border border-slate-600/30 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <AlertTriangle className="w-4 h-4 text-slate-400" />
-                  <span className="text-xs font-medium text-slate-300">轮空：{byeMatches.length} 人</span>
+              {byeMatches.length > 0 && (
+                <div className="bg-slate-600/20 border border-slate-600/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <AlertTriangle className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-xs font-medium text-slate-300">轮空：{byeMatches.length} 人</span>
+                  </div>
+                  <div className="text-xs text-slate-400 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
+                    {byeMatches.map(m => (
+                      <div key={m.id}>
+                        {playerMap.get(m.player1Id) || '未知'}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400 space-y-0.5 pl-6">
-                  {byeMatches.map(m => (
-                    <div key={m.id}>
-                      {playerMap.get(m.player1Id) || '未知'}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
 
-            {droppedPlayers.length > 0 && (
-              <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <UserX className="w-4 h-4 text-rose-400" />
-                  <span className="text-xs font-medium text-rose-300">弃赛选手：{droppedPlayers.length} 人</span>
+              {droppedPlayers.length > 0 && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <UserX className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span className="text-xs font-medium text-rose-300">弃赛选手：{droppedPlayers.length} 人</span>
+                  </div>
+                  <div className="text-xs text-rose-400/80 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
+                    {droppedPlayers.map(p => (
+                      <div key={p.id}>{p.name}</div>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-xs text-rose-400/80 space-y-0.5 pl-6">
-                  {droppedPlayers.map(p => (
-                    <div key={p.id}>{p.name}</div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+          );
+        })}
+
+        {totalDraws === 0 && totalByes === 0 && totalDropped === 0 && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs font-medium text-emerald-300">本轮无双负、无轮空、无弃赛情况</span>
+            </div>
           </div>
-        );
-      })}
-
-      {totalDraws === 0 && totalByes === 0 && totalDropped === 0 && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-medium text-emerald-300">本轮无双负、无轮空、无弃赛情况</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

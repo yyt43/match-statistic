@@ -308,7 +308,7 @@ describe('calculateAllWinRates', () => {
     // a 与 b 各 1 胜 1 负 → 胜率均 0.5
     expect(result[0].winRate).toBeCloseTo(0.5);
     expect(result[1].winRate).toBeCloseTo(0.5);
-    // 互为对手，对手胜率 = 对方胜率
+    // 聚合公式 SOS：只遇到同一个对手 b(1-1) → 胜场和 1 / 总场次和 2 = 0.5
     expect(result[0].opponentWinRate).toBeCloseTo(0.5);
     expect(result[1].opponentWinRate).toBeCloseTo(0.5);
   });
@@ -327,6 +327,81 @@ describe('calculateAllWinRates', () => {
     const result = calculateAllWinRates(players, matches, 'bo1');
     // a: 1 胜 0 负 → 1.0
     expect(result[0].winRate).toBeCloseTo(1.0);
+  });
+
+  it('弃赛对手 SOS 使用聚合公式：对手胜场和 / 对手总场次和（弃赛场次少自动降权）', () => {
+    // 用户原始需求场景：
+    // 我(Me)的两个对手：X=5-0 全胜，Y=0-1 弃赛只打了 1 场
+    // 期望 SOS = (5 + 0) / (5+0 + 0+1) = 5/6 ≈ 0.8333
+    //   （对比旧的人均公式：(5/5 + 0/1)/2 = 0.5，会被弃赛选手过度拉低）
+    const me = makePlayer('me', '我', { wins: 1, losses: 1 });          // 1-1
+    const x = makePlayer('x', 'X', { wins: 5, losses: 0 });              // 5-0
+    const y = makePlayer('y', 'Y弃赛', { wins: 0, losses: 1, dropped: true }); // 0-1 弃赛
+    const other1 = makePlayer('o1', '其他1', { wins: 0, losses: 2 });
+    const other2 = makePlayer('o2', '其他2', { wins: 0, losses: 2 });
+    const other3 = makePlayer('o3', '其他3', { wins: 0, losses: 1 });
+    const other4 = makePlayer('o4', '其他4', { wins: 0, losses: 1 });
+    const other5 = makePlayer('o5', '其他5', { wins: 2, losses: 0 });    // 2-0
+    const players = [me, x, y, other1, other2, other3, other4, other5];
+
+    const matches: Match[] = [
+      // Me vs X → X 胜；Me vs Y → Me 胜 (Y 弃赛，0-1)
+      makeMatch('m-me-x', 1, 'me', 'x', 'player2'),
+      makeMatch('m-me-y', 2, 'me', 'y', 'player1'),
+      // X 另外 4 场胜利 (凑 5-0)
+      makeMatch('m-x-o1', 1, 'x', 'o1', 'player1'),
+      makeMatch('m-x-o2', 2, 'x', 'o2', 'player1'),
+      makeMatch('m-x-o3', 3, 'x', 'o3', 'player1'),
+      makeMatch('m-x-o4', 4, 'x', 'o4', 'player1'),
+      // o5 胜 o1、胜 o2 (o5=2-0, o1/o2 各再添 1 负)
+      makeMatch('o1-o5', 3, 'o1', 'o5', 'player2'),
+      makeMatch('o2-o5', 4, 'o2', 'o5', 'player2'),
+    ];
+
+    const result = calculateAllWinRates(players, matches, 'bo1');
+    const meResult = result.find(p => p.id === 'me')!;
+    // Me 的对手：X(5-0) 和 Y(0-1 弃赛)
+    // 聚合 SOS = Σ对手胜场 / Σ对手总场次 = (5 + 0) / (5 + 1) = 5/6
+    expect(meResult.opponentWinRate).toBeCloseTo(5 / 6);
+    // 再确认：不是旧人均公式的 0.5
+    expect(meResult.opponentWinRate).not.toBeCloseTo(0.5);
+  });
+
+  it('SOSOS 对手对手胜率同样使用聚合公式（对手的对手胜场和/总场次和）', () => {
+    // 三人 A-B-C 三角：A 胜 B，B 胜 C，C 胜 A → 每人 1-1
+    // A 的对手是 B(1-1)；B 的对手是 A(1-1) 和 C(1-1)
+    // A 的 SOSOS = 摊平 B 的对手们的胜场/场次：A(1-1) + C(1-1) → (1+1)/(2+2)=2/4=0.5
+    const a = makePlayer('a', 'A', { wins: 1, losses: 1 });
+    const b = makePlayer('b', 'B', { wins: 1, losses: 1 });
+    const c = makePlayer('c', 'C', { wins: 1, losses: 1 });
+    const players = [a, b, c];
+    const matches: Match[] = [
+      makeMatch('m1', 1, 'a', 'b', 'player1'), // A 胜 B
+      makeMatch('m2', 2, 'b', 'c', 'player1'), // B 胜 C
+      makeMatch('m3', 3, 'c', 'a', 'player1'), // C 胜 A
+    ];
+    const [aR] = calculateAllWinRates(players, matches, 'bo1');
+    // A 的 SOS：对手 B(1-1) → 1/2 = 0.5
+    expect(aR.opponentWinRate).toBeCloseTo(0.5);
+    // A 的 SOSOS：B 的对手 = {A, C}；A(1-1) C(1-1) → (1+1)/(2+2)=2/4=0.5
+    expect(aR.opponentOpponentWinRate).toBeCloseTo(0.5);
+  });
+
+  it('BO3 对手局胜率 聚合公式：对手胜局和 / 对手总局和', () => {
+    // A 对 B，BO3，A 2-1 胜：A.wonGames=2, totalGames=3；B.wonGames=1, totalGames=3
+    const a = makePlayer('a', 'A', { wins: 1, losses: 0, wonGames: 2, totalGames: 3 });
+    const b = makePlayer('b', 'B', { wins: 0, losses: 1, wonGames: 1, totalGames: 3 });
+    const matches: Match[] = [
+      {
+        id: 'm1', round: 1, player1Id: 'a', player2Id: 'b',
+        result: 'player1', isBye: false, player1Games: 2, player2Games: 1,
+      },
+    ];
+    const [aR, bR] = calculateAllWinRates([a, b], matches, 'bo3');
+    // A 的对手局胜率：对手 B 的胜局 1 / 总局 3 = 1/3
+    expect(aR.opponentGameWinRate).toBeCloseTo(1 / 3);
+    // B 的对手局胜率：对手 A 的胜局 2 / 总局 3 = 2/3
+    expect(bR.opponentGameWinRate).toBeCloseTo(2 / 3);
   });
 });
 

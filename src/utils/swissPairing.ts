@@ -543,14 +543,15 @@ export function calculateAllWinRates(
   const playerMap = new Map(players.map(p => [p.id, { ...p }]));
   const BYE_ID = '__bye_virtual__';
   // 规则8：轮空视为一场有效比赛，需要计入对手胜率、本人局胜率等小分统计。
-  // 'bye' 被当作一个虚拟对手：其 winRate=0, gameWinRate=0, opponentWinRate=0 (全胜对手的SOS不受轮空影响下限, 轮空者SOS因多一个0对手被稀释)。
+  // 'bye' 被当作一个虚拟对手：其胜场=0、场次=1、胜局=0、总局=该轮次BYE比分总和（如 BO3=2-0 → 总局=2）
 
+  // ---- 1. 个人胜率 / 个人局胜率 ----
   for (const player of playerMap.values()) {
     player.winRate = calculateWinRate(player);
     player.gameWinRate = calculateGameWinRate(player);
   }
 
-  // 预构建对手索引：playerId → Set<对手Id>
+  // ---- 2. 构建对手索引：playerId → Set<对手Id> ----
   // 非轮空/待定对阵加入真实对手；轮空对阵加入虚拟对手 BYE_ID（规则8）
   const opponentIdsByPlayer = new Map<string, Set<string>>();
   for (const player of playerMap.values()) {
@@ -559,7 +560,6 @@ export function calculateAllWinRates(
   for (const match of matches) {
     if (match.result === 'pending') continue;
     if (match.isBye) {
-      // 规则8：轮空的该轮得分为2-0，该场次有效，计入本人对手胜率（虚拟对手BYE贡献WR=0）
       opponentIdsByPlayer.get(match.player1Id)?.add(BYE_ID);
     } else {
       opponentIdsByPlayer.get(match.player1Id)?.add(match.player2Id);
@@ -567,57 +567,107 @@ export function calculateAllWinRates(
     }
   }
 
-  for (let iteration = 0; iteration < 2; iteration++) {
-    const currentRates = new Map<string, number>();
-    for (const [id, player] of playerMap) {
-      if (iteration === 0) {
-        currentRates.set(id, player.winRate);
+  // ---- 3. 对手胜率 SOS（聚合公式：Σ对手胜场 / Σ对手总场次） ----
+  // 弃赛选手自然因场次少而降权（弃赛后续未打轮次不计入分子分母）
+  for (const player of playerMap.values()) {
+    const opponentIds = opponentIdsByPlayer.get(player.id);
+    if (!opponentIds || opponentIds.size === 0) {
+      player.opponentWinRate = 0;
+      continue;
+    }
+    let sumWins = 0;
+    let sumGames = 0;
+    for (const oid of opponentIds) {
+      if (oid === BYE_ID) {
+        // 轮空虚拟对手：0 胜，1 场（视为 0% 胜率的一个对手）
+        sumWins += 0;
+        sumGames += 1;
       } else {
-        currentRates.set(id, player.opponentWinRate);
+        const o = playerMap.get(oid);
+        if (!o) continue;
+        sumWins += o.wins;
+        sumGames += o.wins + o.losses;
       }
     }
-    // 虚拟对手 'bye'：0胜（即轮空相当于输给了不存在的对手？不：轮空者是赢了BYE，所以BYE本人被认为是一个0胜率的对手）
-    currentRates.set(BYE_ID, 0);
-
-    for (const player of playerMap.values()) {
-      const opponentIds = opponentIdsByPlayer.get(player.id);
-      if (!opponentIds || opponentIds.size === 0) {
-        if (iteration === 0) player.opponentWinRate = 0;
-        else player.opponentOpponentWinRate = 0;
-        continue;
-      }
-      let sum = 0;
-      let count = 0;
-      for (const oid of opponentIds) {
-        const r = currentRates.get(oid);
-        if (r !== undefined) { sum += r; count += 1; }
-      }
-      const avg = count === 0 ? 0 : sum / count;
-      if (iteration === 0) player.opponentWinRate = avg;
-      else player.opponentOpponentWinRate = avg;
-    }
+    player.opponentWinRate = sumGames === 0 ? 0 : sumWins / sumGames;
   }
 
-  if (gameType !== 'bo1') {
-    for (const player of playerMap.values()) {
-      const opponentIds = opponentIdsByPlayer.get(player.id);
-      if (!opponentIds || opponentIds.size === 0) {
-        player.opponentGameWinRate = 0;
-        continue;
-      }
-      let sum = 0;
-      let count = 0;
-      for (const oid of opponentIds) {
-        if (oid === BYE_ID) {
-          // 虚拟 bye 对手的局胜率为 0（轮空者2-0赢了BYE，BYE本人局胜率0）
-          sum += 0;
-          count += 1;
-          continue;
+  // ---- 4. 对手对手胜率 SOSOS（聚合公式：Σ对手的对手胜场 / Σ对手的对手总场次）----
+  // 把每个对手的对手集合摊平，累加所有对手的对手的胜场与总场次
+  for (const player of playerMap.values()) {
+    const opponentIds = opponentIdsByPlayer.get(player.id);
+    if (!opponentIds || opponentIds.size === 0) {
+      player.opponentOpponentWinRate = 0;
+      continue;
+    }
+    let sumWins = 0;
+    let sumGames = 0;
+    for (const oid of opponentIds) {
+      if (oid === BYE_ID) {
+        // BYE 本身作为"一个 0-1 的对手"递归到底，不再展开其"对手"（BYE 没有真实对手）
+        // 等价于：BYE 的"对手们"贡献一场 0 胜 1 负
+        sumWins += 0;
+        sumGames += 1;
+      } else {
+        const ooIds = opponentIdsByPlayer.get(oid);
+        if (!ooIds) continue;
+        for (const ooid of ooIds) {
+          if (ooid === BYE_ID) {
+            sumWins += 0;
+            sumGames += 1;
+          } else {
+            const oo = playerMap.get(ooid);
+            if (!oo) continue;
+            sumWins += oo.wins;
+            sumGames += oo.wins + oo.losses;
+          }
         }
-        const o = playerMap.get(oid);
-        if (o) { sum += o.gameWinRate; count += 1; }
       }
-      player.opponentGameWinRate = count === 0 ? 0 : sum / count;
+    }
+    player.opponentOpponentWinRate = sumGames === 0 ? 0 : sumWins / sumGames;
+  }
+
+  // ---- 5. 对手局胜率（仅非 BO1 赛制，聚合公式：Σ对手胜局 / Σ对手总局）----
+  // BYE 虚拟对手的局贡献直接取自该 BYE 场的 player2Games（=0）和 p1G+p2G（=该赛制BYE比分）
+  if (gameType !== 'bo1') {
+    // 5a. 先按 playerId 累计对手的胜局/总局（真实对手用个人累计，BYE 用场次局数）
+    const accWon = new Map<string, number>();
+    const accTotal = new Map<string, number>();
+    for (const pid of playerMap.keys()) {
+      accWon.set(pid, 0);
+      accTotal.set(pid, 0);
+    }
+    for (const match of matches) {
+      if (match.result === 'pending') continue;
+      if (match.isBye) {
+        // BYE = player2，用本场比分决定 BYE 的"局战绩"
+        const byeWon = match.player2Games || 0;
+        const byeTotal = (match.player1Games || 0) + (match.player2Games || 0);
+        const w1 = accWon.get(match.player1Id);
+        const t1 = accTotal.get(match.player1Id);
+        if (w1 !== undefined) accWon.set(match.player1Id, w1 + byeWon);
+        if (t1 !== undefined) accTotal.set(match.player1Id, t1 + byeTotal);
+      } else {
+        // 真实对战：双方互相把对手的个人局战绩计入自己的"对手局胜率"累加器
+        const p1 = playerMap.get(match.player1Id);
+        const p2 = playerMap.get(match.player2Id);
+        if (p1 && p2) {
+          // p1 的对手是 p2，把 p2 的个人局战绩计入 p1 的累加器
+          const w1 = accWon.get(match.player1Id)!;
+          const t1 = accTotal.get(match.player1Id)!;
+          accWon.set(match.player1Id, w1 + p2.wonGames);
+          accTotal.set(match.player1Id, t1 + p2.totalGames);
+          // p2 的对手是 p1，把 p1 的个人局战绩计入 p2 的累加器
+          const w2 = accWon.get(match.player2Id)!;
+          const t2 = accTotal.get(match.player2Id)!;
+          accWon.set(match.player2Id, w2 + p1.wonGames);
+          accTotal.set(match.player2Id, t2 + p1.totalGames);
+        }
+      }
+    }
+    for (const [pid, player] of playerMap) {
+      const t = accTotal.get(pid) || 0;
+      player.opponentGameWinRate = t === 0 ? 0 : (accWon.get(pid) || 0) / t;
     }
   }
 
