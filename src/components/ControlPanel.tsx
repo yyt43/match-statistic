@@ -1016,10 +1016,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          {/* 弃赛管理 */}
+          {/* 赛后弃赛管理 */}
           {isInProgress && (
             <div className="pt-2 border-t border-slate-700/40">
-              <h3 className="text-[10px] font-medium text-slate-500 mb-1.5">弃赛管理</h3>
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-[10px] font-medium text-slate-500">赛后弃赛管理</h3>
+                <span className="text-[8px] text-slate-500 bg-slate-700/30 border border-slate-600/30 px-1.5 py-0.5 rounded-full">与赛前弃赛区分</span>
+              </div>
               <div className="max-h-28 overflow-y-auto space-y-1">
                 {currentGroup.players.filter(p => !p.dropped && !p.eliminated).map(player => (
                   <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-slate-800/30 rounded-md">
@@ -1027,9 +1030,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                     <button
                       onClick={() => togglePlayerDropped(player.id)}
                       className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      title="赛后弃赛：从该轮起退出赛事。后续轮次不再参与配对，已完赛场次全部保留，战绩冻结在弃赛时刻。"
                     >
                       <UserX className="w-2.5 h-2.5" />
-                      弃赛
+                      赛后弃赛
                     </button>
                   </div>
                 ))}
@@ -1051,7 +1055,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               )}
               {currentGroup.players.some(p => p.dropped) && (
                 <div className="mt-1.5">
-                  <h4 className="text-[10px] text-slate-500 mb-1">已弃赛</h4>
+                  <h4 className="text-[10px] text-slate-500 mb-1">已赛后弃赛</h4>
                   <div className="max-h-16 overflow-y-auto space-y-1">
                     {currentGroup.players.filter(p => p.dropped).map(player => (
                       <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
@@ -1059,6 +1063,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         <button
                           onClick={() => togglePlayerDropped(player.id)}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                          title="恢复赛后弃赛：将该选手重新纳入后续轮次配对。已冻结的战绩不变。"
                         >
                           <UserCheck className="w-2.5 h-2.5" />
                           恢复
@@ -1068,6 +1073,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   </div>
                 </div>
               )}
+              <div className="mt-1.5 text-[9px] leading-tight text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1">
+                提示：赛后弃赛（全局）≠ 对阵卡片中的赛前弃赛（单场）。前者不再参与下一轮配对并冻结战绩，后者只影响当前单场结果。
+              </div>
             </div>
           )}
 

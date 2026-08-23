@@ -489,14 +489,18 @@ function ResultButtons({ gameType, onResult }: {
           <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
         </div>
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
-          <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="右侧选手赛前弃赛，不计入对手胜率">
-            右弃·左胜
+          <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。">
+            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
+            <span className="block">右弃权·左胜</span>
+            <span className="block text-[8px] text-rose-400/60">右不记败场</span>
           </button>
           <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40">
             <X className="w-3 h-3" />重置
           </button>
-          <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="左侧选手赛前弃赛，不计入对手胜率">
-            左弃·右胜
+          <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。">
+            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
+            <span className="block">左弃权·右胜</span>
+            <span className="block text-[8px] text-rose-400/60">左不记败场</span>
           </button>
         </div>
       </div>
@@ -528,12 +532,16 @@ function ResultButtons({ gameType, onResult }: {
         <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
       </div>
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
-        <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="右侧选手赛前弃赛，不计入对手胜率">
-          右弃·左胜
+        <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。">
+          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
+          <span className="block">右弃权·左胜</span>
+          <span className="block text-[8px] text-rose-400/60">右不记败场</span>
         </button>
         <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40"><X className="w-3 h-3" />重置</button>
-        <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="左侧选手赛前弃赛，不计入对手胜率">
-          左弃·右胜
+        <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。">
+          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
+          <span className="block">左弃权·右胜</span>
+          <span className="block text-[8px] text-rose-400/60">左不记败场</span>
         </button>
       </div>
     </div>
