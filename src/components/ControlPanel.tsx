@@ -1041,7 +1041,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               <span className="text-xs text-slate-300 truncate">{player.name}</span>
                               {isPreDropped && (
-                                <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手曾在之前某轮单场赛前弃赛。此处为赛后弃赛（全局不再配对）入口，请勿重复操作。">
+                                <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手在之前某轮单场赛前弃赛。按本系统规则，赛前弃赛本身就等同于退赛：从弃赛起后续轮次均不再安排对局，且已自动进入「已赛后弃赛」分组。">
                                   赛前弃赛
                                 </span>
                               )}
@@ -1056,12 +1056,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                               }
                               title={
                                 isPreDropped
-                                  ? '该选手已有赛前弃赛记录（单场）。此按钮为「赛后弃赛」，会让他从下一轮起不再配对，通常无需再操作。'
+                                  ? '赛前弃赛本身就等同于退赛：后续已不再安排对局。该选手若出现在此处一般是执行过「恢复」或录入异常，点此按钮会重新执行全局赛后弃赛（放回「已赛后弃赛」分组）。'
                                   : '赛后弃赛：从该轮起退出赛事。后续轮次不再参与配对，已完赛场次全部保留，战绩冻结在弃赛时刻。'
                               }
                             >
                               <UserX className="w-2.5 h-2.5" />
-                              {isPreDropped ? '赛后弃赛(勿重)' : '赛后弃赛'}
+                              {isPreDropped ? '赛后弃赛(不必再点)' : '赛后弃赛'}
                             </button>
                           </div>
                         );
