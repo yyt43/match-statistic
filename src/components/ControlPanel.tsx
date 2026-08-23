@@ -1016,7 +1016,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          {/* 赛后弃赛管理 */}
+          {/* 赛前弃赛 / 赛后弃赛管理 */}
           {isInProgress && (
             <div className="pt-2 border-t border-slate-700/40">
               {(() => {
@@ -1030,8 +1030,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 return (
                   <>
                     <div className="flex items-center justify-between mb-1.5">
-                      <h3 className="text-[10px] font-medium text-slate-500">赛后弃赛管理</h3>
-                      <span className="text-[8px] text-slate-500 bg-slate-700/30 border border-slate-600/30 px-1.5 py-0.5 rounded-full">与赛前弃赛区分</span>
+                      <h3 className="text-[10px] font-medium text-slate-500">赛前 / 赛后弃赛管理</h3>
+                      <span className="text-[8px] text-slate-500 bg-slate-700/30 border border-slate-600/30 px-1.5 py-0.5 rounded-full">两者都等同于退赛</span>
                     </div>
                     <div className="max-h-28 overflow-y-auto space-y-1">
                       {currentGroup.players.filter(p => !p.dropped && !p.eliminated).map(player => {
@@ -1041,7 +1041,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               <span className="text-xs text-slate-300 truncate">{player.name}</span>
                               {isPreDropped && (
-                                <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手在之前某轮单场赛前弃赛。按本系统规则，赛前弃赛本身就等同于退赛：从弃赛起后续轮次均不再安排对局，且已自动进入「已赛后弃赛」分组。">
+                                <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手在之前某轮通过「赛前弃赛」宣布弃权，已自动进入退赛状态（后续不再安排对局）。">
                                   赛前弃赛
                                 </span>
                               )}
@@ -1056,12 +1056,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                               }
                               title={
                                 isPreDropped
-                                  ? '赛前弃赛本身就等同于退赛：后续已不再安排对局。该选手若出现在此处一般是执行过「恢复」或录入异常，点此按钮会重新执行全局赛后弃赛（放回「已赛后弃赛」分组）。'
-                                  : '赛后弃赛：从该轮起退出赛事。后续轮次不再参与配对，已完赛场次全部保留，战绩冻结在弃赛时刻。'
+                                  ? '该选手已因赛前弃赛处于退赛状态。若出现在此处一般是执行过「恢复」操作，点此按钮会重新手动标记退赛（放回「已赛前弃赛」列表）。'
+                                  : '赛后弃赛：针对选手个人的退赛标记。后续轮次不再安排对阵（不产生胜负归属给他人），已完赛场次全部保留，战绩冻结在弃赛时刻。'
                               }
                             >
                               <UserX className="w-2.5 h-2.5" />
-                              {isPreDropped ? '赛后弃赛(不必再点)' : '赛后弃赛'}
+                              {isPreDropped ? '手动退赛(不必再点)' : '赛后弃赛'}
                             </button>
                           </div>
                         );
@@ -1092,7 +1092,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                               <button
                                 onClick={() => togglePlayerDropped(player.id)}
                                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                title="恢复已赛前/赛后弃赛：将该选手重新纳入后续轮次配对。已冻结的战绩不变。"
+                                title="恢复退赛：将该选手重新纳入后续轮次配对。之前产生的结果不变（赛前弃赛场次仍不计入对手胜率网络）。"
                               >
                                 <UserCheck className="w-2.5 h-2.5" />
                                 恢复
@@ -1103,7 +1103,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       </div>
                     )}
                     <div className="mt-1.5 text-[9px] leading-tight text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1">
-                      提示：赛前弃赛与赛后弃赛都是<strong>全局退赛操作</strong>，后续均不再安排对局，仅触发时间点不同。赛前弃赛入口在对阵卡片展开后的「赛前弃」按钮（比赛未开始时对方弃权）；赛后弃赛入口在本面板（比赛进行到一半时手动标记某人退赛）。两者均会使选手进入上方「已赛前弃赛」列表并冻结战绩，无需重复操作。
+                      赛前弃赛与赛后弃赛<strong>都会让选手退赛、不再安排后续对阵</strong>，本质区别是触发方式与归属：①<strong>赛前弃赛</strong>——针对某一具体对阵（入口在对阵卡片展开后的「赛前弃」按钮）：比赛未开赛即一方宣布弃权，另一方直接记胜场，弃赛方不记败场，该场整体不计入对手胜率网络。②<strong>赛后弃赛</strong>——针对选手个人（入口在本面板「赛后弃赛」按钮）：不产生新的胜负归属给他人，仅手动标记某选手从下一轮起退出赛事，已完赛场次按真实结果正常计入对手胜率网络。两者最终都会使选手进入上方「已赛前弃赛」列表并冻结战绩。
                     </div>
                   </>
                 );

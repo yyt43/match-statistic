@@ -46,6 +46,10 @@ export interface Match {
    * （与轮空不同：轮空计入对手胜率，赛前弃赛不计入）
    * - 赛前弃赛的局数据 (player1Games / player2Games) 视为未实际发生，不计局胜率。
    * - true 时 result 必须为 'player1' 或 'player2'，对应弃赛者=另一方。
+   * - 弃赛者本人（败方）不记个人 losses，保持弃赛前的个人战绩不变。
+   * - 与赛后弃赛等效：弃赛者本人会被自动标记 dropped=true，后续轮次不再安排任何对阵。
+   *   （赛前弃赛 vs 赛后弃赛的区别仅在于入口与胜负归属：赛前弃赛有明确对阵，给对方一个胜场；
+   *    赛后弃赛为选手个人手动标记，不产生新的胜负给他人。两者后续都会让选手退赛。）
    */
   preDrop?: boolean;
   player1Games?: number;
