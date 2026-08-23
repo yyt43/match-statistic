@@ -1084,7 +1084,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                     )}
                     {currentGroup.players.some(p => p.dropped) && (
                       <div className="mt-1.5">
-                        <h4 className="text-[10px] text-slate-500 mb-1">已赛后弃赛</h4>
+                        <h4 className="text-[10px] text-slate-500 mb-1">已赛前弃赛</h4>
                         <div className="max-h-16 overflow-y-auto space-y-1">
                           {currentGroup.players.filter(p => p.dropped).map(player => (
                             <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
@@ -1092,7 +1092,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                               <button
                                 onClick={() => togglePlayerDropped(player.id)}
                                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                title="恢复赛后弃赛：将该选手重新纳入后续轮次配对。已冻结的战绩不变。"
+                                title="恢复已赛前/赛后弃赛：将该选手重新纳入后续轮次配对。已冻结的战绩不变。"
                               >
                                 <UserCheck className="w-2.5 h-2.5" />
                                 恢复
@@ -1103,7 +1103,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       </div>
                     )}
                     <div className="mt-1.5 text-[9px] leading-tight text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1">
-                      提示：赛后弃赛（全局）≠ 对阵卡片中的赛前弃赛（单场）。前者不再参与下一轮配对并冻结战绩；后者为单场结果，会显示为选手旁的「赛前弃赛」标签，请勿重复执行赛后弃赛。
+                      提示：赛前弃赛与赛后弃赛都是<strong>全局退赛操作</strong>，后续均不再安排对局，仅触发时间点不同。赛前弃赛入口在对阵卡片展开后的「赛前弃」按钮（比赛未开始时对方弃权）；赛后弃赛入口在本面板（比赛进行到一半时手动标记某人退赛）。两者均会使选手进入上方「已赛前弃赛」列表并冻结战绩，无需重复操作。
                     </div>
                   </>
                 );
