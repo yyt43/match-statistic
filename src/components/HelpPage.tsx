@@ -1,4 +1,4 @@
-import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard } from 'lucide-react';
+import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 
 interface HelpPageProps {
@@ -323,7 +323,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs">战绩分组键（瑞士轮第2轮起配对用）：</span>
-                  <p className="text-sm text-slate-300">与排名规则完全一致，所有战绩指标完全相同的选手才会被分到同一战绩组进行组内配对</p>
+                  <p className="text-sm text-slate-300">仅需<strong className="text-white">胜场相同</strong>即归为同一战绩组进行组内配对（不再要求所有排名指标完全相同）；组内排序仍按完整排名链（胜率 → 对手胜率 → 局胜率 → ...）</p>
                 </div>
               </div>
             </div>
@@ -465,6 +465,22 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               question="Ctrl+Z 撤回快捷键什么时候可用？"
               answer="当比赛进行中且当前轮有可撤回的轮次时，按 Ctrl+Z（Mac 为 Cmd+Z）可撤回上一轮。以下情况快捷键不生效：① 任意弹窗打开时（导出/确认/帮助/预览）；② 焦点在输入框或文本域中（此时 Ctrl+Z 为浏览器原生撤销文本）；③ 比赛未开始或当前无可撤回轮次。撤回成功后页面底部显示橙色提示条。"
             />
+          </div>
+        </section>
+
+        {/* 免责声明 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            免责声明
+          </h2>
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
+            <p className="text-sm text-slate-300 leading-relaxed">
+              本系统基于特定的瑞士轮配对算法与排名规则设计，<strong className="text-amber-400">并不一定适用于所有比赛规则与赛制</strong>。系统中的配对逻辑（战绩分层、对折/穷举匹配、上下移组等）、排名指标计算方式（胜率、对手胜率、局胜率等均采用聚合公式）、轮空与弃赛处理等均为本系统的特定实现，可能与某些赛事的官方规则存在差异。
+            </p>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              使用者应根据自身赛事的实际规则自行核对系统行为是否符合预期。在正式比赛中使用前，建议先通过测试模式模拟完整赛程以验证配对与排名结果。<strong className="text-rose-400">因使用本系统导致的任何争议、损失或不利后果，由使用者自行承担，开发者不承担任何责任。</strong>
+            </p>
           </div>
         </section>
 

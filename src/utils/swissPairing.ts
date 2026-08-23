@@ -71,15 +71,13 @@ export function sortPlayers(players: Player[], gameType: GameType, pairingType: 
 }
 
 /**
- * 获取选手的完整战绩排序键（与 sortPlayersByRank 的排序指标一致，不含 name）。
- * 只有所有战绩指标完全相同的选手才会被分到同一战绩组。
+ * 获取选手的战绩分组键：仅需胜场相同即归为同一战绩组。
+ * 注意：这与 sortPlayersByRank 的排序指标不同——排序仍按完整排名链
+ * （胜率 → 对手胜率 → 局胜率 → ...），但分组只看胜场数。
  */
-function getSortKey(player: Player, gameType: GameType): string {
+function getSortKey(player: Player): string {
   const activeRank = player.dropped ? 0 : player.eliminated ? 1 : 2;
-  if (gameType === 'bo1') {
-    return `${activeRank}|${player.winRate}|${player.opponentWinRate}|${player.opponentOpponentWinRate}|${player.points}`;
-  }
-  return `${activeRank}|${player.winRate}|${player.opponentWinRate}|${player.gameWinRate}|${player.opponentGameWinRate}|${player.points}`;
+  return `${activeRank}|${player.wins}`;
 }
 
 // ===== 配对过程中的可变选手状态 =====
@@ -397,13 +395,13 @@ export function generateSwissPairings(
     });
   });
 
-  // 按战绩分组（getSortKey 完全相同的为一组）
+  // 按战绩分组（胜场相同的为一组）
   const scoreGroups: PlayerState[][] = [];
   let i = 0;
   while (i < sorted.length) {
     let j = i;
-    const key = getSortKey(sorted[i], gameType);
-    while (j + 1 < sorted.length && getSortKey(sorted[j + 1], gameType) === key) {
+    const key = getSortKey(sorted[i]);
+    while (j + 1 < sorted.length && getSortKey(sorted[j + 1]) === key) {
       j++;
     }
     scoreGroups.push(sorted.slice(i, j + 1).map(p => stateMap.get(p.id)!));
