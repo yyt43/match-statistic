@@ -190,12 +190,14 @@ function applyMatchResultFast(
 
     if (res === 'player1') {
       p1.points -= 1; p1.wins -= 1;
-      // 赛前弃赛：败方（弃赛者本人）个人不记 losses。撤销时，只有正常结果才需要败方 losses-1
       if (!wasPreDrop) p2.losses -= 1;
       // 赛前弃赛未实际交手，playedAgainst 未加入，撤销时也不必移除
       if (!wasPreDrop) {
         p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
         p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      } else {
+        // 赛前弃赛撤销：如果原先是赛前弃赛产生的 dropped=true，恢复为未弃赛
+        p2.dropped = false;
       }
       if (isSingleElimination) p2.eliminated = false;
     } else if (res === 'player2') {
@@ -204,6 +206,9 @@ function applyMatchResultFast(
       if (!wasPreDrop) {
         p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
         p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      } else {
+        // 赛前弃赛撤销：恢复 p1 的 dropped=false
+        p1.dropped = false;
       }
       if (isSingleElimination) p1.eliminated = false;
     } else if (res === 'draw') {
@@ -251,6 +256,9 @@ function applyMatchResultFast(
       if (!isPreDrop) {
         p1.playedAgainst.push(p2Id);
         p2.playedAgainst.push(p1Id);
+      } else {
+        // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+        p2.dropped = true;
       }
       if (isSingleElimination) p2.eliminated = true;
     } else if (res === 'player2') {
@@ -259,6 +267,9 @@ function applyMatchResultFast(
       if (!isPreDrop) {
         p1.playedAgainst.push(p2Id);
         p2.playedAgainst.push(p1Id);
+      } else {
+        // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+        p1.dropped = true;
       }
       if (isSingleElimination) p1.eliminated = true;
     } else if (res === 'draw') {
@@ -1038,6 +1049,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!wasPreDrop) {
           p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
           p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        } else {
+          // 赛前弃赛撤销：恢复 p2 dropped=false
+          p2.dropped = false;
         }
         if (isSingleElimination) p2.eliminated = false;
       } else if (res === 'player2') {
@@ -1046,6 +1060,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!wasPreDrop) {
           p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
           p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        } else {
+          // 赛前弃赛撤销：恢复 p1 dropped=false
+          p1.dropped = false;
         }
         if (isSingleElimination) p1.eliminated = false;
       } else if (res === 'draw') {
@@ -1089,6 +1106,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!isPreDrop) {
           p1.playedAgainst.push(p2Id);
           p2.playedAgainst.push(p1Id);
+        } else {
+          // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+          p2.dropped = true;
         }
         if (isSingleElimination) p2.eliminated = true;
       } else if (res === 'player2') {
@@ -1097,6 +1117,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!isPreDrop) {
           p1.playedAgainst.push(p2Id);
           p2.playedAgainst.push(p1Id);
+        } else {
+          // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+          p1.dropped = true;
         }
         if (isSingleElimination) p1.eliminated = true;
       } else if (res === 'draw') {
@@ -1203,6 +1226,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!wasPreDrop) {
           p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
           p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        } else {
+          // 赛前弃赛撤销：恢复 p2 dropped=false
+          p2.dropped = false;
         }
         if (isSingleElimination) p2.eliminated = false;
       } else if (res === 'player2') {
@@ -1211,6 +1237,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!wasPreDrop) {
           p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
           p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        } else {
+          // 赛前弃赛撤销：恢复 p1 dropped=false
+          p1.dropped = false;
         }
         if (isSingleElimination) p1.eliminated = false;
       } else if (res === 'draw') {
@@ -1254,6 +1283,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!isPreDrop) {
           p1.playedAgainst.push(p2Id);
           p2.playedAgainst.push(p1Id);
+        } else {
+          // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+          p2.dropped = true;
         }
         if (isSingleElimination) p2.eliminated = true;
       } else if (res === 'player2') {
@@ -1262,6 +1294,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
         if (!isPreDrop) {
           p1.playedAgainst.push(p2Id);
           p2.playedAgainst.push(p1Id);
+        } else {
+          // 赛前弃赛：弃赛者本人从此不再参与后续轮次配对（与赛后弃赛一致）
+          p1.dropped = true;
         }
         if (isSingleElimination) p1.eliminated = true;
       } else if (res === 'draw') {
