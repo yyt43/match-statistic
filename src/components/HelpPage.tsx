@@ -332,7 +332,17 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <h3 className="text-sm font-semibold text-gold-400 mb-2">特殊情况</h3>
               <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
                 <li>双负（平局）：BO1 与多局赛制均支持，双方均不计胜场，仅用于极端特殊情况。单败淘汰中出现双负时双方均会被淘汰出局</li>
-                <li>弃赛管理：比赛进行中（in_progress）可对选手点击「弃赛」按钮标记弃权，后续轮次不再参与配对；如需恢复可在「已弃赛」列表点击「恢复」。单败淘汰中已被淘汰的选手会显示在「已淘汰」分组，与弃赛选手区分开，且不参与后续配对</li>
+                <li>
+                  <strong className="text-white">赛前弃赛（单场）</strong>：对阵卡片展开后选择「右弃·左胜」或「左弃·右胜」。胜方计入个人胜场（个人胜率有效，如 4-1 含 1 场赛前弃赛胜 → 个人胜率 = 80%）。
+                  <span className="block pl-4 text-slate-400">
+                    与轮空/赛后弃赛不同：赛前弃赛场次<strong className="text-amber-300">不计入</strong>对手胜率、对手的对手胜率、对手局胜率网络（既不把对方加入对手集合，也在计算"有效战绩"时扣掉该场胜/负）。
+                    例：某选手 4-1 含 1 场赛前弃赛胜 → 其对手计算对手胜率时，该选手按"3胜/4场"的有效战绩贡献。
+                  </span>
+                </li>
+                <li>
+                  <strong className="text-white">赛后弃赛（全局）</strong>：在右侧控制面板「弃赛管理」区域点击选手旁的「弃赛」按钮标记弃权。后续轮次不再参与配对；已完赛场次全部保留，冻结在弃赛时刻的个人战绩中。
+                  对手胜率仍按聚合公式计算（胜场和/总场次和），弃赛选手因场次少自动降权。
+                </li>
               </ul>
             </div>
           </div>

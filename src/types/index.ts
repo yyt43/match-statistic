@@ -40,6 +40,14 @@ export interface Match {
   player2Id: string;
   result: MatchResult;
   isBye?: boolean;
+  /**
+   * 赛前弃赛：该场比赛在实际对局开始前，其中一方选手已宣布弃赛。
+   * 胜方直接获得胜场（计入个人胜率），但该场次不计入对手胜率 / 对手的对手胜率网络。
+   * （与轮空不同：轮空计入对手胜率，赛前弃赛不计入）
+   * - 赛前弃赛的局数据 (player1Games / player2Games) 视为未实际发生，不计局胜率。
+   * - true 时 result 必须为 'player1' 或 'player2'，对应弃赛者=另一方。
+   */
+  preDrop?: boolean;
   player1Games?: number;
   player2Games?: number;
 }

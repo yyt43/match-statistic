@@ -90,17 +90,27 @@ export function MatchList({ testMode = false }: MatchListProps) {
   const getResultText = (match: Match) => {
     if (match.isBye) return '轮空';
     if (match.result === 'pending') return '待进行';
+    if (match.preDrop) return '赛前弃赛';
     return '已完成';
   };
 
   const getResultColor = (match: Match) => {
     if (match.isBye) return 'text-amber-400 bg-amber-500/10';
     if (match.result === 'pending') return 'text-slate-400 bg-slate-500/20';
+    if (match.preDrop) return 'text-rose-400 bg-rose-500/10 border border-rose-500/20';
     return 'text-emerald-400 bg-emerald-500/20';
   };
 
-  const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => {
-    updateMatchResult(matchId, result, player1Games, player2Games);
+  // 赛前弃赛时的弃赛方文本（在卡片中部展示）
+  const getPreDropNote = (match: Match): string | null => {
+    if (!match.preDrop) return null;
+    if (match.result === 'player1') return `${getPlayerName(match.player2Id) || '右侧'} 赛前弃赛 · ${getPlayerName(match.player1Id) || '左侧'}直接获胜`;
+    if (match.result === 'player2') return `${getPlayerName(match.player1Id) || '左侧'} 赛前弃赛 · ${getPlayerName(match.player2Id) || '右侧'}直接获胜`;
+    return null;
+  };
+
+  const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
+    updateMatchResult(matchId, result, player1Games, player2Games, preDrop);
   };
 
   const handleToggleExpand = (matchId: string) => {
@@ -387,10 +397,15 @@ export function MatchList({ testMode = false }: MatchListProps) {
                           )}
                         </div>
 
-                        <div className="flex flex-col items-center justify-center">
+                        <div className="flex flex-col items-center justify-center gap-1.5">
                           <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-600/50">
                             <span className="font-display text-[10px] font-bold text-slate-400">VS</span>
                           </div>
+                          {match.preDrop && getPreDropNote(match) && (
+                            <div className="w-32 -mx-2 text-[9px] text-rose-400 text-center leading-tight bg-rose-500/10 border border-rose-500/20 rounded-md px-1.5 py-0.5">
+                              {getPreDropNote(match)}
+                            </div>
+                          )}
                         </div>
 
                         <div className={`
@@ -422,12 +437,19 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
                     {isExpanded && canEditMatch && (
                       <div className="px-3 pb-3">
-                        <div className="p-2.5 bg-slate-900/40 rounded-lg">
-                          <div className="text-[10px] text-slate-400 mb-2 text-center">选择比赛结果</div>
-                          <ResultButtons
-                            gameType={roundGameType}
-                            onResult={(result, p1g, p2g) => handleSetResult(match.id, result, p1g, p2g)}
-                          />
+                        <div className="p-2.5 bg-slate-900/40 rounded-lg space-y-2.5">
+                          <div>
+                            <div className="text-[10px] text-slate-400 mb-2 text-center">选择比赛结果</div>
+                            <ResultButtons
+                              gameType={roundGameType}
+                              onResult={(result, p1g, p2g, preDrop) => handleSetResult(match.id, result, p1g, p2g, preDrop)}
+                            />
+                          </div>
+                          {match.preDrop && (
+                            <div className="text-[10px] text-rose-300 text-center bg-rose-500/10 border border-rose-500/20 rounded-md py-1.5">
+                              当前标记为赛前弃赛（该场不计入对手胜率）。选择上方任意"正常比分"按钮即可取消标记。
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -454,13 +476,29 @@ export function MatchList({ testMode = false }: MatchListProps) {
   );
 }
 
-function ResultButtons({ gameType, onResult }: { gameType: GameType; onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number) => void }) {
+function ResultButtons({ gameType, onResult }: {
+  gameType: GameType;
+  onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number, preDrop?: boolean) => void;
+}) {
   if (gameType === 'bo1') {
     return (
-      <div className="grid grid-cols-3 gap-2">
-        <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">左侧胜 (1-0)</button>
-        <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">右侧胜 (0-1)</button>
-        <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">左侧胜 (1-0)</button>
+          <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">右侧胜 (0-1)</button>
+          <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
+        </div>
+        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
+          <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="右侧选手赛前弃赛，不计入对手胜率">
+            右弃·左胜
+          </button>
+          <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40">
+            <X className="w-3 h-3" />重置
+          </button>
+          <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="左侧选手赛前弃赛，不计入对手胜率">
+            左弃·右胜
+          </button>
+        </div>
       </div>
     );
   }
@@ -476,18 +514,28 @@ function ResultButtons({ gameType, onResult }: { gameType: GameType; onResult: (
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {options.map((opt, i) => (
-        <button
-          key={i}
-          onClick={() => onResult(opt.result, opt.p1g, opt.p2g)}
-          className="py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
-        >
-          {opt.label}
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((opt, i) => (
+          <button
+            key={i}
+            onClick={() => onResult(opt.result, opt.p1g, opt.p2g)}
+            className="py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
+          >
+            {opt.label}
+          </button>
+        ))}
+        <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
+        <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="右侧选手赛前弃赛，不计入对手胜率">
+          右弃·左胜
         </button>
-      ))}
-      <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
-      <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1"><X className="w-3 h-3" />重置</button>
+        <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40"><X className="w-3 h-3" />重置</button>
+        <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-2 rounded-lg text-[11px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30" title="左侧选手赛前弃赛，不计入对手胜率">
+          左弃·右胜
+        </button>
+      </div>
     </div>
   );
 }

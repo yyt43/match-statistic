@@ -403,6 +403,214 @@ describe('calculateAllWinRates', () => {
     // B 的对手局胜率：对手 A 的胜局 2 / 总局 3 = 2/3
     expect(bR.opponentGameWinRate).toBeCloseTo(2 / 3);
   });
+
+  it('赛前弃赛：胜场计入个人胜率但不计入对手SOS，用户例(4-1含1场赛前弃赛胜)→个人80%，对手SOS=3/4', () => {
+    // 用户原例：选手 A 总战绩 4-1，其中 1 场胜是对手赛前弃赛。
+    // 期望：个人胜率 = 4/5 = 80%；但对手 B 计算对手胜率时，A 的有效战绩视为 3 胜 / 4 场。
+    const me = makePlayer('me', 'B观察', { wins: 0, losses: 1 }); // B 输了 1 场给 A
+    const a = makePlayer('a', 'A', { wins: 4, losses: 1 });
+    const c = makePlayer('c', 'C', { wins: 1, losses: 0 }); // C 曾输给 A
+    const other1 = makePlayer('o1', 'O1', { wins: 1, losses: 0 });
+    const other2 = makePlayer('o2', 'O2', { wins: 1, losses: 0 });
+    const other3 = makePlayer('o3', 'O3', { wins: 1, losses: 0 });
+    const loser1 = makePlayer('l1', 'L1', { wins: 0, losses: 1 });
+    const loser2 = makePlayer('l2', 'L2', { wins: 0, losses: 1 });
+    const loser3 = makePlayer('l3', 'L3', { wins: 0, losses: 1 });
+    const players = [me, a, c, other1, other2, other3, loser1, loser2, loser3];
+
+    // A 的 5 场：3场真实胜 (对 other1, other2, other3) + 1场赛前弃赛胜 (对 C，C赛前弃赛) + 1场真实负 (对 me 或者 someone)
+    // 调整：让 me 的对手是 A，me 输给 A → A 胜 me (真实战)，再胜 other1/other2/other3真实战，再胜C赛前弃赛 → 负1场安排输给某个 loser1。
+    // 这样 me 个人：0-1(负 A 真实战)。me 的对手集合中包含 A（真实交手）。A 对 me 是真实胜。
+    me.wins = 0; me.losses = 1;
+    a.wins = 4; a.losses = 1;
+    c.wins = 0; c.losses = 1;   // C 赛前弃赛输给 A
+    other1.wins = 0; other1.losses = 1; // O1 真实负 A
+    other2.wins = 0; other2.losses = 1;
+    other3.wins = 0; other3.losses = 1;
+    loser1.wins = 1; loser1.losses = 0; // loser1 真实胜 A（也就是 A 真实负 loser1）
+    loser2.wins = 0; loser2.losses = 0;
+    loser3.wins = 0; loser3.losses = 0;
+
+    const matches: Match[] = [
+      // A vs me：真实，A胜
+      { id: 'mA-me', round: 1, player1Id: 'a', player2Id: 'me', result: 'player1' },
+      // A vs other1：真实，A胜
+      { id: 'mA-o1', round: 2, player1Id: 'a', player2Id: 'o1', result: 'player1' },
+      // A vs other2：真实，A胜
+      { id: 'mA-o2', round: 3, player1Id: 'a', player2Id: 'o2', result: 'player1' },
+      // A vs other3：真实，A胜
+      { id: 'mA-o3', round: 4, player1Id: 'a', player2Id: 'o3', result: 'player1' },
+      // A vs C：C赛前弃赛，A胜 → 标记 preDrop
+      { id: 'mA-C', round: 5, player1Id: 'a', player2Id: 'c', result: 'player1', preDrop: true },
+      // 等等：A 有 5 场(4胜1负)，上面已经给了 A 5 场胜(me,o1,o2,o3,C) —— 不对，A 需要 1 负。
+      // 修正：把 A vs me 改为 me 胜 A，A 对 loser1 负，A 对 C 赛前弃赛胜。这样 A 胜的 4 场 = o1,o2,o3,C赛前弃赛，共 4 胜，再加负 loser1 = 1 负。
+      // 同时让 me 的对手是 A，me 胜 A（真实交手）。这样 me 个人是 1-0。
+      // 不 —— 我们希望 me 是观察对象，me 的对手是 A（真实交手过），这样 me 的 SOS 计算里有 A 的有效战绩。
+    ];
+    // 重写：用更一致的 setup
+    const setupMatches: Match[] = [
+      // me vs A：真实交手，me 胜 A → me=1-0, A 获 1 负
+      { id: 'm-me-A', round: 1, player1Id: 'me', player2Id: 'a', result: 'player1' },
+      // A vs other1：真实，A 胜
+      { id: 'mA-o1', round: 2, player1Id: 'a', player2Id: 'o1', result: 'player1' },
+      // A vs other2：真实，A 胜
+      { id: 'mA-o2', round: 3, player1Id: 'a', player2Id: 'o2', result: 'player1' },
+      // A vs other3：真实，A 胜
+      { id: 'mA-o3', round: 4, player1Id: 'a', player2Id: 'o3', result: 'player1' },
+      // A vs C：C 赛前弃赛 → A 胜（赛前弃赛）→ 记 A 1 胜（这是第 4 胜），C 1 负
+      { id: 'mA-C', round: 5, player1Id: 'a', player2Id: 'c', result: 'player1', preDrop: true },
+    ];
+    // 调整玩家个人战绩：与 matches 一致
+    me.wins = 1; me.losses = 0;    // me 真实胜 A → 1-0
+    a.wins = 4; a.losses = 1;      // A: 胜 o1,o2,o3 真实 + 胜 C 赛前弃赛 = 4 胜；负 me 真实 = 1 负 → 4-1 ✓
+    c.wins = 0; c.losses = 1;      // C: 赛前弃赛负 A → 1 负
+    other1.wins = 0; other1.losses = 1;
+    other2.wins = 0; other2.losses = 1;
+    other3.wins = 0; other3.losses = 1;
+    loser1.wins = 0; loser1.losses = 0;
+    loser2.wins = 0; loser2.losses = 0;
+    loser3.wins = 0; loser3.losses = 0;
+
+    const result = calculateAllWinRates(players, setupMatches, 'bo1');
+    const aR = result.find(p => p.id === 'a')!;
+    const meR = result.find(p => p.id === 'me')!;
+
+    // A 个人胜率：4 胜 / (4+1) = 0.8 = 80%
+    expect(aR.winRate).toBeCloseTo(0.8);
+
+    // me 的对手只有 A（真实交手 1 场）。A 的有效战绩：真实胜 o1+o2+o3 = 3胜，真实负 me = 1负，赛前弃赛胜 C = 扣掉。
+    // 所以 A 的有效战绩 = 3 胜 / (3+1) 场 = 3/4
+    // me 的 SOS = A 有效胜场和 / A 有效总场次和 = 3/4
+    expect(meR.opponentWinRate).toBeCloseTo(3 / 4);
+    // 再确认：赛前弃赛不入对手索引，A 和 C 互相不在对手集合中（所以 C 对 A 的有效战绩无影响）
+    const cR = result.find(p => p.id === 'c')!;
+    expect(cR.opponentWinRate).toBe(0);
+  });
+
+  it('赛前弃赛 vs 轮空的对比：赛前弃赛不入对手SOS，轮空 BYE 仍按 0胜1场 计入', () => {
+    // W：真实胜 X；X：赛前弃赛 1 场负 W，真实胜 Y(轮空对手Y=BYE)
+    // W 的对手集合：X(真实交手) → W 的 SOS 取 X 有效战绩
+    // X 的对手集合：W(真实交手) + BYE(轮空) → X 的 SOS = W有效战绩 + BYE(0/1)
+    const w = makePlayer('w', 'W', { wins: 1, losses: 0 });
+    const x = makePlayer('x', 'X', { wins: 1, losses: 1 }); // 真实胜轮空BYE + 赛前弃赛负W? 不对：X 只有赛前弃赛负 W 1场+胜BYE 1场
+    const y = makePlayer('y', 'Y', { wins: 1, losses: 0 });
+    const players = [w, x, y];
+    const matches: Match[] = [
+      { id: 'm1', round: 1, player1Id: 'w', player2Id: 'x', result: 'player1', preDrop: true }, // X 赛前弃赛，W 胜（W的对手X从对手网络剔除，因 preDrop=true）
+      { id: 'm2', round: 2, player1Id: 'y', player2Id: 'bye', result: 'player1', isBye: true, player1Games: 1, player2Games: 0 }, // Y 轮空 → Y 的对手是 BYE(0胜1场)
+    ];
+    // 更新个人战绩与 matches 对应：
+    w.wins = 1; w.losses = 0;
+    x.wins = 0; x.losses = 1; // X 赛前弃赛输 W
+    y.wins = 1; y.losses = 0; // Y 轮空胜
+
+    const result = calculateAllWinRates(players, matches, 'bo1');
+    const [wR, xR, yR] = result;
+
+    // 个人胜率
+    expect(wR.winRate).toBeCloseTo(1.0);
+    expect(xR.winRate).toBeCloseTo(0.0);
+    expect(yR.winRate).toBeCloseTo(1.0);
+
+    // W vs X 是赛前弃赛 → 互相不入对手索引。W 和 X 各自对手集合为空。SOS = 0
+    expect(wR.opponentWinRate).toBe(0);
+    expect(xR.opponentWinRate).toBe(0);
+
+    // Y 轮空 → 对手是 BYE(0胜/1场)。SOS = Σ对手胜场/总场次 = 0/1 = 0
+    expect(yR.opponentWinRate).toBe(0);
+
+    // 现在给 Y 再加一个真实对手 Z，Y vs Z 真实胜 Y，验证轮空仍计入（BYE 贡献 0/1）
+    const z = makePlayer('z', 'Z', { wins: 0, losses: 1 });
+    const players2 = [makePlayer('w2', 'W2'), makePlayer('y2', 'Y2', { wins: 2, losses: 0 }), makePlayer('z2', 'Z2', { wins: 0, losses: 1 })];
+    const matches2: Match[] = [
+      { id: 'mA2', round: 1, player1Id: 'y2', player2Id: 'bye', result: 'player1', isBye: true, player1Games: 1, player2Games: 0 },
+      { id: 'mB2', round: 2, player1Id: 'y2', player2Id: 'z2', result: 'player1' }, // Y2 真实胜 Z2 → 真实交手
+    ];
+    players2[1].wins = 2; players2[1].losses = 0; // Y2：轮空胜1 + 真实胜Z2=1
+    players2[2].wins = 0; players2[2].losses = 1; // Z2：真实负 Y2
+    players2[0].wins = 0; players2[0].losses = 0;
+    const res2 = calculateAllWinRates(players2, matches2, 'bo1');
+    const y2R = res2.find(p => p.id === 'y2')!;
+    const z2R = res2.find(p => p.id === 'z2')!;
+    // Y2 的对手：BYE(0胜/1场) + Z2(有效战绩 0胜/1场) → 胜场和=0+0，总场次和=1+1=2 → SOS=0
+    expect(y2R.opponentWinRate).toBe(0);
+    // Z2 的对手：Y2(有效战绩 轮空不算？不对 Y2 vs BYE match 中 BYE 不是赛前弃赛，是规则8轮空。Y2 的有效战绩计算：胜BYE计入 → 1胜0负（因为BYE match 不是 preDrop）；胜 Z2 真实计入 → 1胜0负；合计 2胜 0负。
+    // Z2 的 SOS = 2胜 / 2场 = 1.0
+    expect(z2R.opponentWinRate).toBeCloseTo(1.0);
+  });
+
+  it('赛前弃赛败方保持原战绩：1-1选手第3轮赛前弃赛 → 个人胜率仍0.5，对手SOS按1-1(1胜/2场)计入', () => {
+    // 用户确认：赛前弃赛者本人不记 losses。已1-1后第3轮赛前弃赛 → 胜率0.5，计入对手胜率时仍按1-1。
+    const me = makePlayer('me', '我', { wins: 1, losses: 0 });   // 我 真实胜 弃赛者X
+    const x = makePlayer('x', '弃赛者X', { wins: 1, losses: 1 }); // X 前2轮1-1，第3轮赛前弃赛负我
+    const a = makePlayer('a', '对手A', { wins: 1, losses: 0 }); // A 曾真实胜X
+    const b = makePlayer('b', '对手B', { wins: 0, losses: 1 }); // B 曾真实负X
+    const players = [me, x, a, b];
+    // 匹配：
+    // R1: X胜B(真实战) → X=1-0, B=0-1
+    // R2: A胜X(真实战) → A=1-0, X=1-1
+    // R3: 我 vs X，X赛前弃赛负我 → 我: 1-0 (个人胜), X: 个人仍是1-1 (losses不加)
+    // X 的对手集合：B(真实) + A(真实)。第3轮赛前弃赛不入对手集合。
+    // 所以：
+    //  - 我的对手集合：X（真实战：胜X是我个人1胜。但对手集合是X→X有效战绩: effWins=1, effLosses=1 → 1/(1+1)=0.5）
+    //    但等等：我胜X的那场是X的赛前弃赛 → 该 match 标记 preDrop=true → 从对手索引中剔除！所以我的对手集合为空？这不对...
+    //    再仔细想：X赛前弃赛，我是胜者。对手SOS计算时"我与X的对手关系"是否存在？
+    //    规则：赛前弃赛整体不入对手网络（既不把X加入我的对手集合，也不把我加入X的）。
+    //    所以我此时还没有对手（只赛前弃赛赢了X）。我的 SOS=0。
+    //  - X 的对手集合：B + A。
+    //    B 有效战绩：0胜/1场，A 有效战绩：1胜/0场？不对，A 胜了 X 1场真实战 → A 个人战绩从 1-0。 effWins=1, effLosses=0 → 1/(1+0)=1.0
+    //    X 的 SOS = (0+1) / (1+1) = 1/2
+    const matches: Match[] = [
+      { id: 'r1', round: 1, player1Id: 'x', player2Id: 'b', result: 'player1' },
+      { id: 'r2', round: 2, player1Id: 'a', player2Id: 'x', result: 'player1' },
+      { id: 'r3', round: 3, player1Id: 'me', player2Id: 'x', result: 'player1', preDrop: true }, // X 赛前弃赛，我胜
+    ];
+    // 注意：个人战绩是赛前弃赛下的"正确"个人战绩（非 store 处理的实时，这里手动设置）：
+    // 我：胜 X 赛前弃赛胜 → 个人 wins=1, losses=0
+    me.wins = 1; me.losses = 0;
+    // X：前2轮1胜1负（真实），第3轮赛前弃赛负 → 不新增 loss → 1胜1负
+    x.wins = 1; x.losses = 1;
+    // A：真实胜 X → 1胜0负
+    a.wins = 1; a.losses = 0;
+    // B：真实负 X → 0胜1负
+    b.wins = 0; b.losses = 1;
+
+    const result = calculateAllWinRates(players, matches, 'bo1');
+    const [meR, xR, aR, bR] = result;
+
+    // X 个人胜率：1/(1+1) = 0.5 ✅（按1-1计）
+    expect(xR.winRate).toBeCloseTo(0.5);
+
+    // X 的对手集合：B + A（都是真实战）
+    //   B 有效：0胜 1负 → 0胜 / 1场
+    //   A 有效：1胜 0负 → 1胜 / 1场
+    // X SOS = (0+1) / (1+1) = 1/2 = 0.5
+    expect(xR.opponentWinRate).toBeCloseTo(0.5);
+
+    // 我 vs X 赛前弃赛 → 互相不入对手集合。我暂无对手。
+    expect(meR.opponentWinRate).toBe(0);
+
+    // 补充：再构造一个"有真实对手是X(1-1)"的观察者C，验证对手SOS中X按1-1计入
+    const c = makePlayer('c', '观察者C', { wins: 0, losses: 1 }); // C 真实负 X
+    c.wins = 0; c.losses = 1;
+    const players2 = [c, x, a, b];
+    const matches2: Match[] = [
+      { id: 'x-b', round: 1, player1Id: 'x', player2Id: 'b', result: 'player1' },
+      { id: 'a-x', round: 2, player1Id: 'a', player2Id: 'x', result: 'player1' },
+      { id: 'c-x', round: 3, player1Id: 'c', player2Id: 'x', result: 'player2' }, // C 真实负 X
+    ];
+    x.wins = 1; x.losses = 1;
+    const res2 = calculateAllWinRates(players2, matches2, 'bo1');
+    const cR2 = res2.find(p => p.id === 'c')!;
+    const xR2 = res2.find(p => p.id === 'x')!;
+    // X 个人仍 0.5
+    expect(xR2.winRate).toBeCloseTo(0.5);
+    // C 的对手只有 X（真实战）。X 的有效战绩：effWins = 胜B(真实) = 1；effLosses = 负A(真实) + 负C(真实) = 2 → 1/(1+2) = 1/3
+    // 等等，上面 setup 中 match2 中 C vs X 是 player2 胜 → X胜。X 对 C 真实胜。
+    //   X 胜: 胜B + 胜C = 2；X 负: 负A = 1 → 2胜1负 → 2/3
+    //   C 的 SOS = 2胜 / (2+1)场 = 2/3
+    expect(cR2.opponentWinRate).toBeCloseTo(2 / 3);
+  });
 });
 
 describe('generatePairings（路由层）', () => {

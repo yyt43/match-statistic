@@ -87,10 +87,10 @@ interface CompetitionState {
   generateNextRoundForGroup: (groupIdx: number) => void;
   generateNextRoundAllGroups: () => void;
   undoLastRound: () => void;
-  updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => void;
+  updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => void;
   randomGenerateAllGroups: () => Promise<void>;
   randomGenerateCurrentRoundAllGroups: () => Promise<void>;
-  updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => void;
+  updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => void;
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => void;
   batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string }[]) => void;
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
@@ -157,18 +157,20 @@ function applyMatchResultFast(
   matchId: string,
   result: MatchResult,
   player1Games?: number,
-  player2Games?: number
+  player2Games?: number,
+  preDrop?: boolean
 ): TournamentGroup {
   const matchIndex = group.matches.findIndex(m => m.id === matchId);
   if (matchIndex === -1) return group;
 
   const match = group.matches[matchIndex];
   const oldResult = match.result;
+  const oldPreDrop = !!match.preDrop;
 
   const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
   const isSingleElimination = group.pairingType === 'single_elimination';
 
-  function revertResult(p1Id: string, p2Id: string, res: MatchResult) {
+  function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
     if (p2Id === 'bye') {
       const p1 = playerMap.get(p1Id);
       if (!p1) return;
@@ -187,23 +189,34 @@ function applyMatchResultFast(
     if (!p1 || !p2) return;
 
     if (res === 'player1') {
-      p1.points -= 1; p1.wins -= 1; p2.losses -= 1;
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      p1.points -= 1; p1.wins -= 1;
+      // 赛前弃赛：败方（弃赛者本人）个人不记 losses。撤销时，只有正常结果才需要败方 losses-1
+      if (!wasPreDrop) p2.losses -= 1;
+      // 赛前弃赛未实际交手，playedAgainst 未加入，撤销时也不必移除
+      if (!wasPreDrop) {
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      }
       if (isSingleElimination) p2.eliminated = false;
     } else if (res === 'player2') {
-      p2.points -= 1; p2.wins -= 1; p1.losses -= 1;
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      p2.points -= 1; p2.wins -= 1;
+      if (!wasPreDrop) p1.losses -= 1;
+      if (!wasPreDrop) {
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      }
       if (isSingleElimination) p1.eliminated = false;
     } else if (res === 'draw') {
       p1.losses -= 1; p2.losses -= 1;
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      if (!wasPreDrop) {
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+      }
       if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
     }
 
-    if (match.player1Games !== undefined && match.player2Games !== undefined) {
+    // 赛前弃赛：局数据未实际发生，不应加减
+    if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
       p1.totalGames -= match.player1Games + match.player2Games;
       p1.wonGames -= match.player1Games;
       p2.totalGames -= match.player1Games + match.player2Games;
@@ -211,7 +224,7 @@ function applyMatchResultFast(
     }
   }
 
-  function applyResult(p1Id: string, p2Id: string, res: MatchResult) {
+  function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
     if (p2Id === 'bye') {
       const p1 = playerMap.get(p1Id);
       if (!p1) return;
@@ -230,23 +243,35 @@ function applyMatchResultFast(
     if (!p1 || !p2) return;
 
     if (res === 'player1') {
-      p1.points += 1; p1.wins += 1; p2.losses += 1;
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
+      p1.points += 1; p1.wins += 1;
+      // 赛前弃赛：胜方记 wins+1，败方（弃赛者本人）不记 losses（保持原个人战绩不变）
+      // 例：1-1 的选手第3轮赛前弃赛 → 弃赛后仍是1-1，胜率0.5
+      if (!isPreDrop) p2.losses += 1;
+      // 赛前弃赛：不加入 playedAgainst（视为未真实交手，不影响后续配对的不重复约束，也不入SOS网络）
+      if (!isPreDrop) {
+        p1.playedAgainst.push(p2Id);
+        p2.playedAgainst.push(p1Id);
+      }
       if (isSingleElimination) p2.eliminated = true;
     } else if (res === 'player2') {
-      p2.points += 1; p2.wins += 1; p1.losses += 1;
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
+      p2.points += 1; p2.wins += 1;
+      if (!isPreDrop) p1.losses += 1;
+      if (!isPreDrop) {
+        p1.playedAgainst.push(p2Id);
+        p2.playedAgainst.push(p1Id);
+      }
       if (isSingleElimination) p1.eliminated = true;
     } else if (res === 'draw') {
       p1.losses += 1; p2.losses += 1;
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
+      if (!isPreDrop) {
+        p1.playedAgainst.push(p2Id);
+        p2.playedAgainst.push(p1Id);
+      }
       if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
     }
 
-    if (player1Games !== undefined && player2Games !== undefined) {
+    // 赛前弃赛：未实际对局，局数据跳过不计
+    if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
       p1.totalGames += player1Games + player2Games;
       p1.wonGames += player1Games;
       p2.totalGames += player1Games + player2Games;
@@ -255,14 +280,14 @@ function applyMatchResultFast(
   }
 
   if (oldResult !== 'pending') {
-    revertResult(match.player1Id, match.player2Id, oldResult);
+    revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
   }
   if (result !== 'pending') {
-    applyResult(match.player1Id, match.player2Id, result);
+    applyResult(match.player1Id, match.player2Id, result, !!preDrop);
   }
 
   const updatedMatches = [...group.matches];
-  updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games };
+  updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
 
   const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
   const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
@@ -973,7 +998,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(updated);
   },
 
-  updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => {
+  updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const group = competition.groups[idx];
@@ -983,12 +1008,13 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     const match = group.matches[matchIndex];
     const oldResult = match.result;
+    const oldPreDrop = !!match.preDrop;
 
     const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
 
     const isSingleElimination = group.pairingType === 'single_elimination';
 
-    function revertResult(p1Id: string, p2Id: string, res: MatchResult) {
+    function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
       if (p2Id === 'bye') {
         const p1 = playerMap.get(p1Id);
         if (!p1) return;
@@ -1007,23 +1033,31 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       if (!p1 || !p2) return;
 
       if (res === 'player1') {
-        p1.points -= 1; p1.wins -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        p1.points -= 1; p1.wins -= 1;
+        if (!wasPreDrop) p2.losses -= 1;
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) p2.eliminated = false;
       } else if (res === 'player2') {
-        p2.points -= 1; p2.wins -= 1; p1.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        p2.points -= 1; p2.wins -= 1;
+        if (!wasPreDrop) p1.losses -= 1;
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) p1.eliminated = false;
       } else if (res === 'draw') {
         p1.losses -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
       }
 
-      if (match.player1Games !== undefined && match.player2Games !== undefined) {
+      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
         p1.totalGames -= match.player1Games + match.player2Games;
         p1.wonGames -= match.player1Games;
         p2.totalGames -= match.player1Games + match.player2Games;
@@ -1031,7 +1065,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       }
     }
 
-    function applyResult(p1Id: string, p2Id: string, res: MatchResult) {
+    function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
       if (p2Id === 'bye') {
         const p1 = playerMap.get(p1Id);
         if (!p1) return;
@@ -1050,23 +1084,31 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       if (!p1 || !p2) return;
 
       if (res === 'player1') {
-        p1.points += 1; p1.wins += 1; p2.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        p1.points += 1; p1.wins += 1;
+        if (!isPreDrop) p2.losses += 1;
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) p2.eliminated = true;
       } else if (res === 'player2') {
-        p2.points += 1; p2.wins += 1; p1.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        p2.points += 1; p2.wins += 1;
+        if (!isPreDrop) p1.losses += 1;
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) p1.eliminated = true;
       } else if (res === 'draw') {
         p1.losses += 1; p2.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
       }
 
-      if (player1Games !== undefined && player2Games !== undefined) {
+      if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
         p1.totalGames += player1Games + player2Games;
         p1.wonGames += player1Games;
         p2.totalGames += player1Games + player2Games;
@@ -1075,15 +1117,15 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     }
 
     if (oldResult !== 'pending') {
-      revertResult(match.player1Id, match.player2Id, oldResult);
+      revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
     }
 
     if (result !== 'pending') {
-      applyResult(match.player1Id, match.player2Id, result);
+      applyResult(match.player1Id, match.player2Id, result, !!preDrop);
     }
 
     const updatedMatches = [...group.matches];
-    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games };
+    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
@@ -1121,7 +1163,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     set({ viewRound: round });
   },
 
-  updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number) => {
+  updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const { competition } = get();
     const group = competition.groups[groupIdx];
     if (!group) return;
@@ -1131,12 +1173,13 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     const match = group.matches[matchIndex];
     const oldResult = match.result;
+    const oldPreDrop = !!match.preDrop;
 
     const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
 
     const isSingleElimination = group.pairingType === 'single_elimination';
 
-    function revertResult(p1Id: string, p2Id: string, res: MatchResult) {
+    function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
       if (p2Id === 'bye') {
         const p1 = playerMap.get(p1Id);
         if (!p1) return;
@@ -1155,23 +1198,31 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       if (!p1 || !p2) return;
 
       if (res === 'player1') {
-        p1.points -= 1; p1.wins -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        p1.points -= 1; p1.wins -= 1;
+        if (!wasPreDrop) p2.losses -= 1;
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) p2.eliminated = false;
       } else if (res === 'player2') {
-        p2.points -= 1; p2.wins -= 1; p1.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        p2.points -= 1; p2.wins -= 1;
+        if (!wasPreDrop) p1.losses -= 1;
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) p1.eliminated = false;
       } else if (res === 'draw') {
         p1.losses -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+        }
         if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
       }
 
-      if (match.player1Games !== undefined && match.player2Games !== undefined) {
+      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
         p1.totalGames -= match.player1Games + match.player2Games;
         p1.wonGames -= match.player1Games;
         p2.totalGames -= match.player1Games + match.player2Games;
@@ -1179,7 +1230,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       }
     }
 
-    function applyResult(p1Id: string, p2Id: string, res: MatchResult) {
+    function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
       if (p2Id === 'bye') {
         const p1 = playerMap.get(p1Id);
         if (!p1) return;
@@ -1198,23 +1249,31 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       if (!p1 || !p2) return;
 
       if (res === 'player1') {
-        p1.points += 1; p1.wins += 1; p2.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        p1.points += 1; p1.wins += 1;
+        if (!isPreDrop) p2.losses += 1;
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) p2.eliminated = true;
       } else if (res === 'player2') {
-        p2.points += 1; p2.wins += 1; p1.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        p2.points += 1; p2.wins += 1;
+        if (!isPreDrop) p1.losses += 1;
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) p1.eliminated = true;
       } else if (res === 'draw') {
         p1.losses += 1; p2.losses += 1;
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
+        if (!isPreDrop) {
+          p1.playedAgainst.push(p2Id);
+          p2.playedAgainst.push(p1Id);
+        }
         if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
       }
 
-      if (player1Games !== undefined && player2Games !== undefined) {
+      if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
         p1.totalGames += player1Games + player2Games;
         p1.wonGames += player1Games;
         p2.totalGames += player1Games + player2Games;
@@ -1223,15 +1282,15 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     }
 
     if (oldResult !== 'pending') {
-      revertResult(match.player1Id, match.player2Id, oldResult);
+      revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
     }
 
     if (result !== 'pending') {
-      applyResult(match.player1Id, match.player2Id, result);
+      applyResult(match.player1Id, match.player2Id, result, !!preDrop);
     }
 
     const updatedMatches = [...group.matches];
-    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games };
+    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
