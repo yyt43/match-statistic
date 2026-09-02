@@ -56,7 +56,7 @@ export function MatchImageView() {
           </div>
         </div>
 
-        <div className="p-4 grid grid-cols-2 gap-3">
+        <div className="p-4 grid grid-cols-4 gap-3">
           {matches.map((match) => (
             <div key={match.id} className="bg-slate-800/60 rounded-lg overflow-hidden">
               <div className="px-3 py-1.5 bg-slate-700/30 text-[11px] text-slate-400 text-right">

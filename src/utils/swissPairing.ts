@@ -25,20 +25,31 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/**
+ * 瑞士轮排名规则（按文档要求分赛制定制，统一用于排序与排行榜展示）：
+ * - BO1 ：活跃状态 → 胜场数 → 对手胜率(SOS) → 对手的对手胜率(SOSOS) → points → 姓名
+ * - BO3+：活跃状态 → 胜场数 → 对手胜率(SOS) → 本人局胜率 → 对手局胜率 → points → 姓名
+ */
 function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Player[] {
   return [...players].sort((a, b) => {
-    // 活跃 > 被淘汰 > 弃赛
+    // Step 0：活跃状态（活跃 2 > 淘汰 1 > 弃赛 0）
     const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
     const bActive = b.dropped ? 0 : b.eliminated ? 1 : 2;
     if (aActive !== bActive) return bActive - aActive;
 
-    if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+    // Step 1：胜场数
+    if (b.wins !== a.wins) return b.wins - a.wins;
+
+    // Step 2：对手胜率 SOS
     if (b.opponentWinRate !== a.opponentWinRate) return b.opponentWinRate - a.opponentWinRate;
 
     if (gameType === 'bo1') {
+      // BO1 Step 3：对手的对手胜率 SOSOS
       if (b.opponentOpponentWinRate !== a.opponentOpponentWinRate) return b.opponentOpponentWinRate - a.opponentOpponentWinRate;
     } else {
+      // BO3+ Step 3：本人局胜率
       if (b.gameWinRate !== a.gameWinRate) return b.gameWinRate - a.gameWinRate;
+      // BO3+ Step 4：对手局胜率
       if (b.opponentGameWinRate !== a.opponentGameWinRate) return b.opponentGameWinRate - a.opponentGameWinRate;
     }
 
