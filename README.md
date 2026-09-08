@@ -178,13 +178,16 @@ npm run build
 
 ## 相关链接
 
+**开发者：ShiyiPai**
+
 | 平台          | 地址                                         | 用途                     |
 | ----------- | ------------------------------------------ | ---------------------- |
 | **GitHub**  | <https://github.com/yyt43/match-statistic> | 源码、Issue 反馈、版本追踪       |
 | **开发者 B 站** | <https://space.bilibili.com/526320039>     | 使用教程、功能演示、规则讨论         |
+| **开发者 QQ** | `2845850691`                                | 加好友备注来意，直接沟通反馈         |
 | **在线预览**    | <https://yyt43.github.io/match-statistic/> | GitHub Pages 自动部署的最新版本 |
 
-如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues 或 B 站私信联系开发者。
+如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues、B 站私信或 QQ 联系开发者（ShiyiPai）。
 
 ## 免责声明
 

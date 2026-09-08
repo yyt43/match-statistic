@@ -4,6 +4,14 @@
 
 ### 新增
 
+- **版权声明与联系方式**：网站底部（Home 页脚 + HelpPage 底部）新增 `© 2026 ShiyiPai. All rights reserved.` 版权声明；HelpPage「相关链接」新增开发者 QQ（2845850691）卡片；README「相关链接」补充开发者署名 ShiyiPai、QQ 联系方式；`package.json` 设 `name: match-statistic`、`author: ShiyiPai`。
+
+### 调整
+
+- **弃赛管理 UI 统一**：弃赛管理区块改为与赛制管理、选手管理一致的折叠式布局（`space-y-2` 标题 + `mt-3 space-y-2` 内容）；标题字号统一为 `text-xs text-slate-400`；「手动退赛(不必再点)」→「确认退赛」；「已赛前弃赛」→「已退赛」（该列表实际包含赛前弃赛与赛后弃赛的选手）；底部提示条拆为三段更清晰；HelpPage 同步更新弃赛入口描述。
+
+### 新增
+
 - **加赛功能**：比赛结束后，若多名选手所有破分指标完全相同，排行榜显示「需加赛」徽章；控制面板「生成加赛」按钮一键检测平分选手并生成加赛对阵（遵循不重复对阵原则，奇数人轮空，加赛标记 `isPlayoff=true`）。**加赛结果只用于区分名次，不计入对手胜率/SOS/SOSOS/本人局胜率/对手局胜率等任何小分指标**，以独立 `playoffWins` 字段存储，排行榜显示「加赛N胜」徽章。`sortPlayersByRank` 在所有常规指标相同时以 `playoffWins` 作为最终破分键。
 
 - **错误边界 ErrorBoundary**：全局包裹 `ErrorBoundary`，子组件渲染崩溃时显示错误信息 + 重试 + 导出数据按钮，防止白屏丢数据。

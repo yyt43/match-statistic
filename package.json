@@ -1,7 +1,8 @@
 {
-  "name": "workspace",
+  "name": "match-statistic",
   "private": true,
   "version": "0.0.0",
+  "author": "ShiyiPai",
   "type": "module",
   "scripts": {
     "dev": "vite",

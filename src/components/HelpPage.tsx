@@ -560,14 +560,14 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
             </div>
           </div>
           <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues、B 站私信或 QQ 联系开发者（shiyipai）。
+            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues、B 站私信或 QQ 联系开发者（ShiyiPai）。
           </p>
         </section>
 
         {/* 底部 */}
         <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
           <div>诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网</div>
-          <div className="text-xs text-slate-600">© 2026 shiyipai. All rights reserved.</div>
+          <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
         </div>
       </div>
     </div>
