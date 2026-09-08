@@ -16,6 +16,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
+          aria-label="关闭帮助页面"
           className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
@@ -305,15 +306,21 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <div className="space-y-2">
                 <div>
                   <span className="text-slate-400 text-xs">BO1 赛制：</span>
-                  <p className="text-sm text-slate-300">胜率 → 对手胜率（SOS） → 对手对手胜率（SOSOS） → 积分</p>
+                  <p className="text-sm text-slate-300">胜场数 → 对手胜率（SOS） → 对手对手胜率（SOSOS） → 积分</p>
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs">BO3 / BO5 / BO7 赛制：</span>
-                  <p className="text-sm text-slate-300">胜率 → 对手胜率 → 局胜率 → 对手局胜率 → 积分</p>
+                  <p className="text-sm text-slate-300">胜场数 → 对手胜率 → 本人局胜率 → 对手局胜率 → 积分</p>
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs">单败淘汰：</span>
                   <p className="text-sm text-slate-300">未被淘汰轮次 → 胜场数 → 败场数 → 姓名</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-xs">加赛规则：</span>
+                  <p className="text-sm text-slate-300">
+                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统会自动检测平分选手并生成加赛对阵（遵循不重复对阵原则，奇数人轮空），加赛结果计入排名。
+                  </p>
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs">对手胜率 / 对手局胜率 计算方式（聚合公式）：</span>
@@ -511,6 +518,8 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               href="https://github.com/yyt43/match-statistic"
               target="_blank"
               rel="noopener noreferrer"
+              role="link"
+              aria-label="前往 GitHub 项目地址（新窗口打开）"
               className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
             >
               <div className="text-slate-300 group-hover:text-gold-400 transition-colors">
@@ -526,6 +535,8 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               href="https://space.bilibili.com/526320039"
               target="_blank"
               rel="noopener noreferrer"
+              role="link"
+              aria-label="前往开发者 B 站主页（新窗口打开）"
               className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
             >
               <div className="text-slate-300 group-hover:text-gold-400 transition-colors">

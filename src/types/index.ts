@@ -54,6 +54,8 @@ export interface Match {
   preDrop?: boolean;
   player1Games?: number;
   player2Games?: number;
+  /** 加赛标记：true 表示该场为加赛（用于区分常规轮次与加赛） */
+  isPlayoff?: boolean;
 }
 
 export interface TournamentGroup {

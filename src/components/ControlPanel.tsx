@@ -44,6 +44,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     replacePlayers,
     importCompetition,
     setCurrentGroup,
+    generatePlayoff,
   } = useTournamentStore();
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -1118,6 +1119,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               <p className="text-xs text-slate-500 mt-0.5">
                 共 {currentGroup.totalRounds} 轮
               </p>
+              {currentGroup.pairingType === 'swiss' && (
+                <button
+                  onClick={() => generatePlayoff()}
+                  className="mt-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors text-xs flex items-center justify-center gap-1.5 mx-auto"
+                  title="检测排名中是否存在所有破分指标完全相同的选手，若有则生成加赛对阵以区分名次"
+                >
+                  <Swords className="w-3.5 h-3.5" />
+                  生成加赛
+                </button>
+              )}
             </div>
           )}
 

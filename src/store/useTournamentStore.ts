@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
-import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
+import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType, detectTieGroups, generatePlayoffPairings } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
 
@@ -96,6 +96,9 @@ interface CompetitionState {
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
   restoreFromSnapshot: (snapshotId: string) => boolean;
   createSnapshot: (label?: string) => void;
+
+  /** 生成加赛：检测当前小组排名中是否存在平分选手，若有则生成加赛对阵 */
+  generatePlayoff: () => void;
 
   setViewRound: (round: number) => void;
   resetCompetition: () => void;
@@ -1184,6 +1187,52 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
   setViewRound: (round: number) => {
     set({ viewRound: round });
+  },
+
+  generatePlayoff: () => {
+    const { competition } = get();
+    const idx = competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.pairingType !== 'swiss') return;
+    // 只有比赛完成或进行到最后轮才能加赛
+    if (group.status !== 'completed' && group.currentRound < group.totalRounds) return;
+
+    const tieGroups = detectTieGroups(group.players, group.gameType);
+    if (tieGroups.length === 0) return;
+
+    // 合并所有平分选手
+    const allTied = tieGroups.flat();
+    const { matches: playoffMatches, updatedPlayers } = generatePlayoffPairings(allTied, group.gameType, group.matches);
+
+    // 应用 BYE 结果到选手
+    const playerMap = new Map(updatedPlayers.map(p => [p.id, { ...p }]));
+    for (const match of playoffMatches) {
+      if (match.isBye && match.result === 'player1') {
+        const p = playerMap.get(match.player1Id);
+        if (p) {
+          p.points += 1;
+          p.wins += 1;
+          if (match.player1Games !== undefined && match.player2Games !== undefined) {
+            p.totalGames += match.player1Games + match.player2Games;
+            p.wonGames += match.player1Games;
+          }
+        }
+      }
+    }
+
+    // 合并 updatedPlayers 回 group.players（保留非加赛选手不变）
+    const mergedPlayers = group.players.map(p => playerMap.get(p.id) ?? p);
+    const recalculated = calculateAllWinRates(mergedPlayers, [...group.matches, ...playoffMatches], group.gameType);
+
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = {
+      ...group,
+      matches: [...group.matches, ...playoffMatches],
+      players: recalculated,
+    };
+    const updated = { ...competition, groups: updatedGroups };
+    set({ competition: updated });
+    saveCompetition(updated);
   },
 
   updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {

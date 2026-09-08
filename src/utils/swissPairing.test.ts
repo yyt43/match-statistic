@@ -7,6 +7,8 @@ import {
   calculateAllWinRates,
   createPlayersFromNames,
   getRoundGameType,
+  detectTieGroups,
+  generatePlayoffPairings,
 } from './swissPairing';
 import type { Player, Match, TournamentGroup } from '../types';
 
@@ -629,3 +631,80 @@ describe('generatePairings（路由层）', () => {
     expect(matches.every(m => !m.isBye)).toBe(true);
   });
 });
+
+describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
+  it('所有破分指标完全相同的选手被检测为平分组', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 4, losses: 1, opponentWinRate: 0.72, opponentOpponentWinRate: 0.5, gameWinRate: 0.75, opponentGameWinRate: 0.54, points: 4 }),
+      makePlayer('B', 'B', { wins: 4, losses: 1, opponentWinRate: 0.72, opponentOpponentWinRate: 0.5, gameWinRate: 0.75, opponentGameWinRate: 0.54, points: 4 }),
+      makePlayer('C', 'C', { wins: 4, losses: 1, opponentWinRate: 0.70, opponentOpponentWinRate: 0.5, gameWinRate: 0.75, opponentGameWinRate: 0.54, points: 4 }),
+    ];
+    const groups = detectTieGroups(players, 'bo3');
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveLength(2);
+    expect(groups[0].map(p => p.id).sort()).toEqual(['A', 'B']);
+  });
+
+  it('BO1 赛制检测平分（看对手胜率+对手对手胜率）', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 3, opponentWinRate: 0.6, opponentOpponentWinRate: 0.5 }),
+      makePlayer('B', 'B', { wins: 3, opponentWinRate: 0.6, opponentOpponentWinRate: 0.5 }),
+      makePlayer('C', 'C', { wins: 3, opponentWinRate: 0.6, opponentOpponentWinRate: 0.4 }),
+    ];
+    const groups = detectTieGroups(players, 'bo1');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].map(p => p.id).sort()).toEqual(['A', 'B']);
+  });
+
+  it('已弃赛/淘汰选手不参与平分检测', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 4, opponentWinRate: 0.72, dropped: true }),
+      makePlayer('B', 'B', { wins: 4, opponentWinRate: 0.72 }),
+      makePlayer('C', 'C', { wins: 4, opponentWinRate: 0.72, eliminated: true }),
+    ];
+    const groups = detectTieGroups(players, 'bo1');
+    // 只有 B 活跃，无法形成平分组
+    expect(groups).toHaveLength(0);
+  });
+
+  it('generatePlayoffPairings 为平分选手生成对阵且标记 isPlayoff', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 4, playedAgainst: [] }),
+      makePlayer('B', 'B', { wins: 4, playedAgainst: [] }),
+    ];
+    const { matches, updatedPlayers } = generatePlayoffPairings(players, 'bo3', []);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].isPlayoff).toBe(true);
+    expect(matches[0].round).toBe(0);
+    expect(matches[0].result).toBe('pending');
+    // playedAgainst 互加
+    expect(updatedPlayers.find(p => p.id === 'A')!.playedAgainst).toContain('B');
+    expect(updatedPlayers.find(p => p.id === 'B')!.playedAgainst).toContain('A');
+  });
+
+  it('奇数平分选手生成加赛时最后一人轮空', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 4, playedAgainst: [] }),
+      makePlayer('B', 'B', { wins: 4, playedAgainst: [] }),
+      makePlayer('C', 'C', { wins: 4, playedAgainst: [] }),
+    ];
+    const { matches } = generatePlayoffPairings(players, 'bo1', []);
+    expect(matches).toHaveLength(2);
+    const byeMatch = matches.find(m => m.isBye);
+    expect(byeMatch).toBeDefined();
+    expect(byeMatch!.isPlayoff).toBe(true);
+    expect(byeMatch!.result).toBe('player1');
+  });
+
+  it('已交手过的选手不会在加赛中重复匹配', () => {
+    const players = [
+      makePlayer('A', 'A', { wins: 4, playedAgainst: ['B'] }),
+      makePlayer('B', 'B', { wins: 4, playedAgainst: ['A'] }),
+    ];
+    // 只有 2 人且已交手过，应无法生成对赛，两人都轮空
+    const { matches } = generatePlayoffPairings(players, 'bo1', []);
+    expect(matches.every(m => m.isBye)).toBe(true);
+    expect(matches).toHaveLength(2);
+  });
+});
+

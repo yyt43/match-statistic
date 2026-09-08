@@ -748,6 +748,125 @@ export function getRankedPlayers(players: Player[], gameType: GameType = 'bo1', 
   return sortPlayers(players, gameType, pairingType);
 }
 
+/**
+ * 检测瑞士轮排名中是否存在"所有破分指标完全相同"的选手组（需要加赛）。
+ * 破分指标按赛制定制：
+ * - BO1：胜场数 → 对手胜率 → 对手的对手胜率
+ * - BO3+：胜场数 → 对手胜率 → 本人局胜率 → 对手局胜率
+ * 如果上述所有指标都相同，且至少有 2 名选手，则返回这些选手的分组。
+ * 只在同一排名区间内检测（排除已弃赛/淘汰的选手）。
+ */
+export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): Player[][] {
+  const active = players.filter(p => !p.dropped && !p.eliminated);
+  const ranked = sortPlayersByRank(active, gameType);
+
+  const groups: Player[][] = [];
+  let i = 0;
+  while (i < ranked.length) {
+    const a = ranked[i];
+    let j = i + 1;
+    const group = [a];
+    while (j < ranked.length) {
+      const b = ranked[j];
+      // 比较所有破分指标
+      if (
+        a.wins === b.wins &&
+        a.opponentWinRate === b.opponentWinRate &&
+        a.points === b.points &&
+        (gameType === 'bo1'
+          ? a.opponentOpponentWinRate === b.opponentOpponentWinRate
+          : a.gameWinRate === b.gameWinRate && a.opponentGameWinRate === b.opponentGameWinRate)
+      ) {
+        group.push(b);
+        j++;
+      } else {
+        break;
+      }
+    }
+    if (group.length >= 2) {
+      groups.push(group);
+    }
+    i = j;
+  }
+  return groups;
+}
+
+/**
+ * 生成加赛对阵：将平分选手随机洗牌后两两配对。
+ * 奇数人则最后一人轮空（BO1=1-0 / BO3=2-0...）。
+ * 加赛 match 标记 isPlayoff=true，与常规轮次区分。
+ * 返回 { matches, updatedPlayers } —— updatedPlayers 仅添加了 playedAgainst，不含胜率重算。
+ */
+export function generatePlayoffPairings(
+  tiedPlayers: Player[],
+  gameType: GameType,
+  existingMatches: Match[],
+): { matches: Match[]; updatedPlayers: Player[] } {
+  // 过滤掉已交手过的组合
+  const playerMap = new Map(tiedPlayers.map(p => [p.id, { ...p }]));
+  const pool = [...tiedPlayers];
+  // 随机洗牌
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  const matches: Match[] = [];
+  const used = new Set<string>();
+
+  for (let i = 0; i < pool.length; i++) {
+    if (used.has(pool[i].id)) continue;
+    const p1 = pool[i];
+    let p2: Player | null = null;
+    for (let j = i + 1; j < pool.length; j++) {
+      if (used.has(pool[j].id)) continue;
+      const candidate = pool[j];
+      const p1State = playerMap.get(p1.id);
+      if (p1State && !p1State.playedAgainst.includes(candidate.id)) {
+        p2 = candidate;
+        break;
+      }
+    }
+    if (p2) {
+      used.add(p1.id);
+      used.add(p2.id);
+      const p1State = playerMap.get(p1.id)!;
+      const p2State = playerMap.get(p2.id)!;
+      p1State.playedAgainst = [...p1State.playedAgainst, p2.id];
+      p2State.playedAgainst = [...p2State.playedAgainst, p1.id];
+      matches.push({
+        id: `playoff-${Date.now()}-${matches.length}`,
+        round: 0, // 加赛不属于常规轮次，round=0
+        player1Id: p1.id,
+        player2Id: p2.id,
+        result: 'pending',
+        isPlayoff: true,
+      });
+    }
+  }
+
+  // 剩余未匹配的选手轮空
+  const remaining = pool.filter(p => !used.has(p.id));
+  for (const p of remaining) {
+    const byeWins = getByeWins(gameType);
+    matches.push({
+      id: `playoff-bye-${Date.now()}-${matches.length}`,
+      round: 0,
+      player1Id: p.id,
+      player2Id: '__BYE__',
+      result: 'player1',
+      isBye: true,
+      isPlayoff: true,
+      player1Games: byeWins,
+      player2Games: 0,
+    });
+    const pState = playerMap.get(p.id)!;
+    pState.playedAgainst = [...pState.playedAgainst, 'bye'];
+  }
+
+  return { matches, updatedPlayers: Array.from(playerMap.values()) };
+}
+
 // ===== 单败淘汰制 =====
 
 export function getSingleEliminationRounds(playerCount: number): number {

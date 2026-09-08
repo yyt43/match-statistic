@@ -2,7 +2,7 @@ import { Trophy, Medal, Award, BarChart2 } from 'lucide-react';
 import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo } from 'react';
 import { getEliminationTitle, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
-import { getRankedPlayers } from '../utils/swissPairing';
+import { getRankedPlayers, detectTieGroups } from '../utils/swissPairing';
 
 export function PlayerRanking() {
   const currentGroup = useCurrentGroup();
@@ -11,6 +11,16 @@ export function PlayerRanking() {
   const rankedPlayers = useMemo(() => {
     return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
   }, [currentGroup.players, currentGroup.matches, currentGroup.gameType, currentGroup.pairingType]);
+
+  // 检测平分选手（仅比赛完成且瑞士轮时）
+  const tieGroups = useMemo(() => {
+    if (!isCompleted || currentGroup.pairingType !== 'swiss') return [];
+    return detectTieGroups(currentGroup.players, currentGroup.gameType);
+  }, [isCompleted, currentGroup.pairingType, currentGroup.players, currentGroup.gameType]);
+
+  const tiedPlayerIds = useMemo(() => {
+    return new Set(tieGroups.flat().map(p => p.id));
+  }, [tieGroups]);
 
   const getRankBadge = (rank: number) => {
     if (rank === 1) {
@@ -91,6 +101,11 @@ export function PlayerRanking() {
           )}
           {rankedPlayers.some(p => p.dropped) && (
             <span className="text-rose-400">{rankedPlayers.filter(p => p.dropped).length} 弃赛</span>
+          )}
+          {tiedPlayerIds.size > 0 && (
+            <span className="text-amber-400" title={`${tiedPlayerIds.size} 名选手所有破分指标完全相同，需加赛区分名次`}>
+              {tiedPlayerIds.size} 人需加赛
+            </span>
           )}
         </div>
       </div>
@@ -210,6 +225,11 @@ export function PlayerRanking() {
                         弃赛
                       </span>
                     )}
+                    {tiedPlayerIds.has(player.id) && (
+                      <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30" title="所有破分指标完全相同，需加赛区分名次">
+                        需加赛
+                      </span>
+                    )}
                     <span className="shrink-0 font-mono font-bold text-xs text-white">
                       {player.wins}-{player.losses}
                     </span>
@@ -269,7 +289,7 @@ export function PlayerRanking() {
         <div className="text-center text-[10px] text-slate-600 mt-1.5">
           {isSingleElimination
             ? '排名依据：未被淘汰轮次 → 胜场数 → 败场数 → 姓名'
-            : `排名依据：胜率 → 对手胜率 ${isMultiGame ? '→ 局胜率 → 对手局胜率' : '→ 对手对手胜率'}`}
+            : `排名依据：胜场数 → 对手胜率 ${isMultiGame ? '→ 本人局胜率 → 对手局胜率' : '→ 对手对手胜率'}`}
         </div>
       </div>
     </div>
