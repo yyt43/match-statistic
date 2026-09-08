@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
-  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History
+  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History, Swords
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../store/useTournamentStore';
 import type { GameType, PairingType } from '../types';
@@ -57,6 +57,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showPlayerManager, setShowPlayerManager] = useState(false);
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [showFormatManager, setShowFormatManager] = useState(false);
+  const [showDropManager, setShowDropManager] = useState(false);
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [batchNames, setBatchNames] = useState('');
   const [showBatchSettings, setShowBatchSettings] = useState(false);
@@ -897,7 +898,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </button>
 
             {showPlayerManager && (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 space-y-3">
                 <button
                   onClick={() => setShowBatchImport(!showBatchImport)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-medium transition-colors"
@@ -1017,98 +1018,114 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          {/* 赛前弃赛 / 赛后弃赛管理 */}
+          {/* 弃赛管理 */}
           {isInProgress && (
-            <div className="pt-2 border-t border-slate-700/40">
-              {(() => {
-                // 汇总所有赛前弃赛 match 的"弃赛者本人"（preDrop=true 的败方）
-                const preDroppedIds = new Set<string>();
-                for (const m of currentGroup.matches) {
-                  if (!m.preDrop) continue;
-                  if (m.result === 'player1') preDroppedIds.add(m.player2Id); // player2 赛前弃赛
-                  else if (m.result === 'player2') preDroppedIds.add(m.player1Id); // player1 赛前弃赛
-                }
-                return (
-                  <>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <h3 className="text-[10px] font-medium text-slate-500">赛前 / 赛后弃赛管理</h3>
-                      <span className="text-[8px] text-slate-500 bg-slate-700/30 border border-slate-600/30 px-1.5 py-0.5 rounded-full">两者都等同于退赛</span>
-                    </div>
-                    <div className="max-h-28 overflow-y-auto space-y-1">
-                      {currentGroup.players.filter(p => !p.dropped && !p.eliminated).map(player => {
-                        const isPreDropped = preDroppedIds.has(player.id);
-                        return (
-                          <div key={player.id} className="flex items-center justify-between gap-2 px-2.5 py-1 bg-slate-800/30 rounded-md">
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <span className="text-xs text-slate-300 truncate">{player.name}</span>
-                              {isPreDropped && (
-                                <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手在之前某轮通过「赛前弃赛」宣布弃权，已自动进入退赛状态（后续不再安排对局）。">
-                                  赛前弃赛
-                                </span>
-                              )}
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowDropManager(!showDropManager)}
+                className="w-full flex items-center justify-between text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <UserX className="w-3.5 h-3.5" />
+                  弃赛管理
+                  <span className="text-slate-500">
+                    ({currentGroup.players.filter(p => p.dropped).length}人已退赛)
+                  </span>
+                </span>
+                {showDropManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {showDropManager && (
+                <div className="mt-3 space-y-2">
+                  {(() => {
+                    // 汇总所有赛前弃赛 match 的"弃赛者本人"（preDrop=true 的败方）
+                    const preDroppedIds = new Set<string>();
+                    for (const m of currentGroup.matches) {
+                      if (!m.preDrop) continue;
+                      if (m.result === 'player1') preDroppedIds.add(m.player2Id);
+                      else if (m.result === 'player2') preDroppedIds.add(m.player1Id);
+                    }
+                    return (
+                      <>
+                        <div className="max-h-28 overflow-y-auto space-y-1">
+                          {currentGroup.players.filter(p => !p.dropped && !p.eliminated).map(player => {
+                            const isPreDropped = preDroppedIds.has(player.id);
+                            return (
+                              <div key={player.id} className="flex items-center justify-between gap-2 px-2.5 py-1 bg-slate-800/30 rounded-md">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <span className="text-xs text-slate-300 truncate">{player.name}</span>
+                                  {isPreDropped && (
+                                    <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手曾在某轮单场赛前弃赛，已自动退赛。">
+                                      赛前弃赛
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => togglePlayerDropped(player.id)}
+                                  className={
+                                    'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0 ' +
+                                    (isPreDropped
+                                      ? 'text-slate-400 hover:bg-amber-500/10 hover:text-amber-400/80 border border-amber-500/20 bg-amber-500/5'
+                                      : 'text-rose-400 hover:bg-rose-500/10')
+                                  }
+                                  title={
+                                    isPreDropped
+                                      ? '该选手已因赛前弃赛退赛。若此处显示，通常是执行过「恢复」，点此重新标记退赛。'
+                                      : '赛后弃赛：针对选手个人的退赛标记。后续不再安排对阵，不产生新胜负归属，已完赛场次全部保留。'
+                                  }
+                                >
+                                  <UserX className="w-2.5 h-2.5" />
+                                  {isPreDropped ? '确认退赛' : '赛后弃赛'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {currentGroup.players.some(p => p.eliminated) && (
+                          <div className="space-y-1">
+                            <h4 className="text-[10px] text-slate-500">已淘汰</h4>
+                            <div className="max-h-16 overflow-y-auto space-y-1">
+                              {currentGroup.players.filter(p => p.eliminated).map(player => (
+                                <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-slate-700/20 rounded-md">
+                                  <span className="text-xs text-slate-500">{player.name}</span>
+                                  <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded bg-slate-600/20 border border-slate-500/20">
+                                    淘汰
+                                  </span>
+                                </div>
+                              ))}
                             </div>
-                            <button
-                              onClick={() => togglePlayerDropped(player.id)}
-                              className={
-                                'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0 ' +
-                                (isPreDropped
-                                  ? 'text-slate-400 hover:bg-amber-500/10 hover:text-amber-400/80 border border-amber-500/20 bg-amber-500/5'
-                                  : 'text-rose-400 hover:bg-rose-500/10')
-                              }
-                              title={
-                                isPreDropped
-                                  ? '该选手已因赛前弃赛处于退赛状态。若出现在此处一般是执行过「恢复」操作，点此按钮会重新手动标记退赛（放回「已赛前弃赛」列表）。'
-                                  : '赛后弃赛：针对选手个人的退赛标记。后续轮次不再安排对阵（不产生胜负归属给他人），已完赛场次全部保留，战绩冻结在弃赛时刻。'
-                              }
-                            >
-                              <UserX className="w-2.5 h-2.5" />
-                              {isPreDropped ? '手动退赛(不必再点)' : '赛后弃赛'}
-                            </button>
                           </div>
-                        );
-                      })}
-                    </div>
-                    {currentGroup.players.some(p => p.eliminated) && (
-                      <div className="mt-1.5">
-                        <h4 className="text-[10px] text-slate-500 mb-1">已淘汰</h4>
-                        <div className="max-h-16 overflow-y-auto space-y-1">
-                          {currentGroup.players.filter(p => p.eliminated).map(player => (
-                            <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-slate-700/20 rounded-md">
-                              <span className="text-xs text-slate-500">{player.name}</span>
-                              <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded bg-slate-600/20 border border-slate-500/20">
-                                淘汰
-                              </span>
+                        )}
+                        {currentGroup.players.some(p => p.dropped) && (
+                          <div className="space-y-1">
+                            <h4 className="text-[10px] text-slate-500">已退赛</h4>
+                            <div className="max-h-16 overflow-y-auto space-y-1">
+                              {currentGroup.players.filter(p => p.dropped).map(player => (
+                                <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
+                                  <span className="text-xs text-rose-400/70 line-through">{player.name}</span>
+                                  <button
+                                    onClick={() => togglePlayerDropped(player.id)}
+                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                                    title="恢复：将该选手重新纳入后续轮次配对。已产生的结果不变。"
+                                  >
+                                    <UserCheck className="w-2.5 h-2.5" />
+                                    恢复
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          </div>
+                        )}
+                        <div className="text-[9px] leading-relaxed text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1.5 space-y-1">
+                          <p><strong className="text-rose-400/80">赛前弃赛</strong>：对阵卡片「赛前弃」按钮，针对某场比赛。对方直接记胜，弃赛方不记败场，该场不计入对手胜率网络。</p>
+                          <p><strong className="text-slate-400/80">赛后弃赛</strong>：本面板「赛后弃赛」按钮，针对选手个人。不产生新胜负，仅标记退赛，已完赛场次正常计入对手胜率网络。</p>
+                          <p>两者<strong>都会让选手退赛、不再安排后续对阵</strong>，最终都进入上方「已退赛」列表。</p>
                         </div>
-                      </div>
-                    )}
-                    {currentGroup.players.some(p => p.dropped) && (
-                      <div className="mt-1.5">
-                        <h4 className="text-[10px] text-slate-500 mb-1">已赛前弃赛</h4>
-                        <div className="max-h-16 overflow-y-auto space-y-1">
-                          {currentGroup.players.filter(p => p.dropped).map(player => (
-                            <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
-                              <span className="text-xs text-rose-400/70 line-through">{player.name}</span>
-                              <button
-                                onClick={() => togglePlayerDropped(player.id)}
-                                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                title="恢复退赛：将该选手重新纳入后续轮次配对。之前产生的结果不变（赛前弃赛场次仍不计入对手胜率网络）。"
-                              >
-                                <UserCheck className="w-2.5 h-2.5" />
-                                恢复
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="mt-1.5 text-[9px] leading-tight text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1">
-                      赛前弃赛与赛后弃赛<strong>都会让选手退赛、不再安排后续对阵</strong>，本质区别是触发方式与归属：①<strong>赛前弃赛</strong>——针对某一具体对阵（入口在对阵卡片展开后的「赛前弃」按钮）：比赛未开赛即一方宣布弃权，另一方直接记胜场，弃赛方不记败场，该场整体不计入对手胜率网络。②<strong>赛后弃赛</strong>——针对选手个人（入口在本面板「赛后弃赛」按钮）：不产生新的胜负归属给他人，仅手动标记某选手从下一轮起退出赛事，已完赛场次按真实结果正常计入对手胜率网络。两者最终都会使选手进入上方「已赛前弃赛」列表并冻结战绩。
-                    </div>
-                  </>
-                );
-              })()}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
 
