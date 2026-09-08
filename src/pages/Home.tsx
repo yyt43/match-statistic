@@ -30,7 +30,7 @@ export default function Home() {
 
   useEffect(() => {
     loadSavedCompetition();
-  }, []);
+  }, [loadSavedCompetition]);
 
   // Ctrl+Z / Cmd+Z 撤回上一轮：仅在比赛进行中、无弹窗、未在输入框中聚焦时触发
   useEffect(() => {

@@ -449,6 +449,7 @@ describe('calculateAllWinRates', () => {
       // 同时让 me 的对手是 A，me 胜 A（真实交手）。这样 me 个人是 1-0。
       // 不 —— 我们希望 me 是观察对象，me 的对手是 A（真实交手过），这样 me 的 SOS 计算里有 A 的有效战绩。
     ];
+    void matches; // 历史草稿数组，实际使用 setupMatches
     // 重写：用更一致的 setup
     const setupMatches: Match[] = [
       // me vs A：真实交手，me 胜 A → me=1-0, A 获 1 负
@@ -522,7 +523,6 @@ describe('calculateAllWinRates', () => {
     expect(yR.opponentWinRate).toBe(0);
 
     // 现在给 Y 再加一个真实对手 Z，Y vs Z 真实胜 Y，验证轮空仍计入（BYE 贡献 0/1）
-    const z = makePlayer('z', 'Z', { wins: 0, losses: 1 });
     const players2 = [makePlayer('w2', 'W2'), makePlayer('y2', 'Y2', { wins: 2, losses: 0 }), makePlayer('z2', 'Z2', { wins: 0, losses: 1 })];
     const matches2: Match[] = [
       { id: 'mA2', round: 1, player1Id: 'y2', player2Id: 'bye', result: 'player1', isBye: true, player1Games: 1, player2Games: 0 },
@@ -578,7 +578,7 @@ describe('calculateAllWinRates', () => {
     b.wins = 0; b.losses = 1;
 
     const result = calculateAllWinRates(players, matches, 'bo1');
-    const [meR, xR, aR, bR] = result;
+    const [meR, xR] = result;
 
     // X 个人胜率：1/(1+1) = 0.5 ✅（按1-1计）
     expect(xR.winRate).toBeCloseTo(0.5);

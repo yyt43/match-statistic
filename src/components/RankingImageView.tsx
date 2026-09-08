@@ -8,7 +8,7 @@ export function RankingImageView() {
 
   const rankedPlayers = useMemo(() => {
     return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
-  }, [currentGroup.players, currentGroup.matches, currentGroup.gameType, currentGroup.pairingType]);
+  }, [currentGroup.players, currentGroup.gameType, currentGroup.pairingType]);
 
   const isMultiGame = currentGroup.gameType !== 'bo1';
   const isSingleElimination = currentGroup.pairingType === 'single_elimination';

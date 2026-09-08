@@ -10,7 +10,7 @@ export function PlayerRanking() {
 
   const rankedPlayers = useMemo(() => {
     return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
-  }, [currentGroup.players, currentGroup.matches, currentGroup.gameType, currentGroup.pairingType]);
+  }, [currentGroup.players, currentGroup.gameType, currentGroup.pairingType]);
 
   // 检测平分选手（仅比赛完成且瑞士轮时）
   const tieGroups = useMemo(() => {
