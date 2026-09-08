@@ -150,8 +150,9 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="py-4 text-center text-xs text-slate-600">
-        诗意 · 比赛战绩统计系统
+      <footer className="py-4 text-center text-xs text-slate-600 space-y-0.5">
+        <div>诗意 · 比赛战绩统计系统</div>
+        <div>© 2026 shiyipai. All rights reserved.</div>
       </footer>
 
       <ImageExportModal

@@ -1,4 +1,4 @@
-import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle, Github, ExternalLink, Youtube } from 'lucide-react';
+import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle, Github, ExternalLink, Youtube, MessageCircle } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 
 interface HelpPageProps {
@@ -548,15 +548,26 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               </div>
               <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-gold-400 transition-colors shrink-0" />
             </a>
+            <div className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 cursor-default">
+              <div className="text-slate-300">
+                <MessageCircle className="w-8 h-8" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white mb-0.5">开发者 QQ</div>
+                <div className="text-xs text-slate-400 truncate">2845850691</div>
+              </div>
+              <span className="text-[10px] text-slate-500 shrink-0">加好友备注来意</span>
+            </div>
           </div>
           <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues 或 B 站私信联系开发者。
+            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues、B 站私信或 QQ 联系开发者（shiyipai）。
           </p>
         </section>
 
         {/* 底部 */}
-        <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50">
-          诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网
+        <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
+          <div>诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网</div>
+          <div className="text-xs text-slate-600">© 2026 shiyipai. All rights reserved.</div>
         </div>
       </div>
     </div>
