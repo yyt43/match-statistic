@@ -1,4 +1,4 @@
-import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle } from 'lucide-react';
+import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle, Github, ExternalLink, Youtube } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 
 interface HelpPageProps {
@@ -498,6 +498,49 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               使用者应根据自身赛事的实际规则自行核对系统行为是否符合预期。在正式比赛中使用前，建议先通过测试模式模拟完整赛程以验证配对与排名结果。<strong className="text-rose-400">因使用本系统导致的任何争议、损失或不利后果，由使用者自行承担，开发者不承担任何责任。</strong>
             </p>
           </div>
+        </section>
+
+        {/* 相关链接 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <ExternalLink className="w-5 h-5 text-gold-400" />
+            相关链接
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a
+              href="https://github.com/yyt43/match-statistic"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
+            >
+              <div className="text-slate-300 group-hover:text-gold-400 transition-colors">
+                <Github className="w-8 h-8" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white mb-0.5">GitHub 项目地址</div>
+                <div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-gold-400 transition-colors shrink-0" />
+            </a>
+            <a
+              href="https://space.bilibili.com/526320039"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
+            >
+              <div className="text-slate-300 group-hover:text-gold-400 transition-colors">
+                <Youtube className="w-8 h-8" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white mb-0.5">开发者 B 站主页</div>
+                <div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-gold-400 transition-colors shrink-0" />
+            </a>
+          </div>
+          <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues 或 B 站私信联系开发者。
+          </p>
         </section>
 
         {/* 底部 */}
