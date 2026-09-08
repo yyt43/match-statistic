@@ -63,6 +63,9 @@ function validateCompetitionData(data: unknown): boolean {
   if (!Array.isArray(competition.groups)) return false;
   if (typeof competition.currentGroupIndex !== 'number') return false;
   
+  const validPairingTypes = ['swiss', 'single_elimination'];
+  const validGameTypes = ['bo1', 'bo3', 'bo5', 'bo7'];
+  
   // 检查每个小组的数据
   for (const group of competition.groups) {
     if (!group || typeof group !== 'object') return false;
@@ -76,6 +79,14 @@ function validateCompetitionData(data: unknown): boolean {
     if (!Array.isArray(g.players)) return false;
     if (!Array.isArray(g.matches)) return false;
     if (typeof g.gameType !== 'string') return false;
+    // 校验配对类型和赛制枚举值
+    if (typeof g.pairingType !== 'string' || !validPairingTypes.includes(g.pairingType)) return false;
+    if (!validGameTypes.includes(g.gameType)) return false;
+    // roundGameTypes 可选，若存在则必须是字符串数组且每个值合法
+    if (g.roundGameTypes !== undefined) {
+      if (!Array.isArray(g.roundGameTypes)) return false;
+      if (!g.roundGameTypes.every((gt: unknown) => typeof gt === 'string' && validGameTypes.includes(gt))) return false;
+    }
   }
   
   return true;

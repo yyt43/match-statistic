@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   handleExportData = () => {
     try {
-      const data = localStorage.getItem('tournament-storage');
+      const data = localStorage.getItem('swiss_tournament_data');
       if (data) {
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
     } catch (e) {
       console.error('导出数据失败：', e);
-      alert('导出数据失败，请手动复制 localStorage 中的 tournament-storage 键。');
+      alert('导出数据失败，请手动复制 localStorage 中的 swiss_tournament_data 键。');
     }
   };
 

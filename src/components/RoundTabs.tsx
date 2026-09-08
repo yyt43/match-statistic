@@ -9,11 +9,16 @@ export function RoundTabs() {
   for (let i = 1; i <= currentGroup.currentRound; i++) {
     rounds.push(i);
   }
-  
-  if (rounds.length === 0) return null;
 
-  const canGoLeft = viewRound > 1;
-  const canGoRight = viewRound < currentGroup.currentRound;
+  // 检测是否存在加赛比赛（round=0）
+  const hasPlayoff = currentGroup.matches.some(m => m.isPlayoff);
+
+  if (rounds.length === 0 && !hasPlayoff) return null;
+
+  // viewRound === 0 表示查看加赛
+  const isViewingPlayoff = viewRound === 0 && hasPlayoff;
+  const canGoLeft = !isViewingPlayoff && viewRound > 1;
+  const canGoRight = !isViewingPlayoff && viewRound < currentGroup.currentRound;
 
   return (
     <div className="flex items-center gap-2">
@@ -50,6 +55,22 @@ export function RoundTabs() {
             </button>
           );
         })}
+
+        {/* 加赛标签页 */}
+        {hasPlayoff && (
+          <button
+            onClick={() => setViewRound(0)}
+            className={`
+              px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+              ${isViewingPlayoff
+                ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-indigo-900 shadow-lg shadow-amber-500/30'
+                : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30'
+              }
+            `}
+          >
+            加赛
+          </button>
+        )}
       </div>
       
       <button

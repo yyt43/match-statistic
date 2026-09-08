@@ -810,7 +810,6 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
 export function generatePlayoffPairings(
   tiedPlayers: Player[],
   gameType: GameType,
-  existingMatches: Match[],
 ): { matches: Match[]; updatedPlayers: Player[] } {
   // 过滤掉已交手过的组合
   const playerMap = new Map(tiedPlayers.map(p => [p.id, { ...p }]));

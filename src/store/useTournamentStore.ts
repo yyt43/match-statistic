@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
+import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType, detectTieGroups, generatePlayoffPairings } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
@@ -154,6 +154,172 @@ function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   return { ...group, currentRound: nextRound, matches: allMatches, players: updatedPlayers };
 }
 
+// ===== 比赛结果应用/撤销的公共函数（消除三处重复） =====
+
+/** 撤销一场比赛的结果对选手数据的影响 */
+function revertMatchResult(
+  playerMap: Map<string, Player>,
+  match: Match,
+  res: MatchResult,
+  wasPreDrop: boolean,
+  isSingleElimination: boolean
+): void {
+  const isPlayoff = !!match.isPlayoff;
+  const p1Id = match.player1Id;
+  const p2Id = match.player2Id;
+
+  if (p2Id === 'bye') {
+    const p1 = playerMap.get(p1Id);
+    if (!p1) return;
+    if (res === 'player1') {
+      if (isPlayoff) {
+        p1.playoffWins = (p1.playoffWins || 0) - 1;
+      } else {
+        p1.points -= 1; p1.wins -= 1;
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
+      }
+    }
+    if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
+      p1.totalGames -= match.player1Games + match.player2Games;
+      p1.wonGames -= match.player1Games;
+    }
+    return;
+  }
+
+  const p1 = playerMap.get(p1Id);
+  const p2 = playerMap.get(p2Id);
+  if (!p1 || !p2) return;
+
+  // 加赛：只撤销 playoffWins
+  if (isPlayoff) {
+    if (res === 'player1') {
+      p1.playoffWins = (p1.playoffWins || 0) - 1;
+    } else if (res === 'player2') {
+      p2.playoffWins = (p2.playoffWins || 0) - 1;
+    }
+    return;
+  }
+
+  if (res === 'player1') {
+    p1.points -= 1; p1.wins -= 1;
+    if (!wasPreDrop) p2.losses -= 1;
+    if (!wasPreDrop) {
+      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+    } else {
+      p2.dropped = false;
+    }
+    if (isSingleElimination) p2.eliminated = false;
+  } else if (res === 'player2') {
+    p2.points -= 1; p2.wins -= 1;
+    if (!wasPreDrop) p1.losses -= 1;
+    if (!wasPreDrop) {
+      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+    } else {
+      p1.dropped = false;
+    }
+    if (isSingleElimination) p1.eliminated = false;
+  } else if (res === 'draw') {
+    p1.losses -= 1; p2.losses -= 1;
+    if (!wasPreDrop) {
+      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
+      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
+    }
+    if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
+  }
+
+  if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
+    p1.totalGames -= match.player1Games + match.player2Games;
+    p1.wonGames -= match.player1Games;
+    p2.totalGames -= match.player1Games + match.player2Games;
+    p2.wonGames -= match.player2Games;
+  }
+}
+
+/** 应用一场比赛的结果到选手数据 */
+function applyMatchResultToMap(
+  playerMap: Map<string, Player>,
+  match: Match,
+  res: MatchResult,
+  isPreDrop: boolean,
+  isSingleElimination: boolean,
+  player1Games?: number,
+  player2Games?: number
+): void {
+  const isPlayoff = !!match.isPlayoff;
+  const p1Id = match.player1Id;
+  const p2Id = match.player2Id;
+
+  if (p2Id === 'bye') {
+    const p1 = playerMap.get(p1Id);
+    if (!p1) return;
+    if (res === 'player1') {
+      if (isPlayoff) {
+        p1.playoffWins = (p1.playoffWins || 0) + 1;
+      } else {
+        p1.points += 1; p1.wins += 1;
+        p1.playedAgainst.push('bye');
+      }
+    }
+    if (!isPlayoff && player1Games !== undefined && player2Games !== undefined) {
+      p1.totalGames += player1Games + player2Games;
+      p1.wonGames += player1Games;
+    }
+    return;
+  }
+
+  const p1 = playerMap.get(p1Id);
+  const p2 = playerMap.get(p2Id);
+  if (!p1 || !p2) return;
+
+  // 加赛：只写 playoffWins
+  if (isPlayoff) {
+    if (res === 'player1') {
+      p1.playoffWins = (p1.playoffWins || 0) + 1;
+    } else if (res === 'player2') {
+      p2.playoffWins = (p2.playoffWins || 0) + 1;
+    }
+    return;
+  }
+
+  if (res === 'player1') {
+    p1.points += 1; p1.wins += 1;
+    if (!isPreDrop) p2.losses += 1;
+    if (!isPreDrop) {
+      p1.playedAgainst.push(p2Id);
+      p2.playedAgainst.push(p1Id);
+    } else {
+      p2.dropped = true;
+    }
+    if (isSingleElimination) p2.eliminated = true;
+  } else if (res === 'player2') {
+    p2.points += 1; p2.wins += 1;
+    if (!isPreDrop) p1.losses += 1;
+    if (!isPreDrop) {
+      p1.playedAgainst.push(p2Id);
+      p2.playedAgainst.push(p1Id);
+    } else {
+      p1.dropped = true;
+    }
+    if (isSingleElimination) p1.eliminated = true;
+  } else if (res === 'draw') {
+    p1.losses += 1; p2.losses += 1;
+    if (!isPreDrop) {
+      p1.playedAgainst.push(p2Id);
+      p2.playedAgainst.push(p1Id);
+    }
+    if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
+  }
+
+  if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
+    p1.totalGames += player1Games + player2Games;
+    p1.wonGames += player1Games;
+    p2.totalGames += player1Games + player2Games;
+    p2.wonGames += player2Games;
+  }
+}
+
 /** 应用比赛结果到积分（轻量版：不重算 winRate/排名，保留旧 previousRank） */
 function applyMatchResultFast(
   group: TournamentGroup,
@@ -173,151 +339,11 @@ function applyMatchResultFast(
   const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
   const isSingleElimination = group.pairingType === 'single_elimination';
 
-  function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
-    const isPlayoff = !!match.isPlayoff;
-    if (p2Id === 'bye') {
-      const p1 = playerMap.get(p1Id);
-      if (!p1) return;
-      if (res === 'player1') {
-        if (isPlayoff) {
-          p1.playoffWins = (p1.playoffWins || 0) - 1;
-        } else {
-          p1.points -= 1; p1.wins -= 1;
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-        }
-      }
-      if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
-        p1.totalGames -= match.player1Games + match.player2Games;
-        p1.wonGames -= match.player1Games;
-      }
-      return;
-    }
-    const p1 = playerMap.get(p1Id);
-    const p2 = playerMap.get(p2Id);
-    if (!p1 || !p2) return;
-
-    // 加赛：只撤销 playoffWins
-    if (isPlayoff) {
-      if (res === 'player1') {
-        p1.playoffWins = (p1.playoffWins || 0) - 1;
-      } else if (res === 'player2') {
-        p2.playoffWins = (p2.playoffWins || 0) - 1;
-      }
-      return;
-    }
-
-    if (res === 'player1') {
-      p1.points -= 1; p1.wins -= 1;
-      if (!wasPreDrop) p2.losses -= 1;
-      if (!wasPreDrop) {
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-      } else {
-        p2.dropped = false;
-      }
-      if (isSingleElimination) p2.eliminated = false;
-    } else if (res === 'player2') {
-      p2.points -= 1; p2.wins -= 1;
-      if (!wasPreDrop) p1.losses -= 1;
-      if (!wasPreDrop) {
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-      } else {
-        p1.dropped = false;
-      }
-      if (isSingleElimination) p1.eliminated = false;
-    } else if (res === 'draw') {
-      p1.losses -= 1; p2.losses -= 1;
-      if (!wasPreDrop) {
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-      }
-      if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
-    }
-
-    if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-      p1.totalGames -= match.player1Games + match.player2Games;
-      p1.wonGames -= match.player1Games;
-      p2.totalGames -= match.player1Games + match.player2Games;
-      p2.wonGames -= match.player2Games;
-    }
-  }
-
-  function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
-    const isPlayoff = !!match.isPlayoff;
-    if (p2Id === 'bye') {
-      const p1 = playerMap.get(p1Id);
-      if (!p1) return;
-      if (res === 'player1') {
-        if (isPlayoff) {
-          p1.playoffWins = (p1.playoffWins || 0) + 1;
-        } else {
-          p1.points += 1; p1.wins += 1;
-          p1.playedAgainst.push('bye');
-        }
-      }
-      if (!isPlayoff && player1Games !== undefined && player2Games !== undefined) {
-        p1.totalGames += player1Games + player2Games;
-        p1.wonGames += player1Games;
-      }
-      return;
-    }
-    const p1 = playerMap.get(p1Id);
-    const p2 = playerMap.get(p2Id);
-    if (!p1 || !p2) return;
-
-    // 加赛：只写 playoffWins
-    if (isPlayoff) {
-      if (res === 'player1') {
-        p1.playoffWins = (p1.playoffWins || 0) + 1;
-      } else if (res === 'player2') {
-        p2.playoffWins = (p2.playoffWins || 0) + 1;
-      }
-      return;
-    }
-
-    if (res === 'player1') {
-      p1.points += 1; p1.wins += 1;
-      if (!isPreDrop) p2.losses += 1;
-      if (!isPreDrop) {
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
-      } else {
-        p2.dropped = true;
-      }
-      if (isSingleElimination) p2.eliminated = true;
-    } else if (res === 'player2') {
-      p2.points += 1; p2.wins += 1;
-      if (!isPreDrop) p1.losses += 1;
-      if (!isPreDrop) {
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
-      } else {
-        p1.dropped = true;
-      }
-      if (isSingleElimination) p1.eliminated = true;
-    } else if (res === 'draw') {
-      p1.losses += 1; p2.losses += 1;
-      if (!isPreDrop) {
-        p1.playedAgainst.push(p2Id);
-        p2.playedAgainst.push(p1Id);
-      }
-      if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
-    }
-
-    if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
-      p1.totalGames += player1Games + player2Games;
-      p1.wonGames += player1Games;
-      p2.totalGames += player1Games + player2Games;
-      p2.wonGames += player2Games;
-    }
-  }
-
   if (oldResult !== 'pending') {
-    revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
+    revertMatchResult(playerMap, match, oldResult, oldPreDrop, isSingleElimination);
   }
   if (result !== 'pending') {
-    applyResult(match.player1Id, match.player2Id, result, !!preDrop);
+    applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
   }
 
   const updatedMatches = [...group.matches];
@@ -969,13 +995,19 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     // 回滚每场比赛的结果
     for (const match of currentRoundMatches) {
+      const isPlayoff = !!match.isPlayoff;
+      const wasPreDrop = !!match.preDrop;
+
       if (match.isBye) {
         const p1 = playerMap.get(match.player1Id);
         if (p1 && match.result === 'player1') {
-          p1.points -= 1;
-          p1.wins -= 1;
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-          if (match.player1Games !== undefined && match.player2Games !== undefined) {
+          if (isPlayoff) {
+            p1.playoffWins = (p1.playoffWins || 0) - 1;
+          } else {
+            p1.points -= 1; p1.wins -= 1;
+            p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
+          }
+          if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
             p1.totalGames -= match.player1Games + match.player2Games;
             p1.wonGames -= match.player1Games;
           }
@@ -987,24 +1019,49 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       const p2 = playerMap.get(match.player2Id);
       if (!p1 || !p2) continue;
 
+      // 加赛：只撤销 playoffWins
+      if (isPlayoff) {
+        if (match.result === 'player1') {
+          p1.playoffWins = (p1.playoffWins || 0) - 1;
+        } else if (match.result === 'player2') {
+          p2.playoffWins = (p2.playoffWins || 0) - 1;
+        }
+        continue;
+      }
+
       if (match.result === 'player1') {
-        p1.points -= 1; p1.wins -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        p1.points -= 1; p1.wins -= 1;
+        if (!wasPreDrop) {
+          p2.losses -= 1;
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        } else {
+          // 赛前弃赛：弃赛方（p2）恢复为未退赛
+          p2.dropped = false;
+        }
         if (isSingleElimination) p2.eliminated = false;
       } else if (match.result === 'player2') {
-        p2.points -= 1; p2.wins -= 1; p1.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        p2.points -= 1; p2.wins -= 1;
+        if (!wasPreDrop) {
+          p1.losses -= 1;
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        } else {
+          // 赛前弃赛：弃赛方（p1）恢复为未退赛
+          p1.dropped = false;
+        }
         if (isSingleElimination) p1.eliminated = false;
       } else if (match.result === 'draw') {
         p1.losses -= 1; p2.losses -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        if (!wasPreDrop) {
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+        }
         if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
       }
 
-      if (match.player1Games !== undefined && match.player2Games !== undefined) {
+      // 赛前弃赛的局数据未实际发生，不扣减
+      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
         p1.totalGames -= match.player1Games + match.player2Games;
         p1.wonGames -= match.player1Games;
         p2.totalGames -= match.player1Games + match.player2Games;
@@ -1048,152 +1105,12 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     const isSingleElimination = group.pairingType === 'single_elimination';
 
-    function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
-      const isPlayoff = !!match.isPlayoff;
-      if (p2Id === 'bye') {
-        const p1 = playerMap.get(p1Id);
-        if (!p1) return;
-        if (res === 'player1') {
-          if (isPlayoff) {
-            p1.playoffWins = (p1.playoffWins || 0) - 1;
-          } else {
-            p1.points -= 1; p1.wins -= 1;
-            p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-          }
-        }
-        if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
-          p1.totalGames -= match.player1Games + match.player2Games;
-          p1.wonGames -= match.player1Games;
-        }
-        return;
-      }
-      const p1 = playerMap.get(p1Id);
-      const p2 = playerMap.get(p2Id);
-      if (!p1 || !p2) return;
-
-      // 加赛：只撤销 playoffWins，不动常规 wins/losses/points/局数据
-      if (isPlayoff) {
-        if (res === 'player1') {
-          p1.playoffWins = (p1.playoffWins || 0) - 1;
-        } else if (res === 'player2') {
-          p2.playoffWins = (p2.playoffWins || 0) - 1;
-        }
-        return;
-      }
-
-      if (res === 'player1') {
-        p1.points -= 1; p1.wins -= 1;
-        if (!wasPreDrop) p2.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        } else {
-          p2.dropped = false;
-        }
-        if (isSingleElimination) p2.eliminated = false;
-      } else if (res === 'player2') {
-        p2.points -= 1; p2.wins -= 1;
-        if (!wasPreDrop) p1.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        } else {
-          p1.dropped = false;
-        }
-        if (isSingleElimination) p1.eliminated = false;
-      } else if (res === 'draw') {
-        p1.losses -= 1; p2.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        }
-        if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
-      }
-
-      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-        p1.totalGames -= match.player1Games + match.player2Games;
-        p1.wonGames -= match.player1Games;
-        p2.totalGames -= match.player1Games + match.player2Games;
-        p2.wonGames -= match.player2Games;
-      }
-    }
-
-    function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
-      const isPlayoff = !!match.isPlayoff;
-      if (p2Id === 'bye') {
-        const p1 = playerMap.get(p1Id);
-        if (!p1) return;
-        if (res === 'player1') {
-          if (isPlayoff) {
-            p1.playoffWins = (p1.playoffWins || 0) + 1;
-          } else {
-            p1.points += 1; p1.wins += 1;
-            p1.playedAgainst.push('bye');
-          }
-        }
-        if (!isPlayoff && player1Games !== undefined && player2Games !== undefined) {
-          p1.totalGames += player1Games + player2Games;
-          p1.wonGames += player1Games;
-        }
-        return;
-      }
-      const p1 = playerMap.get(p1Id);
-      const p2 = playerMap.get(p2Id);
-      if (!p1 || !p2) return;
-
-      // 加赛：只写 playoffWins，不动常规 wins/losses/points/局数据/playedAgainst
-      if (isPlayoff) {
-        if (res === 'player1') {
-          p1.playoffWins = (p1.playoffWins || 0) + 1;
-        } else if (res === 'player2') {
-          p2.playoffWins = (p2.playoffWins || 0) + 1;
-        }
-        return;
-      }
-
-      if (res === 'player1') {
-        p1.points += 1; p1.wins += 1;
-        if (!isPreDrop) p2.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        } else {
-          p2.dropped = true;
-        }
-        if (isSingleElimination) p2.eliminated = true;
-      } else if (res === 'player2') {
-        p2.points += 1; p2.wins += 1;
-        if (!isPreDrop) p1.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        } else {
-          p1.dropped = true;
-        }
-        if (isSingleElimination) p1.eliminated = true;
-      } else if (res === 'draw') {
-        p1.losses += 1; p2.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        }
-        if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
-      }
-
-      if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
-        p1.totalGames += player1Games + player2Games;
-        p1.wonGames += player1Games;
-        p2.totalGames += player1Games + player2Games;
-        p2.wonGames += player2Games;
-      }
-    }
-
     if (oldResult !== 'pending') {
-      revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
+      revertMatchResult(playerMap, match, oldResult, oldPreDrop, isSingleElimination);
     }
 
     if (result !== 'pending') {
-      applyResult(match.player1Id, match.player2Id, result, !!preDrop);
+      applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
     }
 
     const updatedMatches = [...group.matches];
@@ -1243,12 +1160,15 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     // 只有比赛完成或进行到最后轮才能加赛
     if (group.status !== 'completed' && group.currentRound < group.totalRounds) return;
 
+    // 防止重复生成：若已存在加赛比赛则不再生成
+    if (group.matches.some(m => m.isPlayoff)) return;
+
     const tieGroups = detectTieGroups(group.players, group.gameType);
     if (tieGroups.length === 0) return;
 
     // 合并所有平分选手
     const allTied = tieGroups.flat();
-    const { matches: playoffMatches, updatedPlayers } = generatePlayoffPairings(allTied, group.gameType, group.matches);
+    const { matches: playoffMatches, updatedPlayers } = generatePlayoffPairings(allTied, group.gameType);
 
     // 应用 BYE 结果到选手（加赛 BYE 只写 playoffWins，不写常规 wins/points）
     const playerMap = new Map(updatedPlayers.map(p => [p.id, { ...p }]));
@@ -1272,7 +1192,8 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       players: recalculated,
     };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
+    // 生成加赛后自动切换到加赛视图（viewRound=0）
+    set({ competition: updated, viewRound: 0 });
     saveCompetition(updated);
   },
 
@@ -1292,152 +1213,12 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     const isSingleElimination = group.pairingType === 'single_elimination';
 
-    function revertResult(p1Id: string, p2Id: string, res: MatchResult, wasPreDrop: boolean) {
-      const isPlayoff = !!match.isPlayoff;
-      if (p2Id === 'bye') {
-        const p1 = playerMap.get(p1Id);
-        if (!p1) return;
-        if (res === 'player1') {
-          if (isPlayoff) {
-            p1.playoffWins = (p1.playoffWins || 0) - 1;
-          } else {
-            p1.points -= 1; p1.wins -= 1;
-            p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-          }
-        }
-        if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
-          p1.totalGames -= match.player1Games + match.player2Games;
-          p1.wonGames -= match.player1Games;
-        }
-        return;
-      }
-      const p1 = playerMap.get(p1Id);
-      const p2 = playerMap.get(p2Id);
-      if (!p1 || !p2) return;
-
-      // 加赛：只撤销 playoffWins，不动常规 wins/losses/points/局数据
-      if (isPlayoff) {
-        if (res === 'player1') {
-          p1.playoffWins = (p1.playoffWins || 0) - 1;
-        } else if (res === 'player2') {
-          p2.playoffWins = (p2.playoffWins || 0) - 1;
-        }
-        return;
-      }
-
-      if (res === 'player1') {
-        p1.points -= 1; p1.wins -= 1;
-        if (!wasPreDrop) p2.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        } else {
-          p2.dropped = false;
-        }
-        if (isSingleElimination) p2.eliminated = false;
-      } else if (res === 'player2') {
-        p2.points -= 1; p2.wins -= 1;
-        if (!wasPreDrop) p1.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        } else {
-          p1.dropped = false;
-        }
-        if (isSingleElimination) p1.eliminated = false;
-      } else if (res === 'draw') {
-        p1.losses -= 1; p2.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-        }
-        if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
-      }
-
-      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-        p1.totalGames -= match.player1Games + match.player2Games;
-        p1.wonGames -= match.player1Games;
-        p2.totalGames -= match.player1Games + match.player2Games;
-        p2.wonGames -= match.player2Games;
-      }
-    }
-
-    function applyResult(p1Id: string, p2Id: string, res: MatchResult, isPreDrop: boolean) {
-      const isPlayoff = !!match.isPlayoff;
-      if (p2Id === 'bye') {
-        const p1 = playerMap.get(p1Id);
-        if (!p1) return;
-        if (res === 'player1') {
-          if (isPlayoff) {
-            p1.playoffWins = (p1.playoffWins || 0) + 1;
-          } else {
-            p1.points += 1; p1.wins += 1;
-            p1.playedAgainst.push('bye');
-          }
-        }
-        if (!isPlayoff && player1Games !== undefined && player2Games !== undefined) {
-          p1.totalGames += player1Games + player2Games;
-          p1.wonGames += player1Games;
-        }
-        return;
-      }
-      const p1 = playerMap.get(p1Id);
-      const p2 = playerMap.get(p2Id);
-      if (!p1 || !p2) return;
-
-      // 加赛：只写 playoffWins，不动常规 wins/losses/points/局数据/playedAgainst
-      if (isPlayoff) {
-        if (res === 'player1') {
-          p1.playoffWins = (p1.playoffWins || 0) + 1;
-        } else if (res === 'player2') {
-          p2.playoffWins = (p2.playoffWins || 0) + 1;
-        }
-        return;
-      }
-
-      if (res === 'player1') {
-        p1.points += 1; p1.wins += 1;
-        if (!isPreDrop) p2.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        } else {
-          p2.dropped = true;
-        }
-        if (isSingleElimination) p2.eliminated = true;
-      } else if (res === 'player2') {
-        p2.points += 1; p2.wins += 1;
-        if (!isPreDrop) p1.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        } else {
-          p1.dropped = true;
-        }
-        if (isSingleElimination) p1.eliminated = true;
-      } else if (res === 'draw') {
-        p1.losses += 1; p2.losses += 1;
-        if (!isPreDrop) {
-          p1.playedAgainst.push(p2Id);
-          p2.playedAgainst.push(p1Id);
-        }
-        if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
-      }
-
-      if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
-        p1.totalGames += player1Games + player2Games;
-        p1.wonGames += player1Games;
-        p2.totalGames += player1Games + player2Games;
-        p2.wonGames += player2Games;
-      }
-    }
-
     if (oldResult !== 'pending') {
-      revertResult(match.player1Id, match.player2Id, oldResult, oldPreDrop);
+      revertMatchResult(playerMap, match, oldResult, oldPreDrop, isSingleElimination);
     }
 
     if (result !== 'pending') {
-      applyResult(match.player1Id, match.player2Id, result, !!preDrop);
+      applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
     }
 
     const updatedMatches = [...group.matches];

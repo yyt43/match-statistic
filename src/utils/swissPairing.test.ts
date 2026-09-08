@@ -672,7 +672,7 @@ describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
       makePlayer('A', 'A', { wins: 4, playedAgainst: [] }),
       makePlayer('B', 'B', { wins: 4, playedAgainst: [] }),
     ];
-    const { matches, updatedPlayers } = generatePlayoffPairings(players, 'bo3', []);
+    const { matches, updatedPlayers } = generatePlayoffPairings(players, 'bo3');
     expect(matches).toHaveLength(1);
     expect(matches[0].isPlayoff).toBe(true);
     expect(matches[0].round).toBe(0);
@@ -688,7 +688,7 @@ describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
       makePlayer('B', 'B', { wins: 4, playedAgainst: [] }),
       makePlayer('C', 'C', { wins: 4, playedAgainst: [] }),
     ];
-    const { matches } = generatePlayoffPairings(players, 'bo1', []);
+    const { matches } = generatePlayoffPairings(players, 'bo1');
     expect(matches).toHaveLength(2);
     const byeMatch = matches.find(m => m.isBye);
     expect(byeMatch).toBeDefined();
@@ -702,7 +702,7 @@ describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
       makePlayer('B', 'B', { wins: 4, playedAgainst: ['A'] }),
     ];
     // 只有 2 人且已交手过，应无法生成对赛，两人都轮空
-    const { matches } = generatePlayoffPairings(players, 'bo1', []);
+    const { matches } = generatePlayoffPairings(players, 'bo1');
     expect(matches.every(m => m.isBye)).toBe(true);
     expect(matches).toHaveLength(2);
   });

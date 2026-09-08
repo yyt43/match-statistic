@@ -59,8 +59,10 @@ export function MatchList({ testMode = false }: MatchListProps) {
   };
 
   const canEdit = (match: Match) => {
-    if (currentGroup.status === 'completed') return false;
     if (match.isBye) return false;
+    // 加赛比赛始终允许编辑（即使比赛已结束）
+    if (match.isPlayoff) return true;
+    if (currentGroup.status === 'completed') return false;
     if (viewRound !== currentGroup.currentRound) return false;
     return true;
   };
@@ -148,7 +150,10 @@ export function MatchList({ testMode = false }: MatchListProps) {
     );
   }
 
-  const roundGameType = currentGroup.roundGameTypes?.[viewRound - 1] ?? currentGroup.gameType;
+  const isPlayoffView = viewRound === 0;
+  const roundGameType = isPlayoffView
+    ? currentGroup.gameType
+    : currentGroup.roundGameTypes?.[viewRound - 1] ?? currentGroup.gameType;
   const gameTypeLabel = currentGroup.pairingType === 'single_elimination'
     ? `单败淘汰 ${roundGameType.toUpperCase()}`
     : roundGameType.toUpperCase();
@@ -157,8 +162,8 @@ export function MatchList({ testMode = false }: MatchListProps) {
     <div className="glass-panel rounded-2xl p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-display text-base font-bold text-white flex items-center gap-2">
-          <Swords className="w-4 h-4 text-gold-400" />
-          第 {viewRound} 轮对阵表
+          <Swords className={`w-4 h-4 ${isPlayoffView ? 'text-amber-400' : 'text-gold-400'}`} />
+          {isPlayoffView ? '加赛对阵表' : `第 ${viewRound} 轮对阵表`}
         </h2>
         <div className="flex items-center gap-2">
           {canEditRound && !editMode && (
