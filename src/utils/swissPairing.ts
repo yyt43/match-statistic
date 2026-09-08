@@ -27,8 +27,8 @@ function shuffle<T>(arr: T[]): T[] {
 
 /**
  * 瑞士轮排名规则（按文档要求分赛制定制，统一用于排序与排行榜展示）：
- * - BO1 ：活跃状态 → 胜场数 → 对手胜率(SOS) → 对手的对手胜率(SOSOS) → points → 姓名
- * - BO3+：活跃状态 → 胜场数 → 对手胜率(SOS) → 本人局胜率 → 对手局胜率 → points → 姓名
+ * - BO1 ：活跃状态 → 胜场数 → 对手胜率(SOS) → 对手的对手胜率(SOSOS) → points → 加赛胜场 → 姓名
+ * - BO3+：活跃状态 → 胜场数 → 对手胜率(SOS) → 本人局胜率 → 对手局胜率 → points → 加赛胜场 → 姓名
  */
 function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Player[] {
   return [...players].sort((a, b) => {
@@ -54,6 +54,12 @@ function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Playe
     }
 
     if (b.points !== a.points) return b.points - a.points;
+
+    // 最终破分：加赛胜场（只用于区分名次，不计入常规小分）
+    const aPlayoff = a.playoffWins || 0;
+    const bPlayoff = b.playoffWins || 0;
+    if (bPlayoff !== aPlayoff) return bPlayoff - aPlayoff;
+
     return a.name.localeCompare(b.name);
   });
 }
@@ -569,6 +575,7 @@ export function calculateAllWinRates(
   for (const match of matches) {
     if (match.result === 'pending') continue;
     if (match.preDrop) continue; // 赛前弃赛：该场整体不计入对手胜率网络
+    if (match.isPlayoff) continue; // 加赛：只用于区分名次，不计入小分网络
     if (match.isBye) {
       // BYE：胜方真实个人的有效场次仍计入（BYE是虚拟对手，规则8）
       const w = effWins.get(match.player1Id);
@@ -627,6 +634,7 @@ export function calculateAllWinRates(
   for (const match of matches) {
     if (match.result === 'pending') continue;
     if (match.preDrop) continue; // 赛前弃赛：不入对手索引
+    if (match.isPlayoff) continue; // 加赛：不入对手索引
     if (match.isBye) {
       opponentIdsByPlayer.get(match.player1Id)?.add(BYE_ID);
     } else {
@@ -707,6 +715,7 @@ export function calculateAllWinRates(
     for (const match of matches) {
       if (match.result === 'pending') continue;
       if (match.preDrop) continue; // 赛前弃赛：实际对局未发生，不参与对手局胜率累加
+      if (match.isPlayoff) continue; // 加赛：不参与对手局胜率累加
       if (match.isBye) {
         // BYE = player2，用本场比分决定 BYE 的"局战绩"
         const byeWon = match.player2Games || 0;
@@ -768,11 +777,12 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
     const group = [a];
     while (j < ranked.length) {
       const b = ranked[j];
-      // 比较所有破分指标
+      // 比较所有破分指标（含加赛胜场）
       if (
         a.wins === b.wins &&
         a.opponentWinRate === b.opponentWinRate &&
         a.points === b.points &&
+        (a.playoffWins || 0) === (b.playoffWins || 0) &&
         (gameType === 'bo1'
           ? a.opponentOpponentWinRate === b.opponentOpponentWinRate
           : a.gameWinRate === b.gameWinRate && a.opponentGameWinRate === b.opponentGameWinRate)

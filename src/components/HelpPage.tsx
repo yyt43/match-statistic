@@ -319,7 +319,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
                 <div>
                   <span className="text-slate-400 text-xs">加赛规则：</span>
                   <p className="text-sm text-slate-300">
-                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统会自动检测平分选手并生成加赛对阵（遵循不重复对阵原则，奇数人轮空），加赛结果计入排名。
+                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统会自动检测平分选手并生成加赛对阵（遵循不重复对阵原则，奇数人轮空）。<strong className="text-emerald-300">加赛结果只用于区分名次，不计入对手胜率、对手的对手胜率、本人局胜率、对手局胜率等任何小分指标</strong>，加赛胜场以独立的「加赛N胜」徽章展示。
                   </p>
                 </div>
                 <div>

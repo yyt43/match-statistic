@@ -29,6 +29,8 @@ export interface Player {
   upMatchCount?: number;
   /** 优先向下匹配标记（向上匹配后获得，使用后清零） */
   hasDownPriority?: boolean;
+  /** 加赛胜场数（仅用于区分名次，不计入常规胜场/对手胜率等小分） */
+  playoffWins?: number;
   /** 优先向上匹配标记（向下匹配后获得，使用后清零） */
   hasUpPriority?: boolean;
 }

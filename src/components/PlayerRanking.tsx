@@ -230,6 +230,11 @@ export function PlayerRanking() {
                         需加赛
                       </span>
                     )}
+                    {(player.playoffWins || 0) > 0 && (
+                      <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" title="加赛胜场（不计入常规小分，仅用于区分名次）">
+                        加赛{player.playoffWins}胜
+                      </span>
+                    )}
                     <span className="shrink-0 font-mono font-bold text-xs text-white">
                       {player.wins}-{player.losses}
                     </span>
