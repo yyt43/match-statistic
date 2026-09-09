@@ -23,26 +23,59 @@ export function parsePlayerNamesFromText(input: string): string[] {
   return unique;
 }
 
+export interface ParsedGroupImport {
+  groupName: string;
+  names: string[];
+}
+
+export function extractPlayerGroupsFromWorkbook(workbook: { SheetNames: string[]; Sheets: Record<string, any> }, XLSX: typeof import('xlsx')): ParsedGroupImport[] {
+  const groups: ParsedGroupImport[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+
+    const data = XLSX.utils.sheet_to_json(sheet, {
+      raw: false,
+      defval: '',
+    }) as Array<Record<string, string | number | null>>;
+
+    const values: string[] = [];
+    for (const row of data) {
+      const cells = Object.values(row)
+        .map(value => typeof value === 'string' ? value.trim() : String(value ?? '').trim())
+        .filter(value => value.length > 0);
+      values.push(...cells);
+    }
+
+    const names = parsePlayerNamesFromText(values.join('\n'));
+    if (names.length === 0) continue;
+
+    groups.push({
+      groupName: (sheetName || '新小组').trim() || '新小组',
+      names,
+    });
+  }
+
+  return groups;
+}
+
 export async function parsePlayerNamesFromExcel(file: File): Promise<string[]> {
   const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
 
-  const rows: string[] = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json<string[]>(sheet, {
-      raw: false,
-      defval: '',
-    });
-
-    for (const row of data) {
-      const cells = Object.values(row)
-        .map(value => typeof value === 'string' ? value.trim() : String(value ?? '').trim())
-        .filter(value => value.length > 0);
-      rows.push(...cells);
-    }
+  const groups = extractPlayerGroupsFromWorkbook(workbook, XLSX);
+  const mergedNames: string[] = [];
+  for (const group of groups) {
+    mergedNames.push(...group.names);
   }
+  return parsePlayerNamesFromText(mergedNames.join('\n'));
+}
 
-  return parsePlayerNamesFromText(rows.join('\n'));
+export async function parsePlayerGroupsFromExcel(file: File): Promise<ParsedGroupImport[]> {
+  const XLSX = await import('xlsx');
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  return extractPlayerGroupsFromWorkbook(workbook, XLSX);
 }

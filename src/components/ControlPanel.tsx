@@ -8,8 +8,8 @@ import {
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../store/useTournamentStore';
 import type { GameType, PairingType } from '../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../utils/fileStorage';
-import { getSingleEliminationRounds } from '../utils/swissPairing';
-import { parsePlayerNamesFromExcel, parsePlayerNamesFromText } from '../utils/playerImport';
+import { getSingleEliminationRounds, createPlayersFromNames } from '../utils/swissPairing';
+import { parsePlayerGroupsFromExcel, parsePlayerNamesFromText } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
 
@@ -167,12 +167,61 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     if (!selectedFile) return;
 
     try {
-      const names = await parsePlayerNamesFromExcel(selectedFile);
-      if (names.length === 0) {
+      const groups = await parsePlayerGroupsFromExcel(selectedFile);
+      if (groups.length === 0) {
         setPlayerImportError('Excel 文件中未找到可用的选手名称');
         return;
       }
-      replacePlayers(names);
+
+      if (groups.length === 1) {
+        replacePlayers(groups[0].names);
+        setPlayerImportError(null);
+        setShowBatchImport(false);
+        if (playerFileInputRef.current) playerFileInputRef.current.value = '';
+        return;
+      }
+
+      const baseCompetition = useTournamentStore.getState().competition;
+      const nextGroups = groups.map((groupConfig, index) => {
+        const template = baseCompetition.groups[index] ?? baseCompetition.groups[0];
+        const generatedName = (groupConfig.groupName || `小组${String(index + 1).padStart(2, '0')}`).trim() || `小组${String(index + 1).padStart(2, '0')}`;
+        const totalRounds = template?.totalRounds ?? 5;
+        const roundGameTypes = template?.roundGameTypes ? [...template.roundGameTypes] : new Array(totalRounds).fill(template?.gameType ?? 'bo1');
+
+        return {
+          ...(template ?? {
+            id: `group-${Date.now()}-${index}`,
+            name: generatedName,
+            currentRound: 0,
+            totalRounds: 5,
+            status: 'setup' as const,
+            players: [],
+            matches: [],
+            createdAt: new Date().toISOString(),
+            pairingType: 'swiss' as const,
+            gameType: 'bo1' as const,
+            roundGameTypes: new Array(5).fill('bo1' as const),
+          }),
+          id: template?.id ?? `group-${Date.now()}-${index}`,
+          name: generatedName,
+          currentRound: 0,
+          status: 'setup' as const,
+          players: createPlayersFromNames(groupConfig.names),
+          matches: [],
+          createdAt: new Date().toISOString(),
+          totalRounds,
+          pairingType: template?.pairingType ?? 'swiss',
+          gameType: template?.gameType ?? 'bo1',
+          roundGameTypes,
+        };
+      });
+
+      importCompetition({
+        ...baseCompetition,
+        groups: nextGroups,
+        currentGroupIndex: 0,
+      });
+
       setPlayerImportError(null);
       setShowBatchImport(false);
       if (playerFileInputRef.current) playerFileInputRef.current.value = '';
