@@ -61,7 +61,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
   const canEdit = (match: Match) => {
     if (match.isBye) return false;
     // 加赛比赛始终允许编辑（即使比赛已结束）
-    if (match.isPlayoff) return true;
+    if (match.isPlayoff) return !!match.playoffBracketId;
     if (currentGroup.status === 'completed') return false;
     if (viewRound !== currentGroup.currentRound) return false;
     return true;
@@ -91,6 +91,10 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const getResultText = (match: Match) => {
     if (match.isBye) return '轮空';
+    if (match.isPlayoff && match.playoffBracketId) {
+      const bracket = currentGroup.playoffBrackets?.find(b => b.id === match.playoffBracketId);
+      return `第${bracket?.startRank ?? '?'}名同分组 · 第${match.playoffStage}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛 · ' : ''}${match.result === 'pending' ? '待进行' : '已完成'}`;
+    }
     if (match.result === 'pending') return '待进行';
     if (match.preDrop) return '赛前弃赛';
     return '已完成';
@@ -112,6 +116,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
   };
 
   const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
+    const match = currentGroup.matches.find(m => m.id === matchId);
+    if (match?.playoffStage === 1 && result !== match.result && currentGroup.matches.some(m => m.playoffBracketId === match.playoffBracketId && m.playoffStage === 2)) {
+      setConfirmState({ open: true, title: '修改首阶段加赛结果', message: '修改胜者或重置后，将清除这个同分组的第二阶段对阵与赛果；其他同分组不受影响。',
+        onConfirm: () => updateMatchResult(matchId, result, player1Games, player2Games, preDrop) });
+      return;
+    }
     updateMatchResult(matchId, result, player1Games, player2Games, preDrop);
   };
 
@@ -444,9 +454,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
                       <div className="px-3 pb-3">
                         <div className="p-2.5 bg-slate-900/40 rounded-lg space-y-2.5">
                           <div>
-                            <div className="text-[10px] text-slate-400 mb-2 text-center">选择比赛结果</div>
+                            <div className="text-[10px] text-slate-400 mb-2 text-center">{match.isPlayoff
+                              ? `加赛第${match.playoffStage ?? 1}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛' : match.playoffRole === 'final' ? '决胜场' : '首场抽签对阵'}`
+                              : '选择比赛结果'}</div>
                             <ResultButtons
                               gameType={roundGameType}
+                              playoff={!!match.isPlayoff}
                               onResult={(result, p1g, p2g, preDrop) => handleSetResult(match.id, result, p1g, p2g, preDrop)}
                             />
                           </div>
@@ -481,10 +494,22 @@ export function MatchList({ testMode = false }: MatchListProps) {
   );
 }
 
-function ResultButtons({ gameType, onResult }: {
+function ResultButtons({ gameType, onResult, playoff }: {
   gameType: GameType;
+  playoff?: boolean;
   onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number, preDrop?: boolean) => void;
 }) {
+  if (playoff) {
+    const target = gameType === 'bo7' ? 4 : gameType === 'bo5' ? 3 : gameType === 'bo3' ? 2 : 1;
+    return <div className="space-y-2">
+      <p className="text-xs text-amber-200">加赛需决出胜者；比分仅记录加赛，不计入常规小分。</p>
+      <div className="grid grid-cols-2 gap-2">{Array.from({ length: target }, (_, loss) => <div key={loss} className="contents">
+        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player1', target, loss)}>左侧 {target}-{loss}</button>
+        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player2', loss, target)}>右侧 {loss}-{target}</button>
+      </div>)}</div>
+      <button className="text-xs text-rose-300" onClick={() => onResult('pending')}>重置加赛结果</button>
+    </div>;
+  }
   if (gameType === 'bo1') {
     return (
       <div className="space-y-2">

@@ -4,6 +4,10 @@
 
 ### 新增
 
+- **Excel 批量录入选手名单**：新增选手导入解析模块，支持从文本、Excel / CSV / TXT 文件中批量导入选手，自动按换行、逗号、分号拆分，过滤空白、重复、表头字段；提升赛前初始化效率。
+
+- **网站文本适配与项目元信息**：补充中文站点描述、关键词与 GitHub Pages 发布元信息，确保页面在浏览器标签和搜索抓取时呈现中文项目信息。
+
 - **版权声明与联系方式**：网站底部（Home 页脚 + HelpPage 底部）新增 `© 2026 ShiyiPai. All rights reserved.` 版权声明；HelpPage「相关链接」新增开发者 QQ（2845850691）卡片；README「相关链接」补充开发者署名 ShiyiPai、QQ 联系方式；`package.json` 设 `name: match-statistic`、`author: ShiyiPai`。
 
 ### 调整

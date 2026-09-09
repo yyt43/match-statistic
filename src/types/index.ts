@@ -31,6 +31,9 @@ export interface Player {
   hasDownPriority?: boolean;
   /** 加赛胜场数（仅用于区分名次，不计入常规胜场/对手胜率等小分） */
   playoffWins?: number;
+  /** 新版加赛的所属同分组；名次由完整赛程决定，不按累计胜场推断。 */
+  playoffBracketId?: string;
+  playoffRank?: number;
   /** 优先向上匹配标记（向下匹配后获得，使用后清零） */
   hasUpPriority?: boolean;
 }
@@ -58,6 +61,18 @@ export interface Match {
   player2Games?: number;
   /** 加赛标记：true 表示该场为加赛（用于区分常规轮次与加赛） */
   isPlayoff?: boolean;
+  playoffBracketId?: string;
+  playoffStage?: 1 | 2;
+  playoffRole?: 'opening' | 'final' | 'placement';
+}
+
+export type PlayoffFormat = 'two' | 'three_one' | 'three_two' | 'four';
+export interface PlayoffBracket {
+  id: string;
+  playerIds: string[];
+  startRank: number;
+  format: PlayoffFormat;
+  waitingPlayerId?: string;
 }
 
 export interface TournamentGroup {
@@ -73,6 +88,7 @@ export interface TournamentGroup {
   gameType: GameType;
   /** 单败淘汰每轮独立赛制，下标为 round-1；未设置则回退到 gameType */
   roundGameTypes?: GameType[];
+  playoffBrackets?: PlayoffBracket[];
 }
 
 export interface TournamentCompetition {

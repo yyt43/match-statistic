@@ -265,7 +265,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
                   向下递归匹配尽后，最后一组下移组中无法匹配到的玩家直接轮空。
                 </RuleItem>
                 <RuleItem num="8" title="轮空计分">
-                  轮空选手该轮得分为 2-0（BO1=1-0，BO3=2-0，BO5=3-0，BO7=4-0），该场次有效并计入局胜率、对手胜率等所有小分统计。轮空对手视为一个"0 胜 1 场（BO3=0 胜局/2 总局）"的虚拟对手，会轻微拉低轮空者的对手胜率。
+                  轮空选手该轮得分为 2-0（BO1=1-0，BO3=2-0，BO5=3-0，BO7=4-0），该场次有效并计入局胜率、对手胜率等所有小分统计。每次轮空分别视为一个"0 胜 1 场（BO3=0 胜局/2 总局）"的虚拟对手，会轻微拉低轮空者的对手胜率。
                   <span className="block mt-1 pl-3 text-slate-400">与赛前弃赛的区别：轮空计入对手胜率网络，赛前弃赛<strong className="text-amber-300">不计入</strong>对手胜率网络。</span>
                 </RuleItem>
                 <RuleItem num="9" title="组内匹配两级策略">
@@ -319,7 +319,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
                 <div>
                   <span className="text-slate-400 text-xs">加赛规则：</span>
                   <p className="text-sm text-slate-300">
-                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统会自动检测平分选手并生成加赛对阵（遵循不重复对阵原则，奇数人轮空）。<strong className="text-emerald-300">加赛结果只用于区分名次，不计入对手胜率、对手的对手胜率、本人局胜率、对手局胜率等任何小分指标</strong>，加赛胜场以独立的「加赛N胜」徽章展示。
+                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统按同分组分别抽签，允许与常规赛对手再次交手。两人直接决胜；三人选择三进一或三进二，抽签等候者不记轮空胜；四人先两两对阵，再点击「生成下一阶段加赛」决出第1—4名。改判第一阶段胜者会清除该组后续加赛，需重新生成。<strong className="text-emerald-300">加赛结果只用于区分名次，不计入对手胜率、对手的对手胜率、本人局胜率、对手局胜率等任何小分指标</strong>，加赛胜场以独立的「加赛N胜」徽章展示。
                   </p>
                 </div>
                 <div>

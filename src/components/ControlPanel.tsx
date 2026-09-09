@@ -1,13 +1,15 @@
+import { PlayoffPanel } from './PlayoffPanel';
 import { useState, useEffect, useRef } from 'react';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
-  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History, Swords
+  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../store/useTournamentStore';
 import type { GameType, PairingType } from '../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../utils/fileStorage';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
+import { parsePlayerNamesFromExcel, parsePlayerNamesFromText } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
 
@@ -44,7 +46,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     replacePlayers,
     importCompetition,
     setCurrentGroup,
-    generatePlayoff,
   } = useTournamentStore();
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -75,7 +76,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [batchRoundsInput, setBatchRoundsInput] = useState<string>(String(batchRounds));
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
   const [importError, setImportError] = useState<string | null>(null);
+  const [playerImportError, setPlayerImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const playerFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNameInput(competition.name);
@@ -145,6 +148,38 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const handleStartEditName = (player: { id: string; name: string }) => {
     setEditingPlayerId(player.id);
     setEditNameValue(player.name);
+  };
+
+  const handleImportPlayersFromText = () => {
+    const names = parsePlayerNamesFromText(batchNames);
+    if (names.length === 0) {
+      setPlayerImportError('请输入至少一个有效选手名称');
+      return;
+    }
+    replacePlayers(names);
+    setBatchNames('');
+    setPlayerImportError(null);
+    setShowBatchImport(false);
+  };
+
+  const handleImportPlayersFromExcel = async (file?: File) => {
+    const selectedFile = file ?? playerFileInputRef.current?.files?.[0];
+    if (!selectedFile) return;
+
+    try {
+      const names = await parsePlayerNamesFromExcel(selectedFile);
+      if (names.length === 0) {
+        setPlayerImportError('Excel 文件中未找到可用的选手名称');
+        return;
+      }
+      replacePlayers(names);
+      setPlayerImportError(null);
+      setShowBatchImport(false);
+      if (playerFileInputRef.current) playerFileInputRef.current.value = '';
+    } catch (error) {
+      console.error(error);
+      setPlayerImportError(error instanceof Error ? error.message : 'Excel 导入失败');
+    }
   };
 
   return (
@@ -911,24 +946,45 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   <div className="mt-2 space-y-2">
                     <textarea
                       value={batchNames}
-                      onChange={e => setBatchNames(e.target.value)}
-                      placeholder="每行输入一个选手名称，如：&#10;张三&#10;李四&#10;王五"
+                      onChange={e => {
+                        setBatchNames(e.target.value);
+                        if (playerImportError) setPlayerImportError(null);
+                      }}
+                      placeholder="支持粘贴：&#10;张三&#10;李四&#10;王五&#10;或：张三, 李四; 王五"
                       className="w-full h-24 px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold-500/30 resize-none"
                     />
-                    <button
-                      onClick={() => {
-                        const names = batchNames.split('\n').map(n => n.trim()).filter(n => n.length > 0);
-                        if (names.length > 0) {
-                          replacePlayers(names);
-                          setBatchNames('');
-                          setShowBatchImport(false);
-                        }
-                      }}
-                      className="w-full py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      导入 {batchNames.split('\n').filter(n => n.trim().length > 0).length} 名选手
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleImportPlayersFromText}
+                        className="flex-1 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        导入 {parsePlayerNamesFromText(batchNames).length} 名选手
+                      </button>
+                      <input
+                        ref={playerFileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv,.txt"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          await handleImportPlayersFromExcel(file);
+                        }}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => playerFileInputRef.current?.click()}
+                        className="px-3 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-xs border border-slate-700/50"
+                        title="批量从 Excel / CSV / TXT 导入选手名单"
+                      >
+                        <Upload className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {playerImportError && (
+                      <div className="px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs">
+                        {playerImportError}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1136,16 +1192,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               <p className="text-xs text-slate-500 mt-0.5">
                 共 {currentGroup.totalRounds} 轮
               </p>
-              {currentGroup.pairingType === 'swiss' && (
-                <button
-                  onClick={() => generatePlayoff()}
-                  className="mt-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors text-xs flex items-center justify-center gap-1.5 mx-auto"
-                  title="检测排名中是否存在所有破分指标完全相同的选手，若有则生成加赛对阵以区分名次"
-                >
-                  <Swords className="w-3.5 h-3.5" />
-                  生成加赛
-                </button>
-              )}
+              {currentGroup.pairingType === 'swiss' && <PlayoffPanel key={currentGroup.id} />}
             </div>
           )}
 

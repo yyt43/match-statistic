@@ -1,3 +1,4 @@
+import { maximumMatching } from './maximumMatching';
 import type { Player, Match, GameType, PairingType, TournamentGroup } from '../types';
 
 /** 配对结果：包含本轮对阵与更新后的选手状态（上下匹配标记/次数） */
@@ -56,6 +57,12 @@ function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Playe
     if (b.points !== a.points) return b.points - a.points;
 
     // 最终破分：加赛胜场（只用于区分名次，不计入常规小分）
+    if (a.playoffBracketId || b.playoffBracketId) {
+      if (a.playoffBracketId === b.playoffBracketId && a.playoffRank !== undefined && b.playoffRank !== undefined) {
+        if (a.playoffRank !== b.playoffRank) return a.playoffRank - b.playoffRank;
+      }
+      return a.name.localeCompare(b.name);
+    }
     const aPlayoff = a.playoffWins || 0;
     const bPlayoff = b.playoffWins || 0;
     if (bPlayoff !== aPlayoff) return bPlayoff - aPlayoff;
@@ -292,7 +299,7 @@ function matchWithinGroup(group: PlayerState[]): { pairs: [PlayerState, PlayerSt
  * 规则10a：下移组内部优先互相匹配（不改变上下匹配标记/次数）。
  * 改用穷举回溯（复用 findValidPairingStates），最大化配对成功率，减少不必要的外溢。
  */
-function matchDownPoolInternal(pool: PlayerState[]): { pairs: [PlayerState, PlayerState][]; remaining: PlayerState[] } {
+export function matchDownPoolInternal(pool: PlayerState[]): { pairs: [PlayerState, PlayerState][]; remaining: PlayerState[] } {
   if (pool.length < 2) {
     return { pairs: [], remaining: [...pool] };
   }
@@ -328,8 +335,17 @@ function matchDownPoolInternal(pool: PlayerState[]): { pairs: [PlayerState, Play
     return { pairs, remaining };
   }
 
-  // 穷举也失败：返回全部为剩余（流入下一战绩组）
-  return { pairs: [], remaining: sorted };
+  // 完整配对失败或人数为奇数时，仍优先完成最大的可行部分配对。
+  const partners = maximumMatching(sorted.map(a => sorted.map(b =>
+    a !== b && !a.playedAgainst.has(b.player.id) && !b.playedAgainst.has(a.player.id)
+  )));
+  const pairs: [PlayerState, PlayerState][] = [];
+  const remaining: PlayerState[] = [];
+  partners.forEach((partner, i) => {
+    if (partner < 0) remaining.push(sorted[i]);
+    else if (partner > i) pairs.push([sorted[i], sorted[partner]]);
+  });
+  return { pairs, remaining };
 }
 
 function createMatch(p1: PlayerState, p2: PlayerState, round: number): Match {
@@ -556,7 +572,7 @@ export function calculateAllWinRates(
   gameType: GameType = 'bo1'
 ): Player[] {
   const playerMap = new Map(players.map(p => [p.id, { ...p }]));
-  const BYE_ID = '__bye_virtual__';
+  const BYE_ID = '__bye_virtual__:';
   // 规则8：轮空视为一场有效比赛，需要计入对手胜率、本人局胜率等小分统计。
   // 'bye' 被当作一个虚拟对手：其胜场=0、场次=1、胜局=0、总局=该轮次BYE比分总和（如 BO3=2-0 → 总局=2）
   // 赛前弃赛（preDrop）：与轮空相反——胜方计入个人胜场，但该场次从对手胜率网络中整体剔除。
@@ -636,7 +652,7 @@ export function calculateAllWinRates(
     if (match.preDrop) continue; // 赛前弃赛：不入对手索引
     if (match.isPlayoff) continue; // 加赛：不入对手索引
     if (match.isBye) {
-      opponentIdsByPlayer.get(match.player1Id)?.add(BYE_ID);
+      opponentIdsByPlayer.get(match.player1Id)?.add(BYE_ID + match.id);
     } else {
       opponentIdsByPlayer.get(match.player1Id)?.add(match.player2Id);
       opponentIdsByPlayer.get(match.player2Id)?.add(match.player1Id);
@@ -654,7 +670,7 @@ export function calculateAllWinRates(
     let sumWins = 0;
     let sumGames = 0;
     for (const oid of opponentIds) {
-      if (oid === BYE_ID) {
+      if (oid.startsWith(BYE_ID)) {
         // 轮空虚拟对手：0 胜，1 场
         sumWins += 0;
         sumGames += 1;
@@ -679,7 +695,7 @@ export function calculateAllWinRates(
     let sumWins = 0;
     let sumGames = 0;
     for (const oid of opponentIds) {
-      if (oid === BYE_ID) {
+      if (oid.startsWith(BYE_ID)) {
         // BYE 的"对手们"贡献一场 0 胜 1 负
         sumWins += 0;
         sumGames += 1;
@@ -687,7 +703,7 @@ export function calculateAllWinRates(
         const ooIds = opponentIdsByPlayer.get(oid);
         if (!ooIds) continue;
         for (const ooid of ooIds) {
-          if (ooid === BYE_ID) {
+          if (ooid.startsWith(BYE_ID)) {
             sumWins += 0;
             sumGames += 1;
           } else {
@@ -782,7 +798,9 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
         a.wins === b.wins &&
         a.opponentWinRate === b.opponentWinRate &&
         a.points === b.points &&
-        (a.playoffWins || 0) === (b.playoffWins || 0) &&
+        (a.playoffBracketId || b.playoffBracketId
+          ? a.playoffRank === b.playoffRank
+          : (a.playoffWins || 0) === (b.playoffWins || 0)) &&
         (gameType === 'bo1'
           ? a.opponentOpponentWinRate === b.opponentOpponentWinRate
           : a.gameWinRate === b.gameWinRate && a.opponentGameWinRate === b.opponentGameWinRate)
@@ -801,79 +819,17 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
   return groups;
 }
 
-/**
- * 生成加赛对阵：将平分选手随机洗牌后两两配对。
- * 奇数人则最后一人轮空（BO1=1-0 / BO3=2-0...）。
- * 加赛 match 标记 isPlayoff=true，与常规轮次区分。
- * 返回 { matches, updatedPlayers } —— updatedPlayers 仅添加了 playedAgainst，不含胜率重算。
+/** 加赛首阶段抽签；三人中的一人等候下一阶段，不虚增轮空胜场。
+ * 加赛允许与常规赛对手再次交手，完整赛程由 playoffs.ts 管理。
  */
-export function generatePlayoffPairings(
-  tiedPlayers: Player[],
-  gameType: GameType,
-): { matches: Match[]; updatedPlayers: Player[] } {
-  // 过滤掉已交手过的组合
-  const playerMap = new Map(tiedPlayers.map(p => [p.id, { ...p }]));
-  const pool = [...tiedPlayers];
-  // 随机洗牌
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-
+export function generatePlayoffPairings(tiedPlayers: Player[], _gameType: GameType): PairingResult {
+  const pool = shuffle(tiedPlayers);
   const matches: Match[] = [];
-  const used = new Set<string>();
-
-  for (let i = 0; i < pool.length; i++) {
-    if (used.has(pool[i].id)) continue;
-    const p1 = pool[i];
-    let p2: Player | null = null;
-    for (let j = i + 1; j < pool.length; j++) {
-      if (used.has(pool[j].id)) continue;
-      const candidate = pool[j];
-      const p1State = playerMap.get(p1.id);
-      if (p1State && !p1State.playedAgainst.includes(candidate.id)) {
-        p2 = candidate;
-        break;
-      }
-    }
-    if (p2) {
-      used.add(p1.id);
-      used.add(p2.id);
-      const p1State = playerMap.get(p1.id)!;
-      const p2State = playerMap.get(p2.id)!;
-      p1State.playedAgainst = [...p1State.playedAgainst, p2.id];
-      p2State.playedAgainst = [...p2State.playedAgainst, p1.id];
-      matches.push({
-        id: `playoff-${Date.now()}-${matches.length}`,
-        round: 0, // 加赛不属于常规轮次，round=0
-        player1Id: p1.id,
-        player2Id: p2.id,
-        result: 'pending',
-        isPlayoff: true,
-      });
-    }
+  for (let i = 0; i + 1 < pool.length; i += 2) {
+    matches.push({ id: `playoff-${generateId()}`, round: 0, player1Id: pool[i].id,
+      player2Id: pool[i + 1].id, result: 'pending', isPlayoff: true });
   }
-
-  // 剩余未匹配的选手轮空
-  const remaining = pool.filter(p => !used.has(p.id));
-  for (const p of remaining) {
-    const byeWins = getByeWins(gameType);
-    matches.push({
-      id: `playoff-bye-${Date.now()}-${matches.length}`,
-      round: 0,
-      player1Id: p.id,
-      player2Id: '__BYE__',
-      result: 'player1',
-      isBye: true,
-      isPlayoff: true,
-      player1Games: byeWins,
-      player2Games: 0,
-    });
-    const pState = playerMap.get(p.id)!;
-    pState.playedAgainst = [...pState.playedAgainst, 'bye'];
-  }
-
-  return { matches, updatedPlayers: Array.from(playerMap.values()) };
+  return { matches, updatedPlayers: tiedPlayers.map(p => ({ ...p, playedAgainst: [...p.playedAgainst] })) };
 }
 
 // ===== 单败淘汰制 =====

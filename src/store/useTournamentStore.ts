@@ -1,6 +1,7 @@
+import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFormats } from '../utils/playoffs';
 import { create } from 'zustand';
 import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
-import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType, detectTieGroups, generatePlayoffPairings } from '../utils/swissPairing';
+import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
 
@@ -98,7 +99,8 @@ interface CompetitionState {
   createSnapshot: (label?: string) => void;
 
   /** 生成加赛：检测当前小组排名中是否存在平分选手，若有则生成加赛对阵 */
-  generatePlayoff: () => void;
+  generatePlayoff: (formats?: ThreePlayerFormats) => void;
+  resetPlayoffs: () => void;
 
   setViewRound: (round: number) => void;
   resetCompetition: () => void;
@@ -400,7 +402,8 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   },
 
   loadSavedCompetition: () => {
-    const saved = loadCompetition();
+    const rawSaved = loadCompetition();
+    const saved = rawSaved ? { ...rawSaved, groups: rawSaved.groups.map(recalculateRanking) } : null;
     if (saved) {
       set({
         competition: saved,
@@ -416,6 +419,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   },
 
   importCompetition: (competition: TournamentCompetition) => {
+    competition = { ...competition, groups: competition.groups.map(recalculateRanking) };
     const viewRound = competition.groups[competition.currentGroupIndex]?.currentRound > 0
       ? competition.groups[competition.currentGroupIndex].currentRound
       : 0;
@@ -981,7 +985,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   undoLastRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const group = competition.groups[idx];
+    const group = clearPlayoffs(competition.groups[idx]);
     if (group.currentRound <= 0) return;
 
     const currentRound = group.currentRound;
@@ -1098,6 +1102,15 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     if (matchIndex === -1) return;
 
     const match = group.matches[matchIndex];
+
+    if (match.isPlayoff) {
+      const groups = [...competition.groups];
+      groups[idx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
+      const updated = { ...competition, groups };
+      set({ competition: updated }); saveCompetition(updated);
+      return;
+    }
+
     const oldResult = match.result;
     const oldPreDrop = !!match.preDrop;
 
@@ -1152,48 +1165,22 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     set({ viewRound: round });
   },
 
-  generatePlayoff: () => {
+  generatePlayoff: (formats) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const group = competition.groups[idx];
-    if (!group || group.pairingType !== 'swiss') return;
-    // 只有比赛完成或进行到最后轮才能加赛
-    if (group.status !== 'completed' && group.currentRound < group.totalRounds) return;
+    const group = advancePlayoffs(competition.groups[idx], formats);
+    const groups = [...competition.groups]; groups[idx] = group;
+    const updated = { ...competition, groups };
+    set({ competition: updated, viewRound: group.matches.some(m => m.isPlayoff) ? 0 : group.currentRound });
+    saveCompetition(updated);
+  },
 
-    // 防止重复生成：若已存在加赛比赛则不再生成
-    if (group.matches.some(m => m.isPlayoff)) return;
-
-    const tieGroups = detectTieGroups(group.players, group.gameType);
-    if (tieGroups.length === 0) return;
-
-    // 合并所有平分选手
-    const allTied = tieGroups.flat();
-    const { matches: playoffMatches, updatedPlayers } = generatePlayoffPairings(allTied, group.gameType);
-
-    // 应用 BYE 结果到选手（加赛 BYE 只写 playoffWins，不写常规 wins/points）
-    const playerMap = new Map(updatedPlayers.map(p => [p.id, { ...p }]));
-    for (const match of playoffMatches) {
-      if (match.isBye && match.result === 'player1') {
-        const p = playerMap.get(match.player1Id);
-        if (p) {
-          p.playoffWins = (p.playoffWins || 0) + 1;
-        }
-      }
-    }
-
-    // 合并 updatedPlayers 回 group.players（保留非加赛选手不变）
-    const mergedPlayers = group.players.map(p => playerMap.get(p.id) ?? p);
-    const recalculated = calculateAllWinRates(mergedPlayers, [...group.matches, ...playoffMatches], group.gameType);
-
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = {
-      ...group,
-      matches: [...group.matches, ...playoffMatches],
-      players: recalculated,
-    };
-    const updated = { ...competition, groups: updatedGroups };
-    // 生成加赛后自动切换到加赛视图（viewRound=0）
-    set({ competition: updated, viewRound: 0 });
+  resetPlayoffs: () => {
+    const { competition } = get();
+    const idx = competition.currentGroupIndex;
+    const groups = [...competition.groups]; groups[idx] = clearPlayoffs(groups[idx]);
+    const updated = { ...competition, groups };
+    set({ competition: updated, viewRound: groups[idx].currentRound });
     saveCompetition(updated);
   },
 
@@ -1206,6 +1193,14 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     if (matchIndex === -1) return;
 
     const match = group.matches[matchIndex];
+    if (match.isPlayoff) {
+      const groups = [...competition.groups];
+      groups[groupIdx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
+      const updated = { ...competition, groups };
+      set({ competition: updated }); saveCompetition(updated);
+      return;
+    }
+
     const oldResult = match.result;
     const oldPreDrop = !!match.preDrop;
 

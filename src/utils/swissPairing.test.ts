@@ -10,6 +10,7 @@ import {
   detectTieGroups,
   generatePlayoffPairings,
 } from './swissPairing';
+import { parsePlayerNamesFromText } from './playerImport';
 import type { Player, Match, TournamentGroup } from '../types';
 
 function makePlayer(id: string, name: string, over: Partial<Player> = {}): Player {
@@ -115,6 +116,18 @@ describe('createPlayersFromNames', () => {
   it('过滤首尾空白', () => {
     const players = createPlayersFromNames(['  张三  ']);
     expect(players[0].name).toBe('张三');
+  });
+});
+
+describe('parsePlayerNamesFromText', () => {
+  it('支持按换行、逗号和分号分割多个选手', () => {
+    const names = parsePlayerNamesFromText('张三\n李四,王五;赵六');
+    expect(names).toEqual(['张三', '李四', '王五', '赵六']);
+  });
+
+  it('会去掉空白、重复项和表头类字段', () => {
+    const names = parsePlayerNamesFromText('姓名\n张三\n李四\n张三\n,\n  王五  ');
+    expect(names).toEqual(['张三', '李四', '王五']);
   });
 });
 
@@ -677,34 +690,31 @@ describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
     expect(matches[0].isPlayoff).toBe(true);
     expect(matches[0].round).toBe(0);
     expect(matches[0].result).toBe('pending');
-    // playedAgainst 互加
-    expect(updatedPlayers.find(p => p.id === 'A')!.playedAgainst).toContain('B');
-    expect(updatedPlayers.find(p => p.id === 'B')!.playedAgainst).toContain('A');
+    // 加赛不污染常规交手历史
+    expect(updatedPlayers.find(p => p.id === 'A')!.playedAgainst).toEqual([]);
+    expect(updatedPlayers.find(p => p.id === 'B')!.playedAgainst).toEqual([]);
   });
 
-  it('奇数平分选手生成加赛时最后一人轮空', () => {
+  it('三人加赛只生成首场，等候者不自动记胜', () => {
     const players = [
       makePlayer('A', 'A', { wins: 4, playedAgainst: [] }),
       makePlayer('B', 'B', { wins: 4, playedAgainst: [] }),
       makePlayer('C', 'C', { wins: 4, playedAgainst: [] }),
     ];
     const { matches } = generatePlayoffPairings(players, 'bo1');
-    expect(matches).toHaveLength(2);
-    const byeMatch = matches.find(m => m.isBye);
-    expect(byeMatch).toBeDefined();
-    expect(byeMatch!.isPlayoff).toBe(true);
-    expect(byeMatch!.result).toBe('player1');
+    expect(matches).toHaveLength(1);
+    expect(matches.some(m => m.isBye)).toBe(false);
   });
 
-  it('已交手过的选手不会在加赛中重复匹配', () => {
+  it('加赛允许常规赛已经交手的两人决胜', () => {
     const players = [
       makePlayer('A', 'A', { wins: 4, playedAgainst: ['B'] }),
       makePlayer('B', 'B', { wins: 4, playedAgainst: ['A'] }),
     ];
-    // 只有 2 人且已交手过，应无法生成对赛，两人都轮空
+    // 手册6.4D：双方须实际加赛决出名次，不受常规历史限制
     const { matches } = generatePlayoffPairings(players, 'bo1');
-    expect(matches.every(m => m.isBye)).toBe(true);
-    expect(matches).toHaveLength(2);
+    expect(matches.some(m => m.isBye)).toBe(false);
+    expect(matches).toHaveLength(1);
   });
 });
 
