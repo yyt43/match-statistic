@@ -175,6 +175,62 @@ describe('parsePlayerNamesFromText', () => {
     expect(summary.groups[0].validNames).toEqual(['张三', '李四']);
     expect(summary.groups[1].validNames).toEqual(['王五']);
   });
+
+  it('优先读取表头命名的姓名列，忽略其它非姓名列', () => {
+    type SheetCell = { t: string; v: string };
+    type WorkbookLike = {
+      SheetNames: string[];
+      Sheets: Record<string, Record<string, SheetCell>>;
+    };
+    type FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => Array<Record<string, string>>;
+      };
+    };
+
+    const workbook: WorkbookLike = {
+      SheetNames: ['A组'],
+      Sheets: {
+        A组: {
+          A1: { t: 's', v: '姓名' },
+          B1: { t: 's', v: '分数' },
+          A2: { t: 's', v: '张三' },
+          B2: { t: 's', v: '30' },
+          A3: { t: 's', v: '李四' },
+          B3: { t: 's', v: '25' },
+          A4: { t: 's', v: '张三' },
+          B4: { t: 's', v: '30' },
+          A5: { t: 's', v: '#ignore#' },
+          B5: { t: 's', v: '99' },
+        },
+      },
+    };
+
+    const fakeXlsx: FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => {
+          const rows: Array<Record<string, string>> = [];
+          const entries = Object.entries(sheet).sort(([a], [b]) => a.localeCompare(b));
+          for (let row = 1; row <= 5; row++) {
+            const r: Record<string, string> = {};
+            for (const col of ['A', 'B']) {
+              const cell = entries.find(([key]) => key === `${col}${row}`);
+              r[col] = cell ? cell[1].v : '';
+            }
+            if (row === 1 || r.A || r.B) rows.push(r);
+          }
+          return rows;
+        },
+      },
+    };
+
+    const summary = summarizeWorkbookImport(workbook as never, fakeXlsx as unknown as typeof import('xlsx'), {
+      selectedColumns: { A组: '姓名' },
+    });
+    expect(summary.totalValidNames).toBe(2);
+    expect(summary.groups[0].validNames).toEqual(['张三', '李四']);
+    expect(summary.groups[0].duplicateNames).toEqual(['张三']);
+  });
 });
 
 describe('generateSwissPairings', () => {

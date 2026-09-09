@@ -1,20 +1,35 @@
-import type { TournamentCompetition, TournamentGroup } from '../types';
+import type { TournamentCompetition, TournamentGroup, TournamentStatus } from '../types';
 import { calculateAllWinRates, getRankedPlayers } from '../utils/swissPairing';
+
+export function buildRankedGroup(group: TournamentGroup): TournamentGroup {
+  const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
+  const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+
+  return {
+    ...group,
+    players: rankedPlayers.map((player, index) => ({
+      ...player,
+      previousRank: index + 1,
+    })),
+  };
+}
+
+export function isRoundComplete(group: TournamentGroup, round: number = group.currentRound): boolean {
+  if (round <= 0) return false;
+  const matches = group.matches.filter(match => match.round === round);
+  return matches.length > 0 && matches.every(match => match.result !== 'pending');
+}
+
+export function evaluateGroupStatus(group: TournamentGroup, matches: typeof group.matches = group.matches): TournamentStatus {
+  const hasCompletedRound = isRoundComplete(group, group.currentRound);
+  const isLastRound = group.currentRound >= group.totalRounds;
+  return hasCompletedRound && isLastRound ? 'completed' : group.status;
+}
 
 export function normalizeCompetitionGroups(competition: TournamentCompetition): TournamentCompetition {
   return {
     ...competition,
-    groups: competition.groups.map(group => {
-      const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
-      const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
-      return {
-        ...group,
-        players: rankedPlayers.map((player, index) => ({
-          ...player,
-          previousRank: index + 1,
-        })),
-      };
-    }),
+    groups: competition.groups.map(group => buildRankedGroup(group)),
   };
 }
 

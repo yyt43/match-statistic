@@ -1,5 +1,5 @@
 import { PlayoffPanel } from './PlayoffPanel';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
@@ -9,7 +9,7 @@ import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '
 import type { GameType, PairingType } from '../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../utils/fileStorage';
 import { getSingleEliminationRounds, createPlayersFromNames } from '../utils/swissPairing';
-import { parsePlayerGroupsFromExcel, parsePlayerNamesFromText, summarizePlayerNameInput } from '../utils/playerImport';
+import { getWorkbookImportColumnChoices, parsePlayerGroupsFromExcel, parsePlayerNamesFromText, summarizePlayerNameInput } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
 import { collectPreDroppedPlayerIds } from '../store/competitionState';
@@ -78,9 +78,15 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
   const [importError, setImportError] = useState<string | null>(null);
   const [playerImportError, setPlayerImportError] = useState<string | null>(null);
+  const [excelColumnSelections, setExcelColumnSelections] = useState<Record<string, string>>({});
+  const [excelColumnChoices, setExcelColumnChoices] = useState<Array<{ sheetName: string; columns: string[]; detectedColumn: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playerFileInputRef = useRef<HTMLInputElement>(null);
-  const batchImportSummary = summarizePlayerNameInput(batchNames);
+  const batchImportSummary = useMemo(() => summarizePlayerNameInput(batchNames), [batchNames]);
+  const importRuleText = useMemo(
+    () => 'Excel 会优先读取表头包含 姓名 / Name / Player 的列；若没有此列，则按当前表格第一列兜底。用户也可以在导入前手动指定某一列作为选手名称。',
+    []
+  );
 
   useEffect(() => {
     setNameInput(competition.name);
@@ -164,12 +170,37 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     setShowBatchImport(false);
   };
 
-  const handleImportPlayersFromExcel = async (file?: File) => {
+  const prepareExcelImport = async (file?: File) => {
     const selectedFile = file ?? playerFileInputRef.current?.files?.[0];
     if (!selectedFile) return;
 
     try {
-      const groups = await parsePlayerGroupsFromExcel(selectedFile);
+      const XLSX = await import('xlsx');
+      const buffer = await selectedFile.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const choices = getWorkbookImportColumnChoices(workbook, XLSX);
+      setExcelColumnChoices(choices);
+      setPlayerImportError(null);
+
+      if (choices.length === 0) {
+        setPlayerImportError('Excel 文件中未找到任何可用表格');
+      }
+    } catch (error) {
+      console.error(error);
+      setPlayerImportError(error instanceof Error ? error.message : 'Excel 导入失败');
+    }
+  };
+
+  const handleImportPlayersFromExcel = async () => {
+    const selectedFile = playerFileInputRef.current?.files?.[0];
+    if (!selectedFile) return;
+
+    try {
+      const selectedColumns = Object.fromEntries(
+        excelColumnChoices.map(choice => [choice.sheetName, excelColumnSelections[choice.sheetName] || choice.detectedColumn || choice.columns[0] || ''])
+      );
+
+      const groups = await parsePlayerGroupsFromExcel(selectedFile, selectedColumns);
       if (groups.length === 0) {
         setPlayerImportError('Excel 文件中未找到可用的选手名称');
         return;
@@ -180,6 +211,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         setPlayerImportError(null);
         setShowBatchImport(false);
         if (playerFileInputRef.current) playerFileInputRef.current.value = '';
+        setExcelColumnChoices([]);
+        setExcelColumnSelections({});
         return;
       }
 
@@ -227,6 +260,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       setPlayerImportError(null);
       setShowBatchImport(false);
       if (playerFileInputRef.current) playerFileInputRef.current.value = '';
+      setExcelColumnChoices([]);
+      setExcelColumnSelections({});
     } catch (error) {
       console.error(error);
       setPlayerImportError(error instanceof Error ? error.message : 'Excel 导入失败');
@@ -1019,7 +1054,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          await handleImportPlayersFromExcel(file);
+                          await prepareExcelImport(file);
                         }}
                         className="hidden"
                       />
@@ -1031,6 +1066,52 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
+                    <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>导入规则</span>
+                        <span className="text-emerald-400">优先识别姓名列</span>
+                      </div>
+                      <div className="text-slate-400 leading-relaxed">
+                        {importRuleText}
+                      </div>
+                    </div>
+                    {excelColumnChoices.length > 0 && (
+                      <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>表头选择</span>
+                          <span className="text-emerald-400">{excelColumnChoices.length} 个表格</span>
+                        </div>
+                        <div className="space-y-2">
+                          {excelColumnChoices.map(choice => (
+                            <label key={choice.sheetName} className="block">
+                              <span className="mb-1 block text-slate-400">{choice.sheetName}</span>
+                              <select
+                                value={excelColumnSelections[choice.sheetName] || choice.detectedColumn || choice.columns[0] || ''}
+                                onChange={e => {
+                                  const nextValue = e.target.value;
+                                  setExcelColumnSelections(prev => ({ ...prev, [choice.sheetName]: nextValue }));
+                                }}
+                                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-200 focus:outline-none focus:border-gold-500/50"
+                              >
+                                {choice.columns.length === 0 ? (
+                                  <option value="">无可用表头</option>
+                                ) : (
+                                  choice.columns.map(column => (
+                                    <option key={column} value={column}>{column}</option>
+                                  ))
+                                )}
+                              </select>
+                            </label>
+                          ))}
+                          <button
+                            onClick={handleImportPlayersFromExcel}
+                            className="w-full py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors"
+                          >
+                            使用当前表头导入
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {batchNames.trim() && (
                       <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
                         <div className="flex items-center justify-between gap-2">

@@ -4,7 +4,8 @@ import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
-import { normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
+import { buildRankedGroup, evaluateGroupStatus, isRoundComplete, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
+import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -122,39 +123,6 @@ export function useIsCurrentRoundComplete(): boolean {
   if (group.currentRound === 0) return false;
   const currentMatches = group.matches.filter(m => m.round === group.currentRound);
   return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
-}
-
-// ===== 随机生成专用纯函数（不触发 set/save，避免批量操作时频繁重渲染与磁盘 IO） =====
-
-/** 生成下一轮对阵（轻量版：仅更新 bye 积分，不重算 winRate/排名） */
-function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
-  if (group.status !== 'in_progress') return group;
-  const nextRound = group.currentRound + 1;
-  if (nextRound > group.totalRounds) return group;
-
-  const roundGameType = getRoundGameType(group, nextRound);
-  const { matches, updatedPlayers: pairedPlayers } = generatePairings(group.players, nextRound, roundGameType, group.pairingType, group.matches);
-
-  // 使用配对后更新的选手（含上下匹配标记/次数）
-  const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
-  for (const match of matches) {
-    if (match.isBye && match.result === 'player1') {
-      const p = playerMap.get(match.player1Id);
-      if (p) {
-        p.points += 1;
-        p.wins += 1;
-        p.playedAgainst.push('bye');
-        if (match.player1Games !== undefined && match.player2Games !== undefined) {
-          p.totalGames += match.player1Games + match.player2Games;
-          p.wonGames += match.player1Games;
-        }
-      }
-    }
-  }
-  const updatedPlayers = Array.from(playerMap.values());
-  const allMatches = [...group.matches, ...matches];
-
-  return { ...group, currentRound: nextRound, matches: allMatches, players: updatedPlayers };
 }
 
 // ===== 比赛结果应用/撤销的公共函数（消除三处重复） =====
@@ -321,64 +289,6 @@ function applyMatchResultToMap(
     p2.totalGames += player1Games + player2Games;
     p2.wonGames += player2Games;
   }
-}
-
-/** 应用比赛结果到积分（轻量版：不重算 winRate/排名，保留旧 previousRank） */
-function applyMatchResultFast(
-  group: TournamentGroup,
-  matchId: string,
-  result: MatchResult,
-  player1Games?: number,
-  player2Games?: number,
-  preDrop?: boolean
-): TournamentGroup {
-  const matchIndex = group.matches.findIndex(m => m.id === matchId);
-  if (matchIndex === -1) return group;
-
-  const match = group.matches[matchIndex];
-  const oldResult = match.result;
-  const oldPreDrop = !!match.preDrop;
-
-  const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
-  const isSingleElimination = group.pairingType === 'single_elimination';
-
-  if (oldResult !== 'pending') {
-    revertMatchResult(playerMap, match, oldResult, oldPreDrop, isSingleElimination);
-  }
-  if (result !== 'pending') {
-    applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
-  }
-
-  const updatedMatches = [...group.matches];
-  updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
-
-  const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
-  const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
-  const isLastRound = group.currentRound >= group.totalRounds;
-
-  return {
-    ...group,
-    matches: updatedMatches,
-    players: Array.from(playerMap.values()),
-    status: allDone && isLastRound ? 'completed' as TournamentStatus : group.status,
-  };
-}
-
-/** 批量操作结束后统一重算 winRate 与排名（保留旧 previousRank 用于显示变化） */
-function recalculateRanking(group: TournamentGroup): TournamentGroup {
-  const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
-  const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
-  const previousRankMap = new Map(group.players.map(p => [p.id, p.previousRank]));
-  const finalPlayers = rankedPlayers.map(p => ({
-    ...p,
-    previousRank: previousRankMap.get(p.id),
-  }));
-  return { ...group, players: finalPlayers };
-}
-
-/** 让出主线程一次，避免长同步任务阻塞 UI / DevTools 断开 */
-function yieldToMain(): Promise<void> {
-  return new Promise<void>(resolve => setTimeout(resolve, 0));
 }
 
 const initialCompetition = createNewCompetition('新建赛事');
@@ -1133,23 +1043,20 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     );
     updatedPlayers = rankedPlayers.map(p => ({ ...p, previousRank: previousRankMap.get(p.id) }));
 
-    const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
-    const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
-    const isLastRound = group.currentRound >= group.totalRounds;
-
     const updatedGroups = [...competition.groups];
     updatedGroups[idx] = {
       ...group,
       matches: updatedMatches,
       players: updatedPlayers,
-      status: allDone && isLastRound ? 'completed' as TournamentStatus : group.status,
+      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated });
     saveCompetition(updated);
 
-    // 本轮全部完赛时自动创建快照（不阻断主流程）
-    if (allDone) {
+    const hasCompletedCurrentRound = isRoundComplete({ ...group, matches: updatedMatches, players: updatedPlayers });
+
+    if (hasCompletedCurrentRound) {
       try {
         saveSnapshot(updated, `${group.name}·第${group.currentRound}轮完赛`);
       } catch { /* 快照失败不影响主流程 */ }
@@ -1222,16 +1129,12 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     );
     updatedPlayers = rankedPlayers.map(p => ({ ...p, previousRank: previousRankMap.get(p.id) }));
 
-    const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
-    const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
-    const isLastRound = group.currentRound >= group.totalRounds;
-
     const updatedGroups = [...competition.groups];
     updatedGroups[groupIdx] = {
       ...group,
       matches: updatedMatches,
       players: updatedPlayers,
-      status: allDone && isLastRound ? 'completed' as TournamentStatus : group.status,
+      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated });
