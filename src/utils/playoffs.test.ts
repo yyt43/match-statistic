@@ -12,7 +12,9 @@ const makeGroup = (count: number): TournamentGroup => {
 };
 const playoffMatches = (g: TournamentGroup) => g.matches.filter(m => m.isPlayoff);
 const finish = (g: TournamentGroup, m: Match, right = false) => recordPlayoffResult(g, m.id, right ? 'player2' : 'player1', right ? 0 : 2, right ? 2 : 0);
-const normalStats = (g: TournamentGroup) => g.players.map(({ playoffWins: _a, playoffRank: _b, playoffBracketId: _c, ...p }) => p).sort((a, b) => a.id.localeCompare(b.id));
+const normalStats = (g: TournamentGroup) => g.players
+  .map(p => Object.fromEntries(Object.entries(p).filter(([key]) => !['playoffWins', 'playoffRank', 'playoffBracketId'].includes(key))))
+  .sort((a, b) => a.id.localeCompare(b.id));
 
 describe('手册6.4D加赛路径', () => {
   it('两人历史上已交手，仍直接决胜；不计入常规数据且重复录分不累加', () => {

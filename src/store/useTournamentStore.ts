@@ -375,6 +375,24 @@ function recalculateRanking(group: TournamentGroup): TournamentGroup {
   return { ...group, players: finalPlayers };
 }
 
+function replaceGroupAtIndex(
+  competition: TournamentCompetition,
+  groupIndex: number,
+  group: TournamentGroup
+): TournamentCompetition {
+  const groups = [...competition.groups];
+  groups[groupIndex] = group;
+  return { ...competition, groups };
+}
+
+function updateGroupAtIndex(
+  competition: TournamentCompetition,
+  groupIndex: number,
+  updater: (group: TournamentGroup) => TournamentGroup
+): TournamentCompetition {
+  return replaceGroupAtIndex(competition, groupIndex, updater(competition.groups[groupIndex]));
+}
+
 /** 让出主线程一次，避免长同步任务阻塞 UI / DevTools 断开 */
 function yieldToMain(): Promise<void> {
   return new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -1104,9 +1122,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const match = group.matches[matchIndex];
 
     if (match.isPlayoff) {
-      const groups = [...competition.groups];
-      groups[idx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
-      const updated = { ...competition, groups };
+      const updated = updateGroupAtIndex(competition, idx, currentGroup => recordPlayoffResult(currentGroup, matchId, result, player1Games, player2Games));
       set({ competition: updated }); saveCompetition(updated);
       return;
     }
@@ -1169,8 +1185,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const group = advancePlayoffs(competition.groups[idx], formats);
-    const groups = [...competition.groups]; groups[idx] = group;
-    const updated = { ...competition, groups };
+    const updated = replaceGroupAtIndex(competition, idx, group);
     set({ competition: updated, viewRound: group.matches.some(m => m.isPlayoff) ? 0 : group.currentRound });
     saveCompetition(updated);
   },
@@ -1178,9 +1193,9 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   resetPlayoffs: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const groups = [...competition.groups]; groups[idx] = clearPlayoffs(groups[idx]);
-    const updated = { ...competition, groups };
-    set({ competition: updated, viewRound: groups[idx].currentRound });
+    const group = clearPlayoffs(competition.groups[idx]);
+    const updated = replaceGroupAtIndex(competition, idx, group);
+    set({ competition: updated, viewRound: group.currentRound });
     saveCompetition(updated);
   },
 

@@ -1,26 +1,57 @@
-export function parsePlayerNamesFromText(input: string): string[] {
-  const normalized = input
+export interface PlayerNameImportSummary {
+  validNames: string[];
+  duplicateNames: string[];
+  ignoredEntries: string[];
+  rawEntries: string[];
+}
+
+export function summarizePlayerNameInput(input: string): PlayerNameImportSummary {
+  const rawEntries = input
     .replace(/\r/g, '\n')
     .replace(/[\t\u3000]+/g, ' ')
     .replace(/\s*[,;\n]+\s*/g, '\n')
     .split('\n')
     .map(v => v.trim())
-    .filter(v => v.length > 0)
-    .filter(v => !/^姓名$|^name$/i.test(v));
+    .filter(v => v.length > 0);
 
-  const unique: string[] = [];
+  const validNames: string[] = [];
+  const duplicateNames: string[] = [];
+  const ignoredEntries: string[] = [];
   const seen = new Set<string>();
 
-  for (const name of normalized) {
-    const cleaned = name.replace(/^['\"]|['\"]$/g, '').trim();
-    if (!cleaned) continue;
+  for (const entry of rawEntries) {
+    if (/^姓名$|^name$/i.test(entry)) {
+      ignoredEntries.push(entry);
+      continue;
+    }
+
+    const cleaned = entry.replace(/^['"]|['"]$/g, '').trim();
+    if (!cleaned) {
+      ignoredEntries.push(entry);
+      continue;
+    }
+
+    if (/[#$@%*+=|<>]/.test(cleaned) || /https?:\/\//i.test(cleaned)) {
+      ignoredEntries.push(cleaned);
+      continue;
+    }
+
     const key = cleaned.toLowerCase();
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      duplicateNames.push(cleaned);
+      ignoredEntries.push(entry);
+      continue;
+    }
+
     seen.add(key);
-    unique.push(cleaned);
+    validNames.push(cleaned);
   }
 
-  return unique;
+  return { validNames, duplicateNames, ignoredEntries, rawEntries };
+}
+
+export function parsePlayerNamesFromText(input: string): string[] {
+  return summarizePlayerNameInput(input).validNames;
 }
 
 export interface ParsedGroupImport {
@@ -28,8 +59,23 @@ export interface ParsedGroupImport {
   names: string[];
 }
 
-export function extractPlayerGroupsFromWorkbook(workbook: { SheetNames: string[]; Sheets: Record<string, any> }, XLSX: typeof import('xlsx')): ParsedGroupImport[] {
-  const groups: ParsedGroupImport[] = [];
+export interface WorkbookImportSummary {
+  sheetCount: number;
+  totalValidNames: number;
+  totalDuplicateNames: number;
+  totalIgnoredEntries: number;
+  groups: Array<ParsedGroupImport & {
+    validNames: string[];
+    duplicateNames: string[];
+    ignoredEntries: string[];
+  }>;
+}
+
+export function summarizeWorkbookImport(
+  workbook: { SheetNames: string[]; Sheets: Record<string, import('xlsx').WorkSheet> },
+  XLSX: typeof import('xlsx')
+): WorkbookImportSummary {
+  const groups: WorkbookImportSummary['groups'] = [];
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
@@ -48,12 +94,41 @@ export function extractPlayerGroupsFromWorkbook(workbook: { SheetNames: string[]
       values.push(...cells);
     }
 
-    const names = parsePlayerNamesFromText(values.join('\n'));
-    if (names.length === 0) continue;
-
+    const summary = summarizePlayerNameInput(values.join('\n'));
     groups.push({
       groupName: (sheetName || '新小组').trim() || '新小组',
-      names,
+      names: summary.validNames,
+      validNames: summary.validNames,
+      duplicateNames: summary.duplicateNames,
+      ignoredEntries: summary.ignoredEntries,
+    });
+  }
+
+  const totalValidNames = groups.reduce((sum, group) => sum + group.names.length, 0);
+  const totalDuplicateNames = groups.reduce((sum, group) => sum + group.duplicateNames.length, 0);
+  const totalIgnoredEntries = groups.reduce((sum, group) => sum + group.ignoredEntries.length, 0);
+
+  return {
+    sheetCount: groups.length,
+    totalValidNames,
+    totalDuplicateNames,
+    totalIgnoredEntries,
+    groups,
+  };
+}
+
+export function extractPlayerGroupsFromWorkbook(
+  workbook: { SheetNames: string[]; Sheets: Record<string, import('xlsx').WorkSheet> },
+  XLSX: typeof import('xlsx')
+): ParsedGroupImport[] {
+  const groups: ParsedGroupImport[] = [];
+
+  const summary = summarizeWorkbookImport(workbook, XLSX);
+  for (const group of summary.groups) {
+    if (group.names.length === 0) continue;
+    groups.push({
+      groupName: group.groupName,
+      names: group.names,
     });
   }
 

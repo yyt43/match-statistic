@@ -822,7 +822,8 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
 /** 加赛首阶段抽签；三人中的一人等候下一阶段，不虚增轮空胜场。
  * 加赛允许与常规赛对手再次交手，完整赛程由 playoffs.ts 管理。
  */
-export function generatePlayoffPairings(tiedPlayers: Player[], _gameType: GameType): PairingResult {
+export function generatePlayoffPairings(tiedPlayers: Player[], gameType: GameType): PairingResult {
+  void gameType;
   const pool = shuffle(tiedPlayers);
   const matches: Match[] = [];
   for (let i = 0; i + 1 < pool.length; i += 2) {

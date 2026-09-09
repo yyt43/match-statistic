@@ -9,7 +9,7 @@ import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '
 import type { GameType, PairingType } from '../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../utils/fileStorage';
 import { getSingleEliminationRounds, createPlayersFromNames } from '../utils/swissPairing';
-import { parsePlayerGroupsFromExcel, parsePlayerNamesFromText } from '../utils/playerImport';
+import { parsePlayerGroupsFromExcel, parsePlayerNamesFromText, summarizePlayerNameInput } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
 
@@ -79,6 +79,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [playerImportError, setPlayerImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playerFileInputRef = useRef<HTMLInputElement>(null);
+  const batchImportSummary = summarizePlayerNameInput(batchNames);
 
   useEffect(() => {
     setNameInput(competition.name);
@@ -1008,7 +1009,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         className="flex-1 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         <FileText className="w-4 h-4" />
-                        导入 {parsePlayerNamesFromText(batchNames).length} 名选手
+                        导入 {batchImportSummary.validNames.length} 名选手
                       </button>
                       <input
                         ref={playerFileInputRef}
@@ -1029,6 +1030,30 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
+                    {batchNames.trim() && (
+                      <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>导入预览</span>
+                          <span className="text-emerald-400">可用 {batchImportSummary.validNames.length}</span>
+                        </div>
+                        <div className="flex gap-3 text-slate-400">
+                          <span>重复 {batchImportSummary.duplicateNames.length}</span>
+                          <span>忽略 {batchImportSummary.ignoredEntries.length}</span>
+                        </div>
+                        {batchImportSummary.duplicateNames.length > 0 && (
+                          <div className="text-amber-300">
+                            重复：{batchImportSummary.duplicateNames.slice(0, 5).join('、')}
+                            {batchImportSummary.duplicateNames.length > 5 ? '…' : ''}
+                          </div>
+                        )}
+                        {batchImportSummary.ignoredEntries.length > 0 && (
+                          <div className="text-slate-400">
+                            忽略：{batchImportSummary.ignoredEntries.slice(0, 5).join('、')}
+                            {batchImportSummary.ignoredEntries.length > 5 ? '…' : ''}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {playerImportError && (
                       <div className="px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs">
                         {playerImportError}

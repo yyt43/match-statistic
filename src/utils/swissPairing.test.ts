@@ -10,7 +10,7 @@ import {
   detectTieGroups,
   generatePlayoffPairings,
 } from './swissPairing';
-import { parsePlayerNamesFromText } from './playerImport';
+import { parsePlayerNamesFromText, summarizePlayerNameInput, summarizeWorkbookImport } from './playerImport';
 import type { Player, Match, TournamentGroup } from '../types';
 
 function makePlayer(id: string, name: string, over: Partial<Player> = {}): Player {
@@ -128,6 +128,52 @@ describe('parsePlayerNamesFromText', () => {
   it('会去掉空白、重复项和表头类字段', () => {
     const names = parsePlayerNamesFromText('姓名\n张三\n李四\n张三\n,\n  王五  ');
     expect(names).toEqual(['张三', '李四', '王五']);
+  });
+
+  it('能汇总导入有效名单、重复项和忽略项', () => {
+    const summary = summarizePlayerNameInput('姓名\n张三\n李四\n张三\n\n,\n  王五  ;\n#ignore#');
+    expect(summary.validNames).toEqual(['张三', '李四', '王五']);
+    expect(summary.duplicateNames).toEqual(['张三']);
+    expect(summary.ignoredEntries).toContain('#ignore#');
+  });
+
+  it('能汇总工作簿中每个表格和总数', () => {
+    type SheetCell = { t: string; v: string };
+    type WorkbookLike = {
+      SheetNames: string[];
+      Sheets: Record<string, Record<string, SheetCell>>;
+    };
+    type FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => Array<Record<string, string>>;
+      };
+    };
+
+    const workbook: WorkbookLike = {
+      SheetNames: ['A组', 'B组'],
+      Sheets: {
+        A组: {
+          A1: { t: 's', v: '张三' },
+          A2: { t: 's', v: '李四' },
+          A3: { t: 's', v: '张三' },
+        },
+        B组: {
+          A1: { t: 's', v: '王五' },
+          A2: { t: 's', v: '#ignore#' },
+        },
+      },
+    };
+    const fakeXlsx: FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => Object.values(sheet).map(cell => ({ A: cell.v })),
+      },
+    };
+    const summary = summarizeWorkbookImport(workbook as never, fakeXlsx as unknown as typeof import('xlsx'));
+
+    expect(summary.sheetCount).toBe(2);
+    expect(summary.totalValidNames).toBe(3);
+    expect(summary.groups[0].validNames).toEqual(['张三', '李四']);
+    expect(summary.groups[1].validNames).toEqual(['王五']);
   });
 });
 
