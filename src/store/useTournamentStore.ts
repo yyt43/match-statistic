@@ -4,6 +4,7 @@ import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
+import { normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -375,24 +376,6 @@ function recalculateRanking(group: TournamentGroup): TournamentGroup {
   return { ...group, players: finalPlayers };
 }
 
-function replaceGroupAtIndex(
-  competition: TournamentCompetition,
-  groupIndex: number,
-  group: TournamentGroup
-): TournamentCompetition {
-  const groups = [...competition.groups];
-  groups[groupIndex] = group;
-  return { ...competition, groups };
-}
-
-function updateGroupAtIndex(
-  competition: TournamentCompetition,
-  groupIndex: number,
-  updater: (group: TournamentGroup) => TournamentGroup
-): TournamentCompetition {
-  return replaceGroupAtIndex(competition, groupIndex, updater(competition.groups[groupIndex]));
-}
-
 /** 让出主线程一次，避免长同步任务阻塞 UI / DevTools 断开 */
 function yieldToMain(): Promise<void> {
   return new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -421,13 +404,11 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
   loadSavedCompetition: () => {
     const rawSaved = loadCompetition();
-    const saved = rawSaved ? { ...rawSaved, groups: rawSaved.groups.map(recalculateRanking) } : null;
+    const saved = rawSaved ? normalizeCompetitionGroups(rawSaved) : null;
     if (saved) {
       set({
         competition: saved,
-        viewRound: saved.groups[saved.currentGroupIndex]?.currentRound > 0
-          ? saved.groups[saved.currentGroupIndex].currentRound
-          : 0,
+        viewRound: resolveViewRound(saved),
         isRandomGenerating: false,
         randomGenerateProgress: { total: 0, current: 0 },
       });
@@ -437,12 +418,10 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   },
 
   importCompetition: (competition: TournamentCompetition) => {
-    competition = { ...competition, groups: competition.groups.map(recalculateRanking) };
-    const viewRound = competition.groups[competition.currentGroupIndex]?.currentRound > 0
-      ? competition.groups[competition.currentGroupIndex].currentRound
-      : 0;
-    set({ competition, viewRound, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
-    saveCompetition(competition);
+    const normalized = normalizeCompetitionGroups(competition);
+    const viewRound = resolveViewRound(normalized);
+    set({ competition: normalized, viewRound, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
+    saveCompetition(normalized);
   },
 
   updateCompetitionName: (name: string) => {

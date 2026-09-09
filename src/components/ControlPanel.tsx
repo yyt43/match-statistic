@@ -12,6 +12,7 @@ import { getSingleEliminationRounds, createPlayersFromNames } from '../utils/swi
 import { parsePlayerGroupsFromExcel, parsePlayerNamesFromText, summarizePlayerNameInput } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
+import { collectPreDroppedPlayerIds } from '../store/competitionState';
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -1168,13 +1169,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               {showDropManager && (
                 <div className="mt-3 space-y-2">
                   {(() => {
-                    // 汇总所有赛前弃赛 match 的"弃赛者本人"（preDrop=true 的败方）
-                    const preDroppedIds = new Set<string>();
-                    for (const m of currentGroup.matches) {
-                      if (!m.preDrop) continue;
-                      if (m.result === 'player1') preDroppedIds.add(m.player2Id);
-                      else if (m.result === 'player2') preDroppedIds.add(m.player1Id);
-                    }
+                    const preDroppedIds = collectPreDroppedPlayerIds(currentGroup.matches);
                     return (
                       <>
                         <div className="max-h-28 overflow-y-auto space-y-1">
