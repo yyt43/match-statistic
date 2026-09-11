@@ -4,6 +4,7 @@ import { RoundTabs } from './RoundTabs';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Match, MatchResult, GameType, Player } from '../types';
 import { useMemo, useState, useEffect } from 'react';
+import { useLanguagePreference } from '../i18n';
 
 interface MatchListProps {
   testMode?: boolean;
@@ -42,9 +43,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
     return map;
   }, [currentGroup.players]);
 
+  const { language } = useLanguagePreference();
+  const isEnglish = language === 'en';
+
   const getPlayerName = (id: string) => {
-    if (id === 'bye') return '轮空';
-    return playerMap.get(id)?.name || '未知选手';
+    if (id === 'bye') return isEnglish ? 'Bye' : '轮空';
+    return playerMap.get(id)?.name || (isEnglish ? 'Unknown player' : '未知选手');
   };
 
   const getPlayerRank = (id: string) => {
@@ -90,14 +94,16 @@ export function MatchList({ testMode = false }: MatchListProps) {
   };
 
   const getResultText = (match: Match) => {
-    if (match.isBye) return '轮空';
+    if (match.isBye) return isEnglish ? 'Bye' : '轮空';
     if (match.isPlayoff && match.playoffBracketId) {
       const bracket = currentGroup.playoffBrackets?.find(b => b.id === match.playoffBracketId);
-      return `第${bracket?.startRank ?? '?'}名同分组 · 第${match.playoffStage}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛 · ' : ''}${match.result === 'pending' ? '待进行' : '已完成'}`;
+      return isEnglish
+        ? `${bracket?.startRank ?? '?'}th-place tie group · Stage ${match.playoffStage} · ${match.playoffRole === 'placement' ? '3rd/4th place match · ' : ''}${match.result === 'pending' ? 'Pending' : 'Completed'}`
+        : `第${bracket?.startRank ?? '?'}名同分组 · 第${match.playoffStage}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛 · ' : ''}${match.result === 'pending' ? '待进行' : '已完成'}`;
     }
-    if (match.result === 'pending') return '待进行';
-    if (match.preDrop) return '赛前弃赛';
-    return '已完成';
+    if (match.result === 'pending') return isEnglish ? 'Pending' : '待进行';
+    if (match.preDrop) return isEnglish ? 'Pre-drop' : '赛前弃赛';
+    return isEnglish ? 'Completed' : '已完成';
   };
 
   const getResultColor = (match: Match) => {
@@ -118,8 +124,12 @@ export function MatchList({ testMode = false }: MatchListProps) {
   const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const match = currentGroup.matches.find(m => m.id === matchId);
     if (match?.playoffStage === 1 && result !== match.result && currentGroup.matches.some(m => m.playoffBracketId === match.playoffBracketId && m.playoffStage === 2)) {
-      setConfirmState({ open: true, title: '修改首阶段加赛结果', message: '修改胜者或重置后，将清除这个同分组的第二阶段对阵与赛果；其他同分组不受影响。',
-        onConfirm: () => updateMatchResult(matchId, result, player1Games, player2Games, preDrop) });
+      setConfirmState({
+        open: true,
+        title: isEnglish ? 'Change first-stage playoff result' : '修改首阶段加赛结果',
+        message: isEnglish ? 'Changing the winner or resetting this match will clear the second-stage playoff bracket for this tied group. Other tied groups are unaffected.' : '修改胜者或重置后，将清除这个同分组的第二阶段对阵与赛果；其他同分组不受影响。',
+        onConfirm: () => updateMatchResult(matchId, result, player1Games, player2Games, preDrop),
+      });
       return;
     }
     updateMatchResult(matchId, result, player1Games, player2Games, preDrop);
@@ -146,14 +156,14 @@ export function MatchList({ testMode = false }: MatchListProps) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
             <Swords className="w-5 h-5 text-gold-400" />
-            对阵表
+            {isEnglish ? 'Match list' : '对阵表'}
           </h2>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-slate-500">
             <Swords className="w-16 h-16 mx-auto mb-4 opacity-20" />
-            <p className="text-sm">比赛尚未开始</p>
-            <p className="text-xs mt-1">点击右侧"开始比赛"生成对阵</p>
+            <p className="text-sm">{isEnglish ? 'Tournament has not started yet' : '比赛尚未开始'}</p>
+            <p className="text-xs mt-1">{isEnglish ? 'Click “Start match” on the right to generate pairings.' : '点击右侧"开始比赛"生成对阵'}</p>
           </div>
         </div>
       </div>
@@ -165,7 +175,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
     ? currentGroup.gameType
     : currentGroup.roundGameTypes?.[viewRound - 1] ?? currentGroup.gameType;
   const gameTypeLabel = currentGroup.pairingType === 'single_elimination'
-    ? `单败淘汰 ${roundGameType.toUpperCase()}`
+    ? (isEnglish ? `Single elimination ${roundGameType.toUpperCase()}` : `单败淘汰 ${roundGameType.toUpperCase()}`)
     : roundGameType.toUpperCase();
 
   return (
@@ -173,17 +183,17 @@ export function MatchList({ testMode = false }: MatchListProps) {
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-display text-base font-bold text-white flex items-center gap-2">
           <Swords className={`w-4 h-4 ${isPlayoffView ? 'text-amber-400' : 'text-gold-400'}`} />
-          {isPlayoffView ? '加赛对阵表' : `第 ${viewRound} 轮对阵表`}
+          {isPlayoffView ? (isEnglish ? 'Playoff match list' : '加赛对阵表') : (isEnglish ? `Round ${viewRound} match list` : `第 ${viewRound} 轮对阵表`)}
         </h2>
         <div className="flex items-center gap-2">
           {canEditRound && !editMode && (
             <button
               onClick={() => setEditMode(true)}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gold-500/15 text-gold-400 hover:bg-gold-500/25 transition-colors text-xs border border-gold-500/25"
-              title="编辑本轮对阵"
+              title={isEnglish ? "Edit this round's pairings" : '编辑本轮对阵'}
             >
               <Pencil className="w-3.5 h-3.5" />
-              编辑对阵
+              {isEnglish ? 'Edit pairings' : '编辑对阵'}
             </button>
           )}
           <span className="text-xs text-slate-500 font-mono">{gameTypeLabel}</span>
@@ -195,7 +205,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
         <div className="mb-3 space-y-1.5">
           {isRandomGenerating && (
             <div className="text-[11px] text-amber-300 font-medium flex items-center justify-between px-1 mb-2">
-              <span>随机生成中... {randomGenerateProgress.current}/{randomGenerateProgress.total}</span>
+              <span>{isEnglish ? 'Generating results...' : '随机生成中...'} {randomGenerateProgress.current}/{randomGenerateProgress.total}</span>
               <span>{randomGenerateProgress.total > 0 ? Math.round((randomGenerateProgress.current / randomGenerateProgress.total) * 100) : 0}%</span>
             </div>
           )}
@@ -237,7 +247,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
             className="w-full py-1.5 rounded-md bg-gradient-to-r from-violet-500/20 to-violet-600/20 text-violet-300 hover:from-violet-500/30 hover:to-violet-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-medium flex items-center justify-center gap-1.5 border border-violet-500/30"
           >
             <Dice3 className={`w-3 h-3 ${isRandomGenerating ? 'animate-spin' : ''}`} />
-            随机生成当前轮结果
+            {isEnglish ? 'Randomize current round results' : '随机生成当前轮结果'}
           </button>
 
           {competition.groups.filter(g => g.status === 'in_progress' && g.currentRound > 0).length > 1 && (
@@ -247,25 +257,27 @@ export function MatchList({ testMode = false }: MatchListProps) {
                 if (isRandomGenerating) return;
                 setConfirmState({
                   open: true,
-                  title: '确认随机生成',
-                  message: '确定要随机生成所有小组当前轮次的结果吗？',
+                  title: isEnglish ? 'Confirm random generation' : '确认随机生成',
+                  message: isEnglish ? 'Are you sure you want to randomize all groups for the current round?' : '确定要随机生成所有小组当前轮次的结果吗？',
                   onConfirm: () => randomGenerateCurrentRoundAllGroups(),
                 });
               }}
               className="w-full py-1.5 rounded-md bg-gradient-to-r from-indigo-500/20 to-indigo-600/20 text-indigo-300 hover:from-indigo-500/30 hover:to-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-medium flex items-center justify-center gap-1.5 border border-indigo-500/30"
             >
               <Dice3 className={`w-3 h-3 ${isRandomGenerating ? 'animate-spin' : ''}`} />
-              随机生成所有小组当前轮结果
+              {isEnglish ? 'Randomize all groups current round' : '随机生成所有小组当前轮结果'}
             </button>
           )}
 
           {competition.groups.some(g => g.status === 'in_progress') && (() => {
             const inProgressCount = competition.groups.filter(g => g.status === 'in_progress').length;
             const isSingleGroup = inProgressCount <= 1;
-            const btnText = isSingleGroup ? '随机生成所有轮次比赛结果' : '随机生成所有小组比赛结果';
-            const confirmText = isSingleGroup
-              ? '确定要随机生成所有轮次的比赛结果吗？此操作不可恢复。'
-              : '确定要随机生成所有小组的所有轮次比赛结果吗？此操作不可恢复。';
+            const btnText = isEnglish
+              ? (isSingleGroup ? 'Randomize all rounds of match results' : 'Randomize all groups match results')
+              : (isSingleGroup ? '随机生成所有轮次比赛结果' : '随机生成所有小组比赛结果');
+            const confirmText = isEnglish
+              ? (isSingleGroup ? 'Are you sure you want to randomize all match results for every round? This action cannot be undone.' : 'Are you sure you want to randomize all match results for every group and every round? This action cannot be undone.')
+              : (isSingleGroup ? '确定要随机生成所有轮次的比赛结果吗？此操作不可恢复。' : '确定要随机生成所有小组的所有轮次比赛结果吗？此操作不可恢复。');
             return (
               <button
                 disabled={isRandomGenerating}
@@ -292,6 +304,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
         <RoundEditor
           matches={matches}
           players={currentGroup.players}
+          isEnglish={isEnglish}
           onCancel={() => setEditMode(false)}
           onSave={(updates) => {
             batchUpdateRoundMatches(viewRound, updates);
@@ -305,7 +318,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
           {matches.length === 0 ? (
             <div className="text-center py-12 text-slate-500">
               <Swords className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">暂无对阵信息</p>
+              <p className="text-sm">{isEnglish ? 'No match information yet' : '暂无对阵信息'}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -360,7 +373,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
                     {!editMode && (
                       <div
                         className="absolute top-1.5 left-1.5 z-10 p-0.5 rounded bg-slate-900/60 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-                        title="拖拽调整顺序"
+                        title={isEnglish ? 'Drag to reorder' : '拖拽调整顺序'}
                       >
                         <GripVertical className="w-3 h-3" />
                       </div>
@@ -455,17 +468,20 @@ export function MatchList({ testMode = false }: MatchListProps) {
                         <div className="p-2.5 bg-slate-900/40 rounded-lg space-y-2.5">
                           <div>
                             <div className="text-[10px] text-slate-400 mb-2 text-center">{match.isPlayoff
-                              ? `加赛第${match.playoffStage ?? 1}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛' : match.playoffRole === 'final' ? '决胜场' : '首场抽签对阵'}`
-                              : '选择比赛结果'}</div>
+                              ? (isEnglish
+                                ? `Playoff stage ${match.playoffStage ?? 1} · ${match.playoffRole === 'placement' ? '3rd/4th place' : match.playoffRole === 'final' ? 'final' : 'opening bracket match'}`
+                                : `加赛第${match.playoffStage ?? 1}阶段 · ${match.playoffRole === 'placement' ? '第3/4名赛' : match.playoffRole === 'final' ? '决胜场' : '首场抽签对阵'}`)
+                              : (isEnglish ? 'Select match result' : '选择比赛结果')}</div>
                             <ResultButtons
                               gameType={roundGameType}
                               playoff={!!match.isPlayoff}
+                              isEnglish={isEnglish}
                               onResult={(result, p1g, p2g, preDrop) => handleSetResult(match.id, result, p1g, p2g, preDrop)}
                             />
                           </div>
                           {match.preDrop && (
                             <div className="text-[10px] text-rose-300 text-center bg-rose-500/10 border border-rose-500/20 rounded-md py-1.5">
-                              当前标记为赛前弃赛（该场不计入对手胜率）。选择上方任意"正常比分"按钮即可取消标记。
+                              {isEnglish ? 'This match is marked as a pre-drop; it does not count toward opponent win rate. Choose any normal score above to clear this flag.' : '当前标记为赛前弃赛（该场不计入对手胜率）。选择上方任意"正常比分"按钮即可取消标记。'}
                             </div>
                           )}
                         </div>
@@ -494,43 +510,44 @@ export function MatchList({ testMode = false }: MatchListProps) {
   );
 }
 
-function ResultButtons({ gameType, onResult, playoff }: {
+function ResultButtons({ gameType, onResult, playoff, isEnglish }: {
   gameType: GameType;
   playoff?: boolean;
+  isEnglish: boolean;
   onResult: (result: 'player1' | 'player2' | 'draw' | 'pending', p1g?: number, p2g?: number, preDrop?: boolean) => void;
 }) {
   if (playoff) {
     const target = gameType === 'bo7' ? 4 : gameType === 'bo5' ? 3 : gameType === 'bo3' ? 2 : 1;
     return <div className="space-y-2">
-      <p className="text-xs text-amber-200">加赛需决出胜者；比分仅记录加赛，不计入常规小分。</p>
+      <p className="text-xs text-amber-200">{isEnglish ? 'Playoff must determine a winner; scores are recorded only for the playoff and do not affect regular standings.' : '加赛需决出胜者；比分仅记录加赛，不计入常规小分。'}</p>
       <div className="grid grid-cols-2 gap-2">{Array.from({ length: target }, (_, loss) => <div key={loss} className="contents">
-        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player1', target, loss)}>左侧 {target}-{loss}</button>
-        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player2', loss, target)}>右侧 {loss}-{target}</button>
+        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player1', target, loss)}>{isEnglish ? `Left ${target}-${loss}` : `左侧 ${target}-${loss}`}</button>
+        <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player2', loss, target)}>{isEnglish ? `Right ${loss}-${target}` : `右侧 ${loss}-${target}`}</button>
       </div>)}</div>
-      <button className="text-xs text-rose-300" onClick={() => onResult('pending')}>重置加赛结果</button>
+      <button className="text-xs text-rose-300" onClick={() => onResult('pending')}>{isEnglish ? 'Reset playoff result' : '重置加赛结果'}</button>
     </div>;
   }
   if (gameType === 'bo1') {
     return (
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">左侧胜 (1-0)</button>
-          <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">右侧胜 (0-1)</button>
-          <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
+          <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">{isEnglish ? 'Left wins (1-0)' : '左侧胜 (1-0)'}</button>
+          <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">{isEnglish ? 'Right wins (0-1)' : '右侧胜 (0-1)'}</button>
+          <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">{isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}</button>
         </div>
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
-          <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。">
-            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
-            <span className="block">右弃权·左胜</span>
-            <span className="block text-[8px] text-rose-400/60">右不记败场</span>
+          <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title={isEnglish ? 'Pre-drop: the right-side player forfeits before the match. The left side gets the win and the right side is not marked with a loss.' : '赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。'}>
+            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">{isEnglish ? 'Pre-drop' : '赛前弃'}</span>
+            <span className="block">{isEnglish ? 'Right forfeits · left wins' : '右弃权·左胜'}</span>
+            <span className="block text-[8px] text-rose-400/60">{isEnglish ? 'No loss for right' : '右不记败场'}</span>
           </button>
           <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40">
-            <X className="w-3 h-3" />重置
+            <X className="w-3 h-3" />{isEnglish ? 'Reset' : '重置'}
           </button>
-          <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。">
-            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
-            <span className="block">左弃权·右胜</span>
-            <span className="block text-[8px] text-rose-400/60">左不记败场</span>
+          <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title={isEnglish ? 'Pre-drop: the left-side player forfeits before the match. The right side gets the win and the left side is not marked with a loss.' : '赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。'}>
+            <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">{isEnglish ? 'Pre-drop' : '赛前弃'}</span>
+            <span className="block">{isEnglish ? 'Left forfeits · right wins' : '左弃权·右胜'}</span>
+            <span className="block text-[8px] text-rose-400/60">{isEnglish ? 'No loss for left' : '左不记败场'}</span>
           </button>
         </div>
       </div>
@@ -541,10 +558,10 @@ function ResultButtons({ gameType, onResult, playoff }: {
   const options: Array<{ result: 'player1' | 'player2'; p1g: number; p2g: number; label: string }> = [];
 
   for (let loserGames = 0; loserGames < winScore; loserGames++) {
-    options.push({ result: 'player1', p1g: winScore, p2g: loserGames, label: `左侧 ${winScore}-${loserGames}` });
+    options.push({ result: 'player1', p1g: winScore, p2g: loserGames, label: isEnglish ? `Left ${winScore}-${loserGames}` : `左侧 ${winScore}-${loserGames}` });
   }
   for (let loserGames = winScore - 1; loserGames >= 0; loserGames--) {
-    options.push({ result: 'player2', p1g: loserGames, p2g: winScore, label: `右侧 ${winScore}-${loserGames}` });
+    options.push({ result: 'player2', p1g: loserGames, p2g: winScore, label: isEnglish ? `Right ${winScore}-${loserGames}` : `右侧 ${winScore}-${loserGames}` });
   }
 
   return (
@@ -559,28 +576,29 @@ function ResultButtons({ gameType, onResult, playoff }: {
             {opt.label}
           </button>
         ))}
-        <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">双负 (0-0)</button>
+        <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">{isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}</button>
       </div>
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
-        <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。">
-          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
-          <span className="block">右弃权·左胜</span>
-          <span className="block text-[8px] text-rose-400/60">右不记败场</span>
+        <button onClick={() => onResult('player1', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title={isEnglish ? 'Pre-drop: the right-side player forfeits before the match. The left side gets the win and the right side is not marked with a loss.' : '赛前弃赛：右侧选手未开赛即弃权。左侧直接记胜场，右侧不记败场，该场整体不计入对手胜率网络。'}>
+          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">{isEnglish ? 'Pre-drop' : '赛前弃'}</span>
+          <span className="block">{isEnglish ? 'Right forfeits · left wins' : '右弃权·左胜'}</span>
+          <span className="block text-[8px] text-rose-400/60">{isEnglish ? 'No loss for right' : '右不记败场'}</span>
         </button>
-        <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40"><X className="w-3 h-3" />重置</button>
-        <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title="赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。">
-          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">赛前弃</span>
-          <span className="block">左弃权·右胜</span>
-          <span className="block text-[8px] text-rose-400/60">左不记败场</span>
+        <button onClick={() => onResult('pending')} className="py-2 rounded-lg text-[11px] text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center justify-center gap-1 border border-slate-700/40"><X className="w-3 h-3" />{isEnglish ? 'Reset' : '重置'}</button>
+        <button onClick={() => onResult('player2', undefined, undefined, true)} className="py-1.5 px-1.5 rounded-lg text-[10px] font-medium bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition-colors border border-rose-500/30 leading-tight" title={isEnglish ? 'Pre-drop: the left-side player forfeits before the match. The right side gets the win and the left side is not marked with a loss.' : '赛前弃赛：左侧选手未开赛即弃权。右侧直接记胜场，左侧不记败场，该场整体不计入对手胜率网络。'}>
+          <span className="block text-[9px] text-rose-400/70 font-semibold tracking-wide mb-0.5">{isEnglish ? 'Pre-drop' : '赛前弃'}</span>
+          <span className="block">{isEnglish ? 'Left forfeits · right wins' : '左弃权·右胜'}</span>
+          <span className="block text-[8px] text-rose-400/60">{isEnglish ? 'No loss for left' : '左不记败场'}</span>
         </button>
       </div>
     </div>
   );
 }
 
-function RoundEditor({ matches, players, onSave, onCancel }: {
+function RoundEditor({ matches, players, onSave, onCancel, isEnglish }: {
   matches: Match[];
   players: Player[];
+  isEnglish: boolean;
   onSave: (updates: { matchId: string; player1Id: string; player2Id: string; isBye?: boolean }[]) => void;
   onCancel: () => void;
 }) {
@@ -596,7 +614,7 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
   const [flash, setFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const playerName = (id: string) => id === 'bye' ? '轮空' : (players.find(p => p.id === id)?.name || '未知');
+  const playerName = (id: string) => id === 'bye' ? (isEnglish ? 'Bye' : '轮空') : (players.find(p => p.id === id)?.name || (isEnglish ? 'Unknown' : '未知'));
 
   const isByeSlot = (matchId: string, side: 'p1' | 'p2') => {
     return slots[matchId]?.isBye && side === 'p2';
@@ -633,7 +651,7 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
       return next;
     });
     setSelected(null);
-    showFlash('已交换');
+    showFlash(isEnglish ? 'Swapped' : '已交换');
   };
 
   // 随机分配：将所有参赛选手打乱后重新两两配对
@@ -667,7 +685,7 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
     setSlots(next);
     setSelected(null);
     setError(null);
-    showFlash('已随机分配');
+    showFlash(isEnglish ? 'Randomly assigned' : '已随机分配');
   };
 
   // 按录入顺序：选手1 vs 选手2, 选手3 vs 选手4 ...
@@ -703,10 +721,10 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
     setSlots(next);
     setSelected(null);
     if (conflict) {
-      setError('选手数量不足以填满所有对阵，剩余对阵保持原值');
+      setError(isEnglish ? 'Not enough players to fill all matches; the remaining matches stay unchanged.' : '选手数量不足以填满所有对阵，剩余对阵保持原值');
     } else {
       setError(null);
-      showFlash('已按录入顺序分配');
+      showFlash(isEnglish ? 'Assigned by entry order' : '已按录入顺序分配');
     }
   };
 
@@ -725,7 +743,7 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
       <div className="mb-3 px-3 py-2 bg-gold-500/10 rounded-lg border border-gold-500/20 flex items-center gap-2">
         <ArrowLeftRight className="w-3.5 h-3.5 text-gold-400 flex-shrink-0" />
         <span className="text-[11px] text-gold-300/90">
-          点击选手高亮选中，再点击另一选手即可交换；点击已选中选手可取消
+          {isEnglish ? 'Click a player to select them, then click another player to swap; clicking the selected player again cancels the selection.' : '点击选手高亮选中，再点击另一选手即可交换；点击已选中选手可取消'}
         </span>
       </div>
 
@@ -736,14 +754,14 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
           className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 transition-colors text-xs border border-violet-500/30"
         >
           <Shuffle className="w-3.5 h-3.5" />
-          随机分配
+          {isEnglish ? 'Randomize' : '随机分配'}
         </button>
         <button
           onClick={handleSequentialAssign}
           className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-xs border border-emerald-500/30"
         >
           <ListOrdered className="w-3.5 h-3.5" />
-          按录入顺序
+          {isEnglish ? 'By entry order' : '按录入顺序'}
         </button>
       </div>
 
@@ -769,10 +787,10 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
               <div className="text-[10px] text-slate-500 font-mono mb-2">
                 #{String(index + 1).padStart(2, '0')}
                 {isBye && (
-                  <span className="ml-2 text-amber-400">轮空</span>
+                  <span className="ml-2 text-amber-400">{isEnglish ? 'Bye' : '轮空'}</span>
                 )}
                 {samePerson && (
-                  <span className="ml-2 text-rose-400">双方为同一人，请调整</span>
+                  <span className="ml-2 text-rose-400">{isEnglish ? 'Same player on both sides; please adjust.' : '双方为同一人，请调整'}</span>
                 )}
               </div>
               <div className="flex items-stretch gap-3">
@@ -839,7 +857,7 @@ function RoundEditor({ matches, players, onSave, onCancel }: {
           onClick={handleSave}
           className="flex-1 py-2 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 border border-gold-500/30 transition-colors text-sm font-medium"
         >
-          保存对阵
+          {isEnglish ? 'Save pairings' : '保存对阵'}
         </button>
       </div>
     </div>

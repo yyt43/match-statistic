@@ -1,5 +1,6 @@
 import { PlayoffPanel } from './PlayoffPanel';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useLanguagePreference } from '../i18n';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
@@ -22,6 +23,8 @@ interface ControlPanelProps {
 export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
   const isCurrentRoundComplete = useIsCurrentRoundComplete();
+  const { language } = useLanguagePreference();
+  const isEnglish = language === 'en';
   const {
     competition,
     startTournament,
@@ -275,7 +278,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
             <Settings className="w-4 h-4 text-gold-400" />
-            赛事设置
+            {isEnglish ? 'Tournament settings' : '赛事设置'}
           </h2>
         </div>
 
@@ -299,7 +302,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               onClick={() => { updateCompetitionName(nameInput); setIsEditingName(false); }}
               className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs"
             >
-              保存
+              {isEnglish ? 'Save' : '保存'}
             </button>
           </div>
         ) : (
@@ -319,7 +322,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-xs border border-slate-700/50"
           >
             <Download className="w-3.5 h-3.5" />
-            导出比赛数据
+            {isEnglish ? 'Export tournament data' : '导出比赛数据'}
           </button>
           <input
             ref={fileInputRef}
@@ -357,10 +360,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             onClick={() => fileInputRef.current?.click()}
             disabled={competition.groups.some(g => g.status !== 'setup')}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-xs border border-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-slate-800/50 disabled:hover:text-slate-300"
-            title={competition.groups.some(g => g.status !== 'setup') ? '比赛已开始，请先重置比赛数据再导入' : ''}
+            title={competition.groups.some(g => g.status !== 'setup') ? (isEnglish ? 'The tournament has started. Reset data before importing.' : '比赛已开始，请先重置比赛数据再导入') : ''}
           >
             <FileUp className="w-3.5 h-3.5" />
-            导入比赛数据
+            {isEnglish ? 'Import tournament data' : '导入比赛数据'}
           </button>
         </div>
         {importError && (
@@ -371,7 +374,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         {competition.groups.some(g => g.status !== 'setup') && !importError && (
           <div className="mt-2 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[11px] flex items-center gap-1.5 border border-amber-500/20">
             <AlertTriangle className="w-3 h-3 shrink-0" />
-            比赛已开始，导入功能已禁用，请先重置比赛数据
+            {isEnglish ? 'The tournament has started. Import is disabled until data is reset.' : '比赛已开始，导入功能已禁用，请先重置比赛数据'}
           </div>
         )}
       </div>
@@ -379,12 +382,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       {/* 当前小组指示器 */}
       <div className="px-4 py-2.5 border-b border-slate-700/50 bg-slate-800/20">
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500 shrink-0">当前小组</span>
+          <span className="text-slate-500 shrink-0">{isEnglish ? 'Current group' : '当前小组'}</span>
           <span className="flex-1 truncate text-gold-400 font-medium">
             {currentGroup.name}
           </span>
           <span className="text-slate-600 shrink-0">
-            {currentGroup.players.length}人
+            {currentGroup.players.length}{isEnglish ? '' : '人'}
           </span>
         </div>
       </div>
@@ -397,8 +400,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         >
           <span className="flex items-center gap-2">
             <Users className="w-3.5 h-3.5" />
-            小组管理
-            <span className="text-slate-500">({competition.groups.length}组)</span>
+            {isEnglish ? 'Group management' : '小组管理'}
+            <span className="text-slate-500">({competition.groups.length}{isEnglish ? ' groups' : '组'})</span>
           </span>
           {showGroupManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
@@ -408,12 +411,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             {hasAnyStarted && (
               <div className="px-2 py-1.5 rounded-md bg-amber-500/10 text-amber-400 text-[11px] flex items-center gap-1.5 border border-amber-500/20">
                 <AlertTriangle className="w-3 h-3 shrink-0" />
-                比赛已开始，小组数量不可调整
+                {isEnglish ? 'The tournament has started. Group count cannot be changed.' : '比赛已开始，小组数量不可调整'}
               </div>
             )}
 
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">添加 / 移除小组</span>
+              <span className="text-xs text-slate-500">{isEnglish ? 'Add / remove groups' : '添加 / 移除小组'}</span>
               <button
                 onClick={() => addGroup()}
                 disabled={hasAnyStarted}
@@ -426,7 +429,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
             {/* 手动设置小组数量 */}
             <div className="space-y-1">
-              <label className="text-xs text-slate-500">小组数量</label>
+              <label className="text-xs text-slate-500">{isEnglish ? 'Group count' : '小组数量'}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="range" min="1" max="20"
@@ -566,9 +569,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             >
               <span className="flex items-center gap-2">
                 <Settings className="w-3.5 h-3.5" />
-                赛制管理
+                {isEnglish ? 'Format management' : '赛制管理'}
                 <span className="text-slate-500">
-                  ({currentGroup.pairingType === 'swiss' ? '瑞士轮' : '淘汰'} · {currentGroup.gameType.toUpperCase()})
+                  ({currentGroup.pairingType === 'swiss' ? (isEnglish ? 'Swiss' : '瑞士轮') : (isEnglish ? 'Elimination' : '淘汰')} · {currentGroup.gameType.toUpperCase()})
                 </span>
               </span>
               {showFormatManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -577,7 +580,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             {showFormatManager && (
               <div className="mt-3 space-y-3">
                 <div className="space-y-2">
-                  <label className="text-xs text-slate-500">配对方式</label>
+                  <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setPairingType('swiss')}
@@ -587,7 +590,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
                     >
-                      瑞士轮
+                      {isEnglish ? 'Swiss' : '瑞士轮'}
                     </button>
                     <button
                       onClick={() => setPairingType('single_elimination')}
@@ -597,13 +600,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
                     >
-                      单败淘汰
+                      {isEnglish ? 'Single elimination' : '单败淘汰'}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs text-slate-500">比赛局数</label>
+                  <label className="text-xs text-slate-500">{isEnglish ? 'Match length' : '比赛局数'}</label>
                   <div className="grid grid-cols-4 gap-2">
                     <button
                       onClick={() => setGameType('bo1')}
@@ -688,7 +691,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
                 {currentGroup.pairingType !== 'single_elimination' ? (
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-500">设置轮次</label>
+                    <label className="text-xs text-slate-500">{isEnglish ? 'Set rounds' : '设置轮次'}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="range" min="1" max="20"
@@ -727,20 +730,20 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-500">轮次（自动计算）</label>
+                    <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
                     <div className="px-3 py-2 bg-slate-800/30 rounded-lg text-sm text-slate-400">
-                      共 <span className="font-mono text-gold-400 font-bold">{currentGroup.totalRounds}</span> 轮（根据 {currentGroup.players.length} 人自动计算）
+                      {isEnglish ? `Total ${currentGroup.totalRounds} rounds (auto-calculated from ${currentGroup.players.length} players)` : `共 <span className="font-mono text-gold-400 font-bold">${currentGroup.totalRounds}</span> 轮（根据 ${currentGroup.players.length} 人自动计算）`}
                     </div>
                   </div>
                 )}
 
                 {currentGroup.pairingType === 'single_elimination' && (
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-500">每轮比赛局数</label>
+                    <label className="text-xs text-slate-500">{isEnglish ? 'Match length per round' : '每轮比赛局数'}</label>
                     <div className="space-y-1.5">
                       {Array.from({ length: currentGroup.totalRounds }, (_, i) => i + 1).map(round => (
                         <div key={round} className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 w-10">第{round}轮</span>
+                          <span className="text-xs text-slate-500 w-10">{isEnglish ? `Round ${round}` : `第${round}轮`}</span>
                           <div className="flex-1 grid grid-cols-4 gap-1.5">
                             {(['bo1', 'bo3', 'bo5', 'bo7'] as GameType[]).map(gt => (
                               <button
@@ -770,7 +773,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   >
                     <span className="flex items-center gap-2">
                       <Layers className="w-3.5 h-3.5" />
-                      批量设置所有小组
+                      {isEnglish ? 'Apply settings to all groups' : '批量设置所有小组'}
                     </span>
                     {showBatchSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
@@ -778,7 +781,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   {showBatchSettings && (
                     <div className="mt-2 space-y-3 p-3 bg-slate-800/30 rounded-lg">
                       <div className="space-y-1">
-                        <label className="text-xs text-slate-500">每组人数</label>
+                        <label className="text-xs text-slate-500">{isEnglish ? 'Players per group' : '每组人数'}</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="range" min="2" max="100"
@@ -816,7 +819,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       </div>
                       {batchPairingType !== 'single_elimination' && (
                         <div className="space-y-1">
-                          <label className="text-xs text-slate-500">轮次</label>
+                          <label className="text-xs text-slate-500">{isEnglish ? 'Rounds' : '轮次'}</label>
                           <div className="flex items-center gap-2">
                             <input
                               type="range" min="1" max="20"
@@ -855,14 +858,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       )}
                       {batchPairingType === 'single_elimination' && (
                         <div className="space-y-1">
-                          <label className="text-xs text-slate-500">轮次（自动计算）</label>
+                          <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
                           <div className="px-3 py-2 bg-slate-800/30 rounded text-sm text-slate-400">
-                            根据 <span className="font-mono text-gold-400 font-bold">{batchPlayerCount}</span> 人自动计算
+                            {isEnglish ? `Auto-calculated from ${batchPlayerCount} players` : `根据 <span className="font-mono text-gold-400 font-bold">${batchPlayerCount}</span> 人自动计算`}
                           </div>
                         </div>
                       )}
                       <div className="space-y-1">
-                        <label className="text-xs text-slate-500">配对方式</label>
+                        <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             onClick={() => setBatchPairingType('swiss')}
@@ -872,7 +875,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                 : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                             }`}
                           >
-                            瑞士轮
+                            {isEnglish ? 'Swiss' : '瑞士轮'}
                           </button>
                           <button
                             onClick={() => setBatchPairingType('single_elimination')}
@@ -882,12 +885,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                 : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                             }`}
                           >
-                            单败淘汰
+                            {isEnglish ? 'Single elimination' : '单败淘汰'}
                           </button>
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-slate-500">比赛局数</label>
+                        <label className="text-xs text-slate-500">{isEnglish ? 'Match length' : '比赛局数'}</label>
                         <div className="grid grid-cols-4 gap-2">
                           <button
                             onClick={() => setBatchGameType('bo1')}
@@ -947,8 +950,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         return (
                           <div className="space-y-1.5">
                             <label className="text-xs text-slate-500">
-                              每轮比赛局数
-                              <span className="ml-1 text-slate-600">（共 {computedRounds} 轮，按 {batchPlayerCount} 人计算）</span>
+                              {isEnglish ? 'Match length per round' : '每轮比赛局数'}
+                              <span className="ml-1 text-slate-600">{isEnglish ? `(Total ${computedRounds} rounds, based on ${batchPlayerCount} players)` : `（共 ${computedRounds} 轮，按 ${batchPlayerCount} 人计算）`}</span>
                             </label>
                             <div className="space-y-1.5">
                               {Array.from({ length: computedRounds }, (_, i) => i + 1).map(round => (
@@ -993,7 +996,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         }}
                         className="w-full py-2 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 border border-gold-500/30 text-sm font-medium transition-colors"
                       >
-                        应用至所有小组
+                        {isEnglish ? 'Apply to all groups' : '应用至所有小组'}
                       </button>
                     </div>
                   )}
@@ -1012,8 +1015,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             >
               <span className="flex items-center gap-2">
                 <Users className="w-3.5 h-3.5" />
-                选手管理
-                <span className="text-slate-500">({currentGroup.players.length}人)</span>
+                {isEnglish ? 'Player management' : '选手管理'}
+                <span className="text-slate-500">({currentGroup.players.length}{isEnglish ? ' players' : '人'})</span>
               </span>
               {showPlayerManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
@@ -1025,7 +1028,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-medium transition-colors"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  {showBatchImport ? '收起导入' : '批量导入'}
+                  {showBatchImport ? (isEnglish ? 'Collapse import' : '收起导入') : (isEnglish ? 'Bulk import' : '批量导入')}
                 </button>
 
                 {showBatchImport && (
@@ -1036,7 +1039,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         setBatchNames(e.target.value);
                         if (playerImportError) setPlayerImportError(null);
                       }}
-                      placeholder="支持粘贴：&#10;张三&#10;李四&#10;王五&#10;或：张三, 李四; 王五"
+                      placeholder={isEnglish ? "Paste like:\nAlice\nBob\nCharlie\nor: Alice, Bob; Charlie" : "支持粘贴：&#10;张三&#10;李四&#10;王五&#10;或：张三, 李四; 王五"}
                       className="w-full h-24 px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold-500/30 resize-none"
                     />
                     <div className="flex gap-2">
@@ -1045,7 +1048,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         className="flex-1 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         <FileText className="w-4 h-4" />
-                        导入 {batchImportSummary.validNames.length} 名选手
+                        {isEnglish ? `Import ${batchImportSummary.validNames.length} players` : `导入 ${batchImportSummary.validNames.length} 名选手`}
                       </button>
                       <input
                         ref={playerFileInputRef}
@@ -1061,15 +1064,15 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       <button
                         onClick={() => playerFileInputRef.current?.click()}
                         className="px-3 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-xs border border-slate-700/50"
-                        title="批量从 Excel / CSV / TXT 导入选手名单"
+                        title={isEnglish ? 'Bulk import player names from Excel / CSV / TXT' : '批量从 Excel / CSV / TXT 导入选手名单'}
                       >
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
                     <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span>导入规则</span>
-                        <span className="text-emerald-400">优先识别姓名列</span>
+                        <span>{isEnglish ? 'Import rules' : '导入规则'}</span>
+                        <span className="text-emerald-400">{isEnglish ? 'Prefer name column detection' : '优先识别姓名列'}</span>
                       </div>
                       <div className="text-slate-400 leading-relaxed">
                         {importRuleText}
@@ -1078,8 +1081,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                     {excelColumnChoices.length > 0 && (
                       <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span>表头选择</span>
-                          <span className="text-emerald-400">{excelColumnChoices.length} 个表格</span>
+                          <span>{isEnglish ? 'Header selection' : '表头选择'}</span>
+                          <span className="text-emerald-400">{isEnglish ? `${excelColumnChoices.length} sheets` : `${excelColumnChoices.length} 个表格`}</span>
                         </div>
                         <div className="space-y-2">
                           {excelColumnChoices.map(choice => (
@@ -1094,7 +1097,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                 className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-200 focus:outline-none focus:border-gold-500/50"
                               >
                                 {choice.columns.length === 0 ? (
-                                  <option value="">无可用表头</option>
+                                  <option value="">{isEnglish ? 'No available headers' : '无可用表头'}</option>
                                 ) : (
                                   choice.columns.map(column => (
                                     <option key={column} value={column}>{column}</option>
@@ -1107,7 +1110,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                             onClick={handleImportPlayersFromExcel}
                             className="w-full py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-medium transition-colors"
                           >
-                            使用当前表头导入
+                            {isEnglish ? 'Import using current headers' : '使用当前表头导入'}
                           </button>
                         </div>
                       </div>
@@ -1115,22 +1118,22 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                     {batchNames.trim() && (
                       <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300 space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span>导入预览</span>
-                          <span className="text-emerald-400">可用 {batchImportSummary.validNames.length}</span>
+                          <span>{isEnglish ? 'Import preview' : '导入预览'}</span>
+                          <span className="text-emerald-400">{isEnglish ? `Available ${batchImportSummary.validNames.length}` : `可用 ${batchImportSummary.validNames.length}`}</span>
                         </div>
                         <div className="flex gap-3 text-slate-400">
-                          <span>重复 {batchImportSummary.duplicateNames.length}</span>
-                          <span>忽略 {batchImportSummary.ignoredEntries.length}</span>
+                          <span>{isEnglish ? `Duplicates ${batchImportSummary.duplicateNames.length}` : `重复 ${batchImportSummary.duplicateNames.length}`}</span>
+                          <span>{isEnglish ? `Ignored ${batchImportSummary.ignoredEntries.length}` : `忽略 ${batchImportSummary.ignoredEntries.length}`}</span>
                         </div>
                         {batchImportSummary.duplicateNames.length > 0 && (
                           <div className="text-amber-300">
-                            重复：{batchImportSummary.duplicateNames.slice(0, 5).join('、')}
+                            {isEnglish ? `Duplicates: ${batchImportSummary.duplicateNames.slice(0, 5).join(', ')}` : `重复：${batchImportSummary.duplicateNames.slice(0, 5).join('、')}`}
                             {batchImportSummary.duplicateNames.length > 5 ? '…' : ''}
                           </div>
                         )}
                         {batchImportSummary.ignoredEntries.length > 0 && (
                           <div className="text-slate-400">
-                            忽略：{batchImportSummary.ignoredEntries.slice(0, 5).join('、')}
+                            {isEnglish ? `Ignored: ${batchImportSummary.ignoredEntries.slice(0, 5).join(', ')}` : `忽略：${batchImportSummary.ignoredEntries.slice(0, 5).join('、')}`}
                             {batchImportSummary.ignoredEntries.length > 5 ? '…' : ''}
                           </div>
                         )}
@@ -1160,7 +1163,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                             autoFocus
                             className="flex-1 px-2 py-1 bg-slate-700 border border-gold-500/50 rounded text-sm text-white focus:outline-none"
                           />
-                          <button onClick={handleConfirmEditName} className="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">确认</button>
+                          <button onClick={handleConfirmEditName} className="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">{isEnglish ? 'Confirm' : '确认'}</button>
                         </>
                       ) : (
                         <>
@@ -1186,7 +1189,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 className="w-full py-2.5 rounded-lg bg-gold-500/15 text-gold-400 hover:bg-gold-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/25"
               >
                 <Play className="w-4 h-4" />
-                开始本组比赛 (共{currentGroup.totalRounds}轮)
+                {isEnglish ? `Start this group (${currentGroup.totalRounds} rounds total)` : `开始本组比赛 (共${currentGroup.totalRounds}轮)`}
               </button>
               {competition.groups.length > 1 && competition.groups.some(g => g.status === 'setup' && g.players.length >= 2) && (
                 <button
@@ -1194,7 +1197,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
                 >
                   <Play className="w-4 h-4" />
-                  全部小组同时开赛
+                  {isEnglish ? 'Start all groups' : '全部小组同时开赛'}
                 </button>
               )}
             </div>
@@ -1204,10 +1207,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-400">
-                  第 {currentGroup.currentRound}/{currentGroup.totalRounds} 轮
+                  {isEnglish ? `Round ${currentGroup.currentRound}/${currentGroup.totalRounds}` : `第 ${currentGroup.currentRound}/${currentGroup.totalRounds} 轮`}
                 </span>
                 <span className="text-gold-400 font-semibold">
-                  {currentGroup.matches.filter(m => m.round === currentGroup.currentRound && m.result !== 'pending').length} / {currentGroup.matches.filter(m => m.round === currentGroup.currentRound).length} 场完成
+                  {currentGroup.matches.filter(m => m.round === currentGroup.currentRound && m.result !== 'pending').length} / {currentGroup.matches.filter(m => m.round === currentGroup.currentRound).length} {isEnglish ? 'matches complete' : '场完成'}
                 </span>
               </div>
 
@@ -1217,14 +1220,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   className="w-full py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm flex items-center justify-center gap-2 border border-orange-500/25"
                 >
                   <Undo2 className="w-4 h-4" />
-                  撤回第{currentGroup.currentRound}轮结果
+                  {isEnglish ? `Undo round ${currentGroup.currentRound} results` : `撤回第${currentGroup.currentRound}轮结果`}
                 </button>
               )}
 
               {!isCurrentRoundComplete && currentGroup.currentRound > 0 && (
                 <div className="text-center text-xs text-amber-400 bg-amber-500/10 rounded-lg py-2 px-3">
                   <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
-                  请先完成当前轮所有比赛
+                  {isEnglish ? 'Please finish all matches in the current round first.' : '请先完成当前轮所有比赛'}
                 </div>
               )}
             </div>
@@ -1239,9 +1242,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               >
                 <span className="flex items-center gap-2">
                   <UserX className="w-3.5 h-3.5" />
-                  弃赛管理
+                  {isEnglish ? 'Dropout management' : '弃赛管理'}
                   <span className="text-slate-500">
-                    ({currentGroup.players.filter(p => p.dropped).length}人已退赛)
+                    ({currentGroup.players.filter(p => p.dropped).length}{isEnglish ? ' players dropped' : '人已退赛'})
                   </span>
                 </span>
                 {showDropManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

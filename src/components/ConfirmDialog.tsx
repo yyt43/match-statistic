@@ -13,7 +13,7 @@ interface ConfirmDialogProps {
   children?: ReactNode;
 }
 
-export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, confirmText = '确认', cancelText = '取消', children }: ConfirmDialogProps) {
+export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, confirmText = 'Confirm', cancelText = 'Cancel', children }: ConfirmDialogProps) {
   useEscapeClose(isOpen, onClose);
   if (!isOpen) return null;
 

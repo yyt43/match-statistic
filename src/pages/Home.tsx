@@ -163,8 +163,8 @@ export default function Home() {
       </main>
 
       <footer className="py-4 text-center text-xs text-slate-600 space-y-0.5">
-        <div>Poetic Tournament Results System</div>
-        <div>© 2026 ShiyiPai. All rights reserved.</div>
+        <div>{language === 'en' ? 'Poetic Tournament Results System' : '诗意 · 比赛战绩统计系统'}</div>
+        <div>{language === 'en' ? '© 2026 ShiyiPai. All rights reserved.' : '© 2026 ShiyiPai. 保留所有权利。'}</div>
       </footer>
 
       <Suspense fallback={null}>
@@ -185,11 +185,11 @@ export default function Home() {
       <ConfirmDialog
         isOpen={showConfirm}
         onClose={() => setShowConfirm(false)}
-        title={confirmType === 'single' ? '确认生成下一轮对阵' : '确认全部小组开始下一轮'}
+        title={confirmType === 'single' ? (language === 'en' ? 'Confirm next round pairings' : '确认生成下一轮对阵') : (language === 'en' ? 'Confirm all groups start next round' : '确认全部小组开始下一轮')}
         message={
           confirmType === 'single'
-            ? `当前小组：${currentGroup.name}，即将生成第 ${currentGroup.currentRound + 1} 轮对阵。`
-            : '即将为所有已完成当前轮的小组生成下一轮对阵。'
+            ? (language === 'en' ? `Current group: ${currentGroup.name}. The next round pairings will be generated.` : `当前小组：${currentGroup.name}，即将生成第 ${currentGroup.currentRound + 1} 轮对阵。`)
+            : (language === 'en' ? 'All groups that have finished the current round will proceed to the next round.' : '即将为所有已完成当前轮的小组生成下一轮对阵。')
         }
         onConfirm={() => {
           setShowConfirm(false);
@@ -216,7 +216,7 @@ export default function Home() {
       {showUndoToast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
           <Undo2 className="w-4 h-4" />
-          已撤回第 {currentGroup.currentRound + 1} 轮
+          {language === 'en' ? `Undid round ${currentGroup.currentRound + 1}` : `已撤回第 ${currentGroup.currentRound + 1} 轮`}
         </div>
       )}
     </div>
