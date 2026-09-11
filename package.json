@@ -1,9 +1,17 @@
 {
   "name": "match-statistic",
-  "private": true,
+  "private": false,
   "version": "0.0.0",
   "author": "ShiyiPai",
+  "license": "MIT",
   "homepage": "https://yyt43.github.io/match-statistic/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yyt43/match-statistic.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yyt43/match-statistic/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
