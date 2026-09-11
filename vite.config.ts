@@ -37,6 +37,16 @@ export default defineConfig({
       },
     },
   },
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/xlsx')) return 'xlsx-vendor';
+        },
+      },
+    },
+  },
   plugins: [
     react({
       babel: {

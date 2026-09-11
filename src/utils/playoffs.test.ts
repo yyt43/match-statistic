@@ -3,7 +3,7 @@ import { advancePlayoffs, clearPlayoffs, getPlayoffOrder, recordPlayoffResult } 
 import { calculateAllWinRates, createPlayersFromNames, detectTieGroups, getRankedPlayers } from './swissPairing';
 import { useTournamentStore } from '../store/useTournamentStore';
 import type { Match, TournamentGroup } from '../types';
-import { listSnapshots } from './snapshot';
+import { listSnapshots } from './storage/snapshot';
 const makeGroup = (count: number): TournamentGroup => {
   const players = createPlayersFromNames(Array.from({ length: count }, (_, i) => String.fromCharCode(65 + i)))
     .map(p => ({ ...p, id: p.name, wins: 1, losses: 1, points: 1, playedAgainst: [] as string[] }));

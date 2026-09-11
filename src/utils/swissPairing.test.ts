@@ -10,7 +10,7 @@ import {
   detectTieGroups,
   generatePlayoffPairings,
 } from './swissPairing';
-import { parsePlayerNamesFromText, summarizePlayerNameInput, summarizeWorkbookImport } from './playerImport';
+import { parsePlayerNamesFromText, summarizePlayerNameInput, summarizeWorkbookImport } from './import/playerImport';
 import type { Player, Match, TournamentGroup } from '../types';
 
 function makePlayer(id: string, name: string, over: Partial<Player> = {}): Player {

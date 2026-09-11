@@ -1,0 +1,17 @@
+title: "[Q&A] "
+labels: []
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: 问题
+      description: 请描述具体问题、赛事结构和期望行为。
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 已尝试的方法
+      description: 可附截图、导入文件结构或错误信息。
+    validations:
+      required: false
