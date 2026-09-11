@@ -4,7 +4,8 @@ import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore
 import { getRankingTableData, getMatchTableData, exportAllGroupsRankingToExcel, exportAllGroupsCurrentRoundMatchesToExcel, exportAllGroupsToExcel, exportGroupSummaryToExcel } from '../utils/excelExport';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import type { TournamentGroup } from '../types';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 type ExportType = 'ranking' | 'match' | 'summary';
 

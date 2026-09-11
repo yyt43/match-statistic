@@ -1,7 +1,7 @@
 import type { Player, Match, GameType, PairingType, TournamentGroup } from '../types';
 import { getEliminationTitleI18n, getEliminatedRound } from './ranking';
 import { sortPlayers } from './swissPairing';
-import { translations, formatText, type AppLanguage } from '../i18n';
+import { translations, formatText, type AppLanguage } from '../i18nData';
 
 type TranslationTable = Record<keyof typeof translations['zh'], string>;
 

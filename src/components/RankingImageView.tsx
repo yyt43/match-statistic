@@ -2,7 +2,8 @@ import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo, useState, useEffect } from 'react';
 import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
 import { getRankedPlayers } from '../utils/swissPairing';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 export function RankingImageView() {
   const currentGroup = useCurrentGroup();
@@ -103,6 +104,7 @@ export function RankingImageView() {
               const history = getPlayerMatchHistory(player.id, currentGroup.matches, currentGroup.totalRounds);
               const bgColor = index % 2 === 0 ? 'rgba(30, 41, 59, 0.4)' : 'rgba(30, 41, 59, 0.7)';
               const rankColor = rank === 1 ? '#facc15' : '#cbd5e1';
+              const eliminatedRound = getEliminatedRound(player.id, currentGroup.matches);
               const nameColor = rank === 1
                 ? '#facc15'
                 : player.dropped
@@ -178,8 +180,8 @@ export function RankingImageView() {
                         {player.wins}-{player.losses}
                       </td>
                       <td style={tdCenter}>
-                        {getEliminatedRound(player.id, currentGroup.matches) !== null ? (
-                          <span style={{ color: '#cbd5e1' }}>{formatText(t.eliminatedRound, { round: getEliminatedRound(player.id, currentGroup.matches) })}</span>
+                        {eliminatedRound !== null ? (
+                          <span style={{ color: '#cbd5e1' }}>{formatText(t.eliminatedRound, { round: eliminatedRound })}</span>
                         ) : rank === 1 ? (
                           <span style={{ color: '#facc15' }}>{t.champion}</span>
                         ) : (

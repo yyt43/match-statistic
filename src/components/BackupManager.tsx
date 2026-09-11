@@ -3,7 +3,8 @@ import { X, History, RotateCcw, Trash2, Plus, Clock } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { listSnapshots, deleteSnapshot, type Snapshot } from '../utils/snapshot';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 interface BackupManagerProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
 
   useEffect(() => {
     if (isOpen) {
-      setSnapshots(listSnapshots());
+      void listSnapshots().then(setSnapshots);
     }
   }, [isOpen]);
 
@@ -32,9 +33,9 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     window.setTimeout(() => setToast(null), 1800);
   };
 
-  const handleCreate = () => {
-    createSnapshot();
-    setSnapshots(listSnapshots());
+  const handleCreate = async () => {
+    await createSnapshot();
+    setSnapshots(await listSnapshots());
     showToast(t.snapshotCreated);
   };
 
@@ -42,9 +43,9 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     setPendingRestore(snapshot);
   };
 
-  const confirmRestore = () => {
+  const confirmRestore = async () => {
     if (!pendingRestore) return;
-    const ok = restoreFromSnapshot(pendingRestore.id);
+    const ok = await restoreFromSnapshot(pendingRestore.id);
     setPendingRestore(null);
     if (ok) {
       showToast(t.snapshotRestored);
@@ -58,10 +59,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     setPendingDelete(snapshot);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
-    deleteSnapshot(pendingDelete.id);
-    setSnapshots(listSnapshots());
+    await deleteSnapshot(pendingDelete.id);
+    setSnapshots(await listSnapshots());
     setPendingDelete(null);
     showToast(t.snapshotDeleted);
   };

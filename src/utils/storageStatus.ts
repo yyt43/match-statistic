@@ -7,6 +7,7 @@ export type StorageStatus = 'ok' | 'quota_exceeded' | 'error';
 
 export type StorageNoticeKey =
   | 'storageQuotaExceeded'
+  | 'storageIndexedDbFallback'
   | 'storageSaveFailed'
   | 'storageCritical'
   | 'storageWarning'

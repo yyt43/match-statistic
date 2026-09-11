@@ -129,20 +129,20 @@ describe('真实store加赛流程与撤回', () => {
       if (r === 1) useTournamentStore.getState().generateNextRound();
     }
   });
-  it('两种录分入口均更新加赛名次，保存/快照恢复后可以续赛', () => {
+  it('两种录分入口均更新加赛名次，保存/快照恢复后可以续赛', async () => {
     const s = useTournamentStore.getState(); s.generatePlayoff();
     let group = useTournamentStore.getState().competition.groups[0]; const first = playoffMatches(group);
     s.updateMatchResult(first[0].id, 'player1', 2, 0);
     s.updateMatchResultForGroup(0, first[1].id, 'player2', 1, 2);
     group = useTournamentStore.getState().competition.groups[0];
     expect(group.players.reduce((n, p) => n + (p.playoffWins ?? 0), 0)).toBe(2);
-    s.createSnapshot('加赛'); const snapshot = listSnapshots()[0];
-    s.resetPlayoffs(); expect(s.restoreFromSnapshot(snapshot.id)).toBe(true);
+    await s.createSnapshot('加赛'); const snapshot = (await listSnapshots())[0];
+    s.resetPlayoffs(); expect(await s.restoreFromSnapshot(snapshot.id)).toBe(true);
     s.generatePlayoff(); group = useTournamentStore.getState().competition.groups[0];
     expect(playoffMatches(group)).toHaveLength(4);
     for (const m of playoffMatches(group).filter(m => m.playoffStage === 2)) s.updateMatchResult(m.id, 'player1', 2, 0);
     expect(useTournamentStore.getState().competition.groups[0].players.every(p => p.playoffRank !== undefined)).toBe(true);
-    s.loadSavedCompetition(); expect(useTournamentStore.getState().competition.groups[0].players.every(p => p.playoffRank !== undefined)).toBe(true);
+    await s.loadSavedCompetition(); expect(useTournamentStore.getState().competition.groups[0].players.every(p => p.playoffRank !== undefined)).toBe(true);
   });
   it('撤回常规轮次后清除失效加赛；常规比分回滚仍正确', () => {
     const s = useTournamentStore.getState(); s.generatePlayoff();

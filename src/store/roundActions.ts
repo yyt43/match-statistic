@@ -84,13 +84,6 @@ export function generateNextRoundAllGroupsInCompetition(
   return nextCompetition;
 }
 
-export function resolveTournamentStatusForGroup(
-  group: TournamentGroup,
-  currentRound: number
-): TournamentStatus {
-  return currentRound <= 0 ? 'setup' : 'in_progress';
-}
-
 export function buildUpdatedPlayersFromMatches(
   players: Player[],
   matches: TournamentGroup['matches'],

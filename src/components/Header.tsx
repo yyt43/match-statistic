@@ -1,13 +1,22 @@
 import { Trophy, Swords, Medal } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
-export function Header() {
+export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
   const currentGroup = useCurrentGroup();
   const competition = useTournamentStore(state => state.competition);
-  const { t } = useLanguagePreference();
+  const { language, t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
   const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
+  const savedTime = lastSavedAt
+    ? new Date(lastSavedAt).toLocaleTimeString(language === 'en' ? 'en-US' : 'zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
+    : null;
 
   const statusText = {
     setup: t.setup,
@@ -52,6 +61,11 @@ export function Header() {
                     <span className="text-sm text-slate-400 flex items-center gap-1.5">
                       <Medal className="w-4 h-4 text-gold-400" />
                       {formatText(t.roundN, { round: `${currentGroup.currentRound} / ${currentGroup.totalRounds}` })}
+                    </span>
+                  )}
+                  {savedTime && (
+                    <span className="text-xs text-slate-500">
+                      {formatText(t.lastSaved, { time: savedTime })}
                     </span>
                   )}
                 </div>

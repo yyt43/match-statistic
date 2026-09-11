@@ -163,6 +163,7 @@ function normalizeWorkbookRows(rows: unknown[]): { headers: string[]; dataRows: 
     const dataRows = rows
       .filter(row => (!looksLikeHeaderRow ? true : row !== firstNonEmptyRow) && isObjectRow(row))
       .map(row => {
+        if (!isObjectRow(row)) return {};
         const result: Record<string, string> = {};
         const rowEntries = Object.entries(row);
         rowEntries.forEach(([key, value]) => {

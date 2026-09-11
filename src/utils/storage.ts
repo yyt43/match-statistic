@@ -1,5 +1,7 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus, GameType, PairingType, Player, Match } from '../types';
 import { notifyStorageStatus, getStorageStatus, estimateDataSize } from './storageStatus';
+import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
+import { broadcastCompetitionSaved } from './storageSync';
 
 const STORAGE_KEY = 'swiss_tournament_data';
 const BACKUP_KEY = 'swiss_tournament_data_backup';
@@ -19,6 +21,9 @@ interface StorageEnvelope {
 }
 
 const STORAGE_VERSION = 3;
+const LOCAL_MIRROR_LIMIT_BYTES = 2 * 1024 * 1024;
+let lastSavedAt: string | null = null;
+let writeQueue: Promise<void> = Promise.resolve();
 
 /**
  * 轻量级 JSON 压缩：移除 playedAgainst 中的重复 'bye'，避免轮空多次累积。
@@ -127,137 +132,218 @@ function migrateGroupPairingType(group: LegacyGroup): TournamentGroup {
  * 2. 原始 TournamentCompetition (version 1) : 直接 {groups, currentGroupIndex, ...}
  * 3. 旧格式 LegacyTournament : 单小组（无groups字段，含 players/matches）
  */
+function parseStoredValue(parsed: unknown): { competition: TournamentCompetition; savedAt?: string } | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  // 格式1：Envelope
+  if ('version' in parsed && typeof parsed.version === 'number' && 'data' in parsed) {
+    const env = parsed as StorageEnvelope;
+    const competition = env.data;
+    if (competition && Array.isArray(competition.groups)) {
+      return { competition, savedAt: env.savedAt };
+    }
+  }
+
+  // 格式2：新格式 TournamentCompetition（含 groups）
+  if ('groups' in parsed && Array.isArray(parsed.groups)) {
+    return { competition: parsed as unknown as TournamentCompetition };
+  }
+
+  // 格式3：旧格式 LegacyTournament（无 groups，有 players/matches）
+  if (!('groups' in parsed) && 'players' in parsed && Array.isArray(parsed.players)
+      && 'matches' in parsed && Array.isArray(parsed.matches)) {
+    const tournament = parsed as unknown as LegacyTournament;
+    const rawGroup: TournamentGroup = {
+      id: tournament.id,
+      name: tournament.name || '小组01',
+      currentRound: tournament.currentRound,
+      totalRounds: tournament.totalRounds,
+      status: tournament.status,
+      players: tournament.players,
+      matches: tournament.matches,
+      createdAt: tournament.createdAt,
+      pairingType: tournament.pairingType || 'swiss',
+      gameType: tournament.gameType === 'single_elimination' ? 'bo1' : tournament.gameType,
+    };
+    const group = migrateGroupPairingType(rawGroup);
+    const competition: TournamentCompetition = {
+      id: generateId(),
+      name: tournament.name || '迁移的比赛',
+      groups: [group],
+      currentGroupIndex: 0,
+      createdAt: tournament.createdAt || new Date().toISOString(),
+    };
+    return { competition };
+  }
+
+  return null;
+}
+
 function tryParse(raw: string | null): { competition: TournamentCompetition; savedAt?: string } | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
+    return parseStoredValue(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
 
-    // 格式1：Envelope
-    if (parsed && typeof parsed === 'object' && typeof parsed.version === 'number' && 'data' in parsed) {
-      const env = parsed as StorageEnvelope;
-      const c = env.data;
-      if (c && Array.isArray(c.groups)) {
-        return { competition: c, savedAt: env.savedAt };
-      }
+async function persistCompetitionEnvelope(
+  envelope: StorageEnvelope,
+  rawSize: number,
+  localStorageSaved: boolean,
+  localError: unknown
+): Promise<void> {
+  let indexedDbSaved = false;
+  let indexedDbError: unknown = null;
+  if (isIndexedDbAvailable()) {
+    try {
+      await Promise.all([
+        idbSet(STORAGE_KEY, envelope),
+        idbSet(BACKUP_KEY, envelope),
+      ]);
+      indexedDbSaved = true;
+    } catch (error) {
+      indexedDbError = error;
     }
+  }
 
-    // 格式2：新格式 TournamentCompetition（含 groups）
-    if (parsed && parsed.groups && Array.isArray(parsed.groups)) {
-      return { competition: parsed as TournamentCompetition };
-    }
+  if (!localStorageSaved && !indexedDbSaved) {
+    const isQuota = typeof DOMException !== 'undefined' && localError instanceof DOMException
+      && (localError.name === 'QuotaExceededError' || localError.code === 22);
+    notifyStorageStatus(
+      isQuota ? 'quota_exceeded' : 'error',
+      isQuota
+        ? { key: 'storageQuotaExceeded' }
+        : {
+            key: 'storageSaveFailed',
+            params: {
+              message: indexedDbError instanceof Error
+                ? indexedDbError.message
+                : localError instanceof Error ? localError.message : String(localError),
+            },
+          }
+    );
+    return;
+  }
 
-    // 格式3：旧格式 LegacyTournament（无 groups，有 players/matches）
-    if (parsed && !parsed.groups && Array.isArray(parsed.players) && Array.isArray(parsed.matches)) {
-      const tournament = parsed as LegacyTournament;
-      const rawGroup: TournamentGroup = {
-        id: tournament.id,
-        name: tournament.name || '小组01',
-        currentRound: tournament.currentRound,
-        totalRounds: tournament.totalRounds,
-        status: tournament.status,
-        players: tournament.players,
-        matches: tournament.matches,
-        createdAt: tournament.createdAt,
-        pairingType: tournament.pairingType || 'swiss',
-        gameType: tournament.gameType === 'single_elimination' ? 'bo1' : tournament.gameType,
-      };
-      const group = migrateGroupPairingType(rawGroup);
-      const competition: TournamentCompetition = {
-        id: generateId(),
-        name: tournament.name || '迁移的比赛',
-        groups: [group],
-        currentGroupIndex: 0,
-        createdAt: tournament.createdAt || new Date().toISOString(),
-      };
-      return { competition };
-    }
-  } catch { /* ignore */ }
-  return null;
+  if (!localStorageSaved && indexedDbSaved) {
+    notifyStorageStatus('ok', { key: 'storageIndexedDbFallback' });
+    return;
+  }
+
+  // localStorage 仍是兼容镜像；只有 IndexedDB 不可用时才需要容量预警。
+  const prevStatus = getStorageStatus().status;
+  if (!indexedDbSaved && rawSize >= STORAGE_CRITICAL_BYTES) {
+    notifyStorageStatus('ok', { key: 'storageCritical', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
+  } else if (!indexedDbSaved && rawSize >= STORAGE_WARN_BYTES) {
+    notifyStorageStatus('ok', { key: 'storageWarning', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
+  } else if (prevStatus !== 'ok') {
+    notifyStorageStatus('ok', null);
+  }
+}
+
+function needsMigration(competition: TournamentCompetition): boolean {
+  return competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes));
+}
+
+function migrateCompetition(competition: TournamentCompetition): TournamentCompetition {
+  if (!needsMigration(competition)) return competition;
+  return { ...competition, groups: competition.groups.map(group => migrateGroupPairingType(group)) };
 }
 
 export function saveCompetition(competition: TournamentCompetition): void {
-  try {
-    // 估算原始大小，决定是否启用压缩
-    const rawSize = estimateDataSize(competition);
-    const useCompress = shouldCompress(rawSize);
-    const dataToSave = useCompress ? compressCompetition(competition) : competition;
+  const rawSize = estimateDataSize(competition);
+  const dataToSave = shouldCompress(rawSize) ? compressCompetition(competition) : competition;
+  const envelope: StorageEnvelope = {
+    version: STORAGE_VERSION,
+    savedAt: new Date().toISOString(),
+    data: dataToSave,
+  };
+  lastSavedAt = envelope.savedAt;
+  broadcastCompetitionSaved(envelope.savedAt);
 
-    const envelope: StorageEnvelope = {
-      version: STORAGE_VERSION,
-      savedAt: new Date().toISOString(),
-      data: dataToSave,
-    };
-    const serialized = JSON.stringify(envelope);
-
+  let localStorageSaved = false;
+  let localError: unknown = null;
+  if (!isIndexedDbAvailable() || rawSize <= LOCAL_MIRROR_LIMIT_BYTES) {
     try {
+      const serialized = JSON.stringify(envelope);
       localStorage.setItem(STORAGE_KEY, serialized);
-    } catch (setItemErr) {
-      const isQuota = setItemErr instanceof DOMException && (setItemErr.name === 'QuotaExceededError' || setItemErr.code === 22);
-      notifyStorageStatus(
-        isQuota ? 'quota_exceeded' : 'error',
-        isQuota
-          ? { key: 'storageQuotaExceeded' }
-          : { key: 'storageSaveFailed', params: { message: setItemErr instanceof Error ? setItemErr.message : String(setItemErr) } }
-      );
-      console.error('Failed to save competition:', setItemErr);
-      return;
-    }
-
-    // 异步/忽略错误写一份备份（防止下次主key读取损坏时有后手）
-    try {
       localStorage.setItem(BACKUP_KEY, serialized);
-    } catch { /* 备份失败不影响主流程 */ }
-
-    // 成功：分级预警
-    const prevStatus = getStorageStatus().status;
-    if (rawSize >= STORAGE_CRITICAL_BYTES) {
-      notifyStorageStatus('ok', { key: 'storageCritical', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
-    } else if (rawSize >= STORAGE_WARN_BYTES) {
-      notifyStorageStatus('ok', { key: 'storageWarning', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
-    } else if (prevStatus !== 'ok') {
-      notifyStorageStatus('ok', null);
+      localStorageSaved = true;
+    } catch (error) {
+      localError = error;
     }
-  } catch (e) {
-    notifyStorageStatus('error', { key: 'storageUnexpected', params: { message: e instanceof Error ? e.message : String(e) } });
-    console.error('Failed to save competition (outer):', e);
+  } else {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(BACKUP_KEY);
+    } catch {
+      // Ignore mirror cleanup errors when IndexedDB is available.
+    }
   }
+
+  // Serialize writes so a slower older request can never overwrite newer data.
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(() => persistCompetitionEnvelope(envelope, rawSize, localStorageSaved, localError));
 }
 
-export function loadCompetition(): TournamentCompetition | null {
-  const parsed = tryParse(localStorage.getItem(STORAGE_KEY));
-  if (parsed) {
-    let { competition } = parsed;
+export function flushStorage(): Promise<void> {
+  return writeQueue;
+}
 
-    // 迁移新格式中缺少 pairingType 的 groups
-    if (competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes))) {
-      const migratedGroups = competition.groups.map((g) => migrateGroupPairingType(g));
-      competition = { ...competition, groups: migratedGroups };
-      // 保存迁移后的数据
-      saveCompetition(competition);
+export async function loadCompetition(): Promise<TournamentCompetition | null> {
+  await writeQueue.catch(() => undefined);
+
+  let parsed: { competition: TournamentCompetition; savedAt?: string } | null = null;
+  let source: 'indexeddb-main' | 'indexeddb-backup' | 'local-main' | 'local-backup' | null = null;
+
+  if (isIndexedDbAvailable()) {
+    try {
+      parsed = parseStoredValue(await idbGet<unknown>(STORAGE_KEY));
+      if (parsed) {
+        source = 'indexeddb-main';
+      } else {
+        parsed = parseStoredValue(await idbGet<unknown>(BACKUP_KEY));
+        if (parsed) source = 'indexeddb-backup';
+      }
+    } catch (error) {
+      console.warn('[storage] IndexedDB read failed, falling back to localStorage', error);
     }
-    return competition;
   }
 
-  // 主 key 解析失败（如 JSON 损坏/格式异常）：尝试从备份恢复
-  const backupParsed = tryParse(localStorage.getItem(BACKUP_KEY));
-  if (backupParsed) {
-    console.warn('[storage] 主数据读取失败，已从备份恢复');
-    let { competition } = backupParsed;
-    if (competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes))) {
-      const migratedGroups = competition.groups.map((g) => migrateGroupPairingType(g));
-      competition = { ...competition, groups: migratedGroups };
+  if (!parsed) {
+    parsed = tryParse(localStorage.getItem(STORAGE_KEY));
+    if (parsed) {
+      source = 'local-main';
+    } else {
+      parsed = tryParse(localStorage.getItem(BACKUP_KEY));
+      if (parsed) source = 'local-backup';
     }
-    // 恢复后立刻写回主 key（备份仍保留，双保险）
-    try { saveCompetition(competition); } catch { /* ignore */ }
+  }
+
+  if (!parsed) return null;
+
+  const wasMigrated = needsMigration(parsed.competition);
+  const competition = migrateCompetition(parsed.competition);
+  const restoredFromBackup = source === 'indexeddb-backup' || source === 'local-backup';
+
+  // Seed IndexedDB from legacy localStorage data and persist any schema migration.
+  if (wasMigrated || source === 'local-main' || source === 'local-backup') {
+    saveCompetition(competition);
+  }
+  if (restoredFromBackup) {
+    console.warn('[storage] Main data was unavailable; restored from backup');
     notifyStorageStatus('ok', { key: 'storageRestored' });
-    return competition;
   }
 
-  return null;
+  return competition;
 }
 
 /** 返回上次保存的 ISO 时间戳（没有则返回 null），用于 UI 显示"最后保存于..." */
 export function getLastSavedAt(): string | null {
+  if (lastSavedAt) return lastSavedAt;
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
@@ -280,4 +366,13 @@ export function clearCompetition(): void {
   } catch (e) {
     console.error('Failed to clear backup:', e);
   }
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(async () => {
+      if (!isIndexedDbAvailable()) return;
+      await Promise.all([idbDelete(STORAGE_KEY), idbDelete(BACKUP_KEY)]);
+    })
+    .catch(error => {
+      console.error('Failed to clear IndexedDB:', error);
+    });
 }

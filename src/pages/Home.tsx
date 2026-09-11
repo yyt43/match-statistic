@@ -5,10 +5,13 @@ import { MatchList } from '../components/MatchList';
 import { ControlPanel } from '../components/ControlPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StorageBanner } from '../components/StorageBanner';
+import { GroupTabs } from '../components/GroupTabs';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useStorageSync } from '../hooks/useStorageSync';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages } from 'lucide-react';
-import { useLanguagePreference, formatText } from '../i18n';
+import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages, RefreshCw } from 'lucide-react';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 const ImageExportModal = lazy(() => import('../components/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
 const ExcelExportModal = lazy(() => import('../components/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
@@ -19,6 +22,7 @@ export default function Home() {
   const { loadSavedCompetition, undoLastRound } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
+  const { lastSavedAt, syncedFromOtherTab } = useStorageSync();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
   const [exportAllGroups, setExportAllGroups] = useState(false);
@@ -32,7 +36,7 @@ export default function Home() {
   const [showUndoToast, setShowUndoToast] = useState(false);
 
   useEffect(() => {
-    loadSavedCompetition();
+    void loadSavedCompetition();
   }, [loadSavedCompetition]);
 
   // Ctrl+Z / Cmd+Z 撤回上一轮：仅在比赛进行中、无弹窗、未在输入框中聚焦时触发
@@ -99,7 +103,7 @@ export default function Home() {
         <FlaskConical className="w-4 h-4" />
       </button>
 
-      <Header />
+      <Header lastSavedAt={lastSavedAt} />
 
       {/* 小组切换标签 */}
       <div className="px-4 md:px-6 pt-4">
@@ -219,43 +223,13 @@ export default function Home() {
           {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
         </div>
       )}
-    </div>
-  );
-}
 
-function GroupTabs() {
-  const { competition, setCurrentGroup } = useTournamentStore();
-  const { t } = useLanguagePreference();
-
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-2">
-      <span className="text-xs text-slate-500 mr-1">{t.groupSwitchLabel}</span>
-      {competition.groups.map((group, index) => {
-        const isActive = index === competition.currentGroupIndex;
-        return (
-          <button
-            key={group.id}
-            onClick={() => setCurrentGroup(index)}
-            className={`
-              px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-              ${isActive
-                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/50'
-                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600 hover:text-slate-300'
-              }
-            `}
-          >
-            {group.name}
-            {group.status === 'in_progress' && (
-              <span className="ml-1 text-xs text-slate-500">
-                {formatText(t.groupRoundStatus, { current: group.currentRound, total: group.totalRounds })}
-              </span>
-            )}
-            {group.status === 'completed' && (
-              <span className="ml-1 text-xs text-emerald-400">✓</span>
-            )}
-          </button>
-        );
-      })}
+      {syncedFromOtherTab && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
+          <RefreshCw className="w-4 h-4" />
+          {t.syncedFromOtherTab}
+        </div>
+      )}
     </div>
   );
 }

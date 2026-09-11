@@ -3,7 +3,7 @@ import { useCurrentGroup, useTournamentStore } from '../store/useTournamentStore
 import { detectTieGroups, getRankedPlayers } from '../utils/swissPairing';
 import { getPlayoffOrder, type ThreePlayerFormats } from '../utils/playoffs';
 import { ConfirmDialog } from './ConfirmDialog';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
 
 export function PlayoffPanel() {
   const group = useCurrentGroup();

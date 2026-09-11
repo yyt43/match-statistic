@@ -1,5 +1,26 @@
 # 更新日志 CHANGELOG
 
+## [Unreleased]
+
+### 优化
+
+- 将赛事主数据迁移到 IndexedDB，localStorage 继续作为兼容镜像和回退存储；localStorage 容量不足时仍可继续保存。
+- 对 IndexedDB 写操作进行串行化，避免连续快速操作时旧请求覆盖新数据。
+- 新增中英文翻译键、占位符和空值一致性测试。
+- 新增强制迁移与备份恢复测试，覆盖 localStorage 回退、备份修复和旧数据升级。
+- 新增 Excel 导出数据测试，覆盖中英文排行榜表头和对阵表内容。
+- 将自动快照迁移到 IndexedDB，较小数据仍保留 localStorage 兼容副本。
+- 启用 `noUnusedLocals`、`noUnusedParameters` 和 `noFallthroughCasesInSwitch` 类型检查。
+- 启用完整 TypeScript `strict` 模式。
+- 新增浏览器流程测试，自动启动 Vite、使用本机 Chrome/Edge 创建选手、开赛、刷新恢复、验证 IndexedDB 并切换语言；CI 已接入该检查。
+- 帮助页的数据存储说明同步更新为 IndexedDB 优先、localStorage 回退。
+- 拆分比赛结果按钮、整轮对阵编辑器和小组切换栏，降低大型组件维护复杂度。
+- 继续拆出选手管理与批量导入组件，并将赛事生命周期、快照恢复动作从主 Store 分离。
+- 新增强制跨标签页同步：其他标签页保存后自动加载最新赛事并显示同步提示。
+- 页头新增最近保存时间，便于确认本地数据落盘状态。
+- 新增 180、192、512 像素 PWA 图标和 `site.webmanifest`，改善 iOS、Android 与桌面安装体验。
+- 将翻译数据与 React 语言上下文拆分，减少国际化模块对组件快速刷新机制的干扰。
+
 ## [0.2.2] - 2026-09-11
 
 ### 修复
