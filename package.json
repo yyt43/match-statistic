@@ -2,8 +2,21 @@
   "name": "match-statistic",
   "private": false,
   "version": "0.2.0",
+  "description": "Swiss / playoff tournament manager for card games and small competitive events, with ranking, Excel import, and GitHub Pages deployment.",
   "author": "ShiyiPai",
   "license": "MIT",
+  "keywords": [
+    "tournament",
+    "swiss",
+    "playoff",
+    "ranking",
+    "scoreboard",
+    "card-games",
+    "react",
+    "typescript",
+    "excel-import",
+    "github-pages"
+  ],
   "homepage": "https://yyt43.github.io/match-statistic/",
   "repository": {
     "type": "git",
