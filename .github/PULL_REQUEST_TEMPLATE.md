@@ -1,17 +1,26 @@
-## 变更说明
+## 改动内容
 
-请简要说明本 PR 的目的和改动内容。
-
-## 验证情况
-
-- [ ] 已执行 `npm run check`
-- [ ] 已执行 `npm run test -- --run`
-- [ ] 已执行 `npm run build`
+请简要说明本次改动解决了什么问题，以及主要实现方式。
 
 ## 影响范围
 
-请说明本次修改涉及的模块和风险点。
+- [ ] 赛制与配对
+- [ ] 排名与计分
+- [ ] Excel / CSV 导入
+- [ ] Excel / 图片 / JSON 导出
+- [ ] 中英文与界面
+- [ ] PWA / 存储 / 离线
+- [ ] CI、构建或文档
 
-## 相关问题
+## 验证方式
 
-关联的 Issue / 需求：
+- [ ] `npm run check`
+- [ ] `npm run lint`
+- [ ] `npm test`
+- [ ] `npm run smoke`
+- [ ] `npm run build`
+- [ ] `npm audit`
+
+## 截图或补充说明
+
+如涉及界面、导出图片或 Excel 内容，请附前后对比截图。

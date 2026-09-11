@@ -1,0 +1,24 @@
+name: 规则与算法讨论
+description: 讨论瑞士轮、排名、轮空、弃赛和加赛规则
+title: "[Rules] "
+body:
+  - type: textarea
+    id: rule
+    attributes:
+      label: 规则背景
+      description: 请说明赛事规则、选手数量和期望处理方式。
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: 当前系统行为
+      description: 描述系统实际输出，可附截图或导出文件。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true

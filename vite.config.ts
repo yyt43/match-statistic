@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from "vite-tsconfig-paths";
+import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -44,6 +45,25 @@ export default defineConfig({
         ],
       },
     }),
-    tsconfigPaths()
+    tsconfigPaths(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      manifest: false,
+      includeAssets: [
+        'favicon.svg',
+        'site.webmanifest',
+        'icons/apple-touch-icon.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+      ],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        navigateFallback: 'index.html',
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+      },
+    }),
   ],
 })
