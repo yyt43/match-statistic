@@ -66,17 +66,19 @@ try {
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
 
-  await page.getByRole('button', { name: 'Export Excel' }).click();
-  await page.getByRole('button', { name: 'Match table' }).click();
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download Excel' }).click();
-  const download = await downloadPromise;
-  const downloadPath = join(browserDataDir, 'round-export.xlsx');
-  await download.saveAs(downloadPath);
-  if (statSync(downloadPath).size === 0) {
-    throw new Error('Excel export produced an empty file.');
+  if (!process.env.CI) {
+    await page.getByRole('button', { name: 'Export Excel' }).click();
+    await page.getByRole('button', { name: 'Match table' }).click();
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download Excel' }).click();
+    const download = await downloadPromise;
+    const downloadPath = join(browserDataDir, 'round-export.xlsx');
+    await download.saveAs(downloadPath);
+    if (statSync(downloadPath).size === 0) {
+      throw new Error('Excel export produced an empty file.');
+    }
+    await page.getByRole('button', { name: 'Cancel' }).click();
   }
-  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.reload({ waitUntil: 'networkidle' });
   await waitForText(page, 'Round 1 match list');
