@@ -1,5 +1,7 @@
 # Poetic Tournament Results System
 
+[中文 README](./README.md)
+
 Current version: v0.2.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

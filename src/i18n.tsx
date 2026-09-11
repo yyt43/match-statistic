@@ -4,7 +4,7 @@ export type AppLanguage = 'zh' | 'en';
 
 export const translations = {
   zh: {
-    appName: '赛事战绩统计系统',
+    appName: '诗意 · 比赛战绩统计系统',
     setup: '设置中',
     inProgress: '进行中',
     finished: '已结束',
@@ -33,7 +33,7 @@ export const translations = {
     swapLanguage: 'EN',
   },
   en: {
-    appName: 'Tournament Results System',
+    appName: 'Poetic · Tournament Results System',
     setup: 'Setup',
     inProgress: 'In progress',
     finished: 'Finished',

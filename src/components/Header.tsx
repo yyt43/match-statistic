@@ -7,7 +7,7 @@ export function Header() {
   const competition = useTournamentStore(state => state.competition);
   const { language, t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
-  const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : (language === 'en' ? 'Tournament Results System' : '赛事战绩统计系统');
+  const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
 
   const statusText = {
     setup: t.setup,

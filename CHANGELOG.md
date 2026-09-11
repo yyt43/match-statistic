@@ -2,16 +2,21 @@
 
 ## [0.2.1] - 2026-09-11
 
-### Added
+### 新增
 
-- Added a bilingual language toggle for the site interface, with persisted Chinese/English preference stored in localStorage.
-- Added a dedicated English project README at [README.en.md](README.en.md).
-- Completed the public-facing copy sweep for the main app shell, roster preview, backup manager, playoff panel, and confirmation dialogs.
+- 为网站界面新增中英文双语切换，并持久化保存到 localStorage。
+- 新增英文项目说明文档：[README.en.md](README.en.md)。
+- 完成站内主要界面的中英文文案扫平，包括主界面、选手预览、备份管理、加赛管理和确认弹窗。
 
-### Updated
+### 调整
 
-- The project now supports switching between Chinese and English on the website without changing tournament logic.
-- README and release notes updated for bilingual publishing and GitHub Pages presentation.
+- 网站现已支持中英文切换，且不影响赛事逻辑。
+- README 与更新日志已同步补齐，便于中英文版本发布和 GitHub Pages 展示。
+
+### 修复
+
+- 修正 README 双语入口链接缺失的问题：中英文两个说明文档现在互相可跳转。
+- 修正网站标题缺失“诗意”两个字的问题，确保页面标题与项目名一致。
 
 ## [0.2.0] - 2026-09-11
 

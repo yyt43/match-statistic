@@ -1,5 +1,7 @@
 # 诗意 · 比赛战绩统计系统
 
+[English README](./README.en.md)
+
 当前版本：v0.2.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
