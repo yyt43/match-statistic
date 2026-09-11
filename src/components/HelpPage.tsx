@@ -13,8 +13,158 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   const isEnglish = language === 'en';
   if (!isOpen) return null;
 
-  if (isEnglish) {
+  if (!isEnglish) {
     return (
+      <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-12">
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            aria-label="关闭帮助页面"
+            className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Title */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <Trophy className="w-10 h-10 text-gold-400" />
+              <h1 className="text-3xl font-bold text-white">诗意 · 比赛战绩统计系统</h1>
+            </div>
+            <p className="text-slate-400">专业比赛管理与成绩统计工具</p>
+          </div>
+
+          {/* Feature overview */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-gold-400" />
+              功能概览
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FeatureCard icon={<Users className="w-5 h-5" />} title="多小组管理" description="手动设置小组数量（1-20，如 128 人分成 4 组，每组 32 人），新增小组会自动延续选手编号。每个小组可独立开赛，也可一键全部开赛。" />
+              <FeatureCard icon={<Eye className="w-5 h-5" />} title="选手总览" description="比赛开始前可预览全部选手名单，自动检测重复姓名和空小组，并支持筛选/复制全 roster 方便快速核对。" />
+              <FeatureCard icon={<UserCog className="w-5 h-5" />} title="名单管理" description="支持逐个修改选手昵称，也可通过批量导入粘贴多名选手。批量设置面板可配置每组人数、轮次和赛制，然后统一应用到所有小组。Excel 导入还能自动识别姓名列或手动指定。" />
+              <FeatureCard icon={<Download className="w-5 h-5" />} title="Excel 批量导入" description="支持 .xlsx / .xls / .csv / .txt 导入。系统会优先识别姓名列，也可在导入前手动指定列。工作簿包含多个 Sheet 时，每个 Sheet 名会自动作为小组名导入。" />
+              <FeatureCard icon={<Swords className="w-5 h-5" />} title="双赛制支持" description="提供瑞士轮与单败淘汰两种配对方式：前者按同战绩配对，后者每轮淘汰败者直至决出冠军。两种赛制均支持 BO1~BO7 局数设置。" />
+              <FeatureCard icon={<ArrowLeftRight className="w-5 h-5" />} title="对阵编辑" description="单败淘汰当前轮支持整轮对阵编辑：点击选手金色高亮选中，再点击另一槽位即可交换两人，跨场比赛调整也支持。另提供随机分配与按录入顺序重排。" />
+              <FeatureCard icon={<Trophy className="w-5 h-5" />} title="实时排名" description="根据 BO1/BO3/BO5/BO7 自动计算胜率、对手胜率、局胜率等排名指标；单败淘汰则按淘汰轮次排序，被淘汰和弃赛选手分开展示。" />
+              <FeatureCard icon={<Settings className="w-5 h-5" />} title="灵活配置" description="先选配对方式（瑞士轮 / 单败淘汰），再选比赛局数（BO1 / BO3 / BO5 / BO7）。单败淘汰每轮可独立设置局数，如决赛使用 BO5/BO7 更公平。" />
+              <FeatureCard icon={<Download className="w-5 h-5" />} title="数据导出" description="支持将排行榜 / 对阵表导出为图片或 Excel 文件（Excel 另含总表类型，含排行榜 + 各轮对阵），可单独导出当前小组，也可全部导出。还可导出 JSON 文件备份完整赛事数据。" />
+              <FeatureCard icon={<Database className="w-5 h-5" />} title="双备份本地存储" description="比赛数据自动保存到浏览器 localStorage，采用主键 + 备份键双写机制：主键损坏时自动从备份键恢复。支持 JSON 导出/导入，实现跨设备迁移。" />
+              <FeatureCard icon={<FlaskConical className="w-5 h-5" />} title="测试模式" description="开启后可在排行榜顶部快速随机生成比赛结果，用于演示、调试或预览导出效果。随机生成多轮结果时显示实时进度条。" />
+              <FeatureCard icon={<GripVertical className="w-5 h-5" />} title="对阵拖拽改序" description="非编辑模式下，可直接拖动比赛卡片调整显示顺序，拖拽中有状态提示，释放后立即保存新顺序。" />
+              <FeatureCard icon={<History className="w-5 h-5" />} title="自动快照备份" description="每轮完赛时自动创建快照（保留最近 5 份），点击控制面板底部的“备份管理”即可查看、恢复或删除快照。恢复时会自动重算所有排名。" />
+              <FeatureCard icon={<Keyboard className="w-5 h-5" />} title="快捷操作" description="Ctrl + Z（Mac 为 Cmd + Z）撤回上一轮比赛结果；生成下一轮前会弹出配对预览；所有破坏性操作均使用统一确认弹窗。" />
+            </div>
+          </section>
+
+          {/* Usage guide */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6">使用说明</h2>
+
+            <div className="space-y-6">
+              <StepBlock number={1} title="创建比赛" steps={['设置比赛名称：点击顶部赛事名称即可编辑', '设置小组数量：左侧“小组管理”区域设置 1~20 个小组，新增小组自动延续选手编号', '配置小组参数：先选配对方式（瑞士轮 / 单败淘汰），再选比赛局数（BO1 / BO3 / BO5 / BO7）', '单败淘汰轮次会按人数自动计算，修改人数后轮次自动同步；瑞士轮可手动指定', '管理选手名单：可手动逐个编辑，也可通过“批量导入”粘贴名单，或从 Excel / CSV / TXT 文件导入', 'Excel 导入时会优先识别姓名列，必要时可手动指定某列；多个 Sheet 时每个 Sheet 会作为小组名自动分组', '点击“预览选手”整体核对所有小组名单（自动检测重名和空小组）', '点击“开始本组比赛”或“全部小组同时开赛”']} />
+              <StepBlock number={2} title="录入比赛结果" steps={['比赛开始后自动生成第一轮对阵表', '在中部对阵表中点击待进行的比赛卡片展开结果录入区', 'BO1：点击“左侧胜 (1-0)”“右侧胜 (0-1)”或“双负 (0-0)”', 'BO3/BO5/BO7：点击具体比分按钮录入，如“左侧 2-0”“右侧 1-2”，也支持“双负 (0-0)”', '录入错误时点击“重置”按钮可清除该场结果并重录', '当前轮所有比赛录完后，“生成下一轮”按钮自动解锁']} />
+              <StepBlock number={3} title="编辑对阵（单败淘汰）" steps={['单败淘汰当前轮上方会出现“编辑对阵”按钮', '点击进入整轮编辑模式，可编辑本轮全部待进行、非轮空对局', '点击任意选手槽位选中（金色高亮 + 脉动光点），再次点击同一槽位可取消选中', '选中一个槽位再点击另一槽位即可交换两人，也可跨场比赛交换', '工具栏提供“随机分配”和“按录入顺序”一键重排', '若某场双方为同一人，卡片会变红并提示“双方为同一人，请调整”', '调整完成后点击“保存对阵”生效，或点击“取消”放弃修改']} />
+              <StepBlock number={4} title="生成下一轮" steps={['当前轮所有比赛完成后，点击“生成下一轮对阵”', '瑞士轮按战绩分组、对折匹配、下移组跨组匹配完成完整配对（见下文瑞士轮规则）', '单败淘汰按上轮胜者顺序配对', '支持“全部小组开始下一轮”批量操作', '如需修改已录入的结果，可点击“撤回第 X 轮结果”回退上一轮（X 为当前轮次）']} />
+              <StepBlock number={5} title="使用测试模式" steps={['点击页面右上角紫色烧瓶图标开启/关闭测试模式', '开启后，中路对阵表顶部会出现随机生成按钮', '“随机生成当前轮结果”：随机录入本组本轮所有待进行比赛的胜负与比分', '“随机生成所有小组当前轮结果”：一键随机录入所有小组当前轮结果', '“随机生成所有小组比赛结果”：模拟整场比赛快速预览。生成时显示实时进度条与骰子动画', '适用于演示、调试排名算法、预览导出效果等场景', '注意：随机生成会覆盖真实数据，正式比赛中请勿开启']} />
+              <StepBlock number={6} title="拖拽调整对阵顺序" steps={['非编辑模式下，每张比赛卡片都可拖拽', '鼠标悬停在卡片上时，左上角会出现拖拽手柄提示', '按住并拖动到目标位置释放，被拖卡片变半透明，目标位置顶部高亮', '释放后新顺序会立即保存并持久化', '编辑对阵模式下拖拽自动禁用，避免与选手交换冲突']} />
+              <StepBlock number={7} title="快照备份与恢复" steps={['系统在每轮完赛时自动创建快照，保留最近 5 份，无需手动操作', '点击右侧控制面板底部“备份管理”打开快照管理面板', '面板中可查看所有快照标签和保存时间', '点击“立即创建快照”可手动保存当前状态', '点击“恢复”可回滚到该快照，恢复前会弹出确认', '点击“删除”可删除单条快照，需确认后执行']} />
+              <StepBlock number={8} title="快捷键与配对预览" steps={['Ctrl + Z（Mac 为 Cmd + Z）：撤回上一轮比赛结果', '当任意弹窗打开、输入框聚焦、或比赛无可撤回轮次时快捷键不生效', '点击“生成下一轮”前会弹出确认面板，展示本轮摘要与下一轮对阵预览', '所有破坏性操作都使用统一风格的自制确认弹窗，替代原生 confirm']} />
+              <StepBlock number={9} title="导出数据" steps={['导出图片：点击顶部工具栏“导出图片”，将排行榜或对阵表生成 PNG 图片，可选当前小组或所有小组', '导出 Excel：可选排行榜 / 对阵表 / 总表（含排行榜 + 各轮对阵），支持当前小组或所有小组', '导出比赛数据：点击左侧控制面板顶部赛事名称下方的“导出比赛数据”，下载 JSON 文件备份完整比赛数据', '导入比赛数据：同样位于赛事设置区域，选择 JSON 文件即可加载；比赛开始后导入被禁用，需先重置再导入']} />
+            </div>
+          </section>
+
+          {/* 赛制规则说明 */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6">赛制规则说明</h2>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gold-400 mb-2">瑞士轮配对规则</h3>
+                <div className="text-sm text-slate-300 space-y-3">
+                  <RuleItem num="1" title="首轮随机配对">第一轮按赛前抽签编号随机生成对阵。 </RuleItem>
+                  <RuleItem num="2" title="不重复对阵">任意两人不会在赛事中重复匹配第二次。 </RuleItem>
+                  <RuleItem num="3" title="战绩分组下移选择">按胜场相同进行分组，向下匹配时优先考虑已有向下标记、匹配次数最少和排名靠后选手。 </RuleItem>
+                  <RuleItem num="4" title="下移组与下一组1V1">下移组选手与下一战绩组匹配时，优先选择有向上标记、向上匹配次数少和排名靠前的选手。 </RuleItem>
+                  <RuleItem num="5" title="上下匹配标记补偿">向下匹配的选手会获得一次向上优先权，向上匹配的选手会获得一次向下优先权。 </RuleItem>
+                  <RuleItem num="6" title="轮空说明">最后一组若无法匹配，则余下选手直接轮空，轮空场次自动计入比分与排名。 </RuleItem>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gold-400 mb-2">单败淘汰规则</h3>
+                <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
+                  <li>第一轮随机配对，后续轮次按上轮胜者顺序配对；</li>
+                  <li>每轮可独立设置赛制（BO1~BO7）；</li>
+                  <li>每场比赛败者直接淘汰；</li>
+                  <li>撤回上一轮时会自动恢复被淘汰选手状态。</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* Data storage rules */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><Shield className="w-5 h-5 text-gold-400" />数据存储说明</h2>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
+                <li>采用浏览器 localStorage 持久化存储，关闭浏览器后数据保留；</li>
+                <li>每次保存同时写入主键 + 备份键，主键损坏时可自动从备份恢复；</li>
+                <li>每轮完赛后自动创建快照，最多保留 5 份；</li>
+                <li>重要赛事结束后建议导出 JSON 文件备份，避免浏览器数据丢失。</li>
+              </ul>
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6">常见问题</h2>
+            <div className="space-y-4">
+              <FAQItem question="如何修改已录入的比赛结果？" answer="点击“撤回第 X 轮结果”按钮（X 为当前轮次），可回退到上一轮状态；单败淘汰中撤回还会自动恢复被淘汰选手状态。" />
+              <FAQItem question="Excel 导入如何识别选手姓名？" answer="系统会优先匹配包含“姓名 / Name / Player”的列；如表头不明显，可在导入前手动指定某一列。多个 Sheet 时每个 Sheet 会作为小组名。" />
+              <FAQItem question="为什么比赛开始后不能再导入？" answer="为防止覆盖正在进行中的数据，比赛开始后导入功能会自动禁用；如需导入新数据，请先点击“重置比赛”清空当前赛事。" />
+              <FAQItem question="重置比赛会清除哪些数据？" answer="点击“重置比赛”后会清空当前所有比赛数据，包括选手、对阵、结果和排名。操作前请先导出需要保留的数据备份。" />
+              <FAQItem question="快照和 JSON 导出有什么区别？" answer="快照是浏览器内自动保存的回滚副本，适合赛中快速恢复；JSON 导出可跨设备迁移，更适合长期备份。" />
+            </div>
+          </section>
+
+          {/* disclaimer */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" />免责声明</h2>
+            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
+              <p className="text-sm text-slate-300 leading-relaxed">本系统配对与排名规则是基于特定赛制设计，不一定完全等同于所有官方规则。正式比赛前建议先通过测试模式模拟完整赛程。 </p>
+              <p className="text-sm text-slate-300 leading-relaxed">使用者应自行核对是否符合赛事要求，因使用本系统造成的任何后果由使用者自行承担。 </p>
+            </div>
+          </section>
+
+          {/* links */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><ExternalLink className="w-5 h-5 text-gold-400" />相关链接</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <a href="https://github.com/yyt43/match-statistic" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
+                <div className="text-slate-300"><Github className="w-8 h-8" /></div>
+                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">GitHub 项目地址</div><div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div></div>
+                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
+              </a>
+              <a href="https://space.bilibili.com/526320039" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
+                <div className="text-slate-300"><Youtube className="w-8 h-8" /></div>
+                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">开发者 B 站主页</div><div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div></div>
+                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
+              </a>
+            </div>
+          </section>
+
+          <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
+            <div>诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网</div>
+            <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
       <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-12">
           <button
@@ -30,7 +180,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <Trophy className="w-10 h-10 text-gold-400" />
               <h1 className="text-3xl font-bold text-white">Poetic Tournament Results System</h1>
             </div>
-            <p className="text-slate-400">Tournament management, pairings, rankings, backups, and exports</p>
+            <p className="text-slate-400">Professional tournament management and results tracking tool</p>
           </div>
 
           <section className="mb-10">
@@ -38,47 +188,87 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <HelpCircle className="w-5 h-5 text-gold-400" />
               Features
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-300">
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Multi-group setup:</strong> create and configure multiple groups with one click.</div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Swiss / elimination:</strong> supports Swiss pairing and single-elimination formats.</div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Excel import:</strong> import players from Excel, CSV, or TXT with automatic name-column detection.</div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Results tracking:</strong> record results, generate next rounds, and review rankings.</div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Backups:</strong> create snapshots, restore them, and export tournament data as JSON.</div>
-              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Exports:</strong> export rankings and bracket tables as images or Excel files.</div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FeatureCard icon={<Users className="w-5 h-5" />} title="Multi-group management" description="Set the number of groups manually (1-20), and new groups automatically continue the player numbering. Each group can run independently or all groups can be started together with one click." />
+              <FeatureCard icon={<Eye className="w-5 h-5" />} title="Player overview" description="Preview all player lists before the tournament starts, detect duplicate names and empty groups automatically, and filter or copy the full roster for quick validation." />
+              <FeatureCard icon={<UserCog className="w-5 h-5" />} title="Roster management" description="Edit player names individually or paste multiple names through batch import. Configure each group count, round count, and format, then apply them across all groups at once." />
+              <FeatureCard icon={<Download className="w-5 h-5" />} title="Excel bulk import" description="Import players from .xlsx, .xls, .csv, or .txt files. The app detects the correct name column automatically or lets the user choose it manually before import." />
+              <FeatureCard icon={<Swords className="w-5 h-5" />} title="Dual format support" description="Support Swiss pairing and single-elimination formats. Both can use BO1 to BO7 match lengths." />
+              <FeatureCard icon={<ArrowLeftRight className="w-5 h-5" />} title="Match editing" description="For single-elimination rounds, edit the entire round as a batch and swap players by selecting two slots. Quick reassign options include randomize and entry-order assignment." />
+              <FeatureCard icon={<Trophy className="w-5 h-5" />} title="Live rankings" description="Automatically calculate win rate, opponent win rate, game win rate, and related metrics. Single-elimination rounds also show elimination order." />
+              <FeatureCard icon={<Settings className="w-5 h-5" />} title="Flexible configuration" description="Select pairing mode and match length before the tournament starts. Each single-elimination round can be configured independently." />
+              <FeatureCard icon={<Download className="w-5 h-5" />} title="Data export" description="Export rankings or match tables as PNG or Excel. You can export the current group or all groups, and also save a JSON tournament backup file." />
+              <FeatureCard icon={<Database className="w-5 h-5" />} title="Double backup storage" description="Tournament data is persisted in browser localStorage with a primary key and backup key. JSON export/import helps with cross-device migration." />
+              <FeatureCard icon={<FlaskConical className="w-5 h-5" />} title="Test mode" description="Randomly generate match results for demos or debugging. The system shows progress while generating multi-round outcomes." />
+              <FeatureCard icon={<GripVertical className="w-5 h-5" />} title="Drag-to-reorder" description="In normal match view, drag match cards to reorder the display order. The new order is immediately saved." />
+              <FeatureCard icon={<History className="w-5 h-5" />} title="Automatic snapshots" description="Every completed round creates a snapshot. Open the backup manager to restore or delete snapshots quickly." />
+              <FeatureCard icon={<Keyboard className="w-5 h-5" />} title="Quick actions" description="Use Ctrl/Cmd + Z to undo the last round, preview pairings before advancing, and rely on confirmation dialog boxes for destructive actions." />
             </div>
           </section>
 
           <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Database className="w-5 h-5 text-gold-400" />
-              Backup and reset
-            </h2>
-            <div className="space-y-4 text-sm text-slate-300">
-              <p><strong className="text-white">Backup manager:</strong> in the lower-right control area, open the backup panel to create a snapshot, restore one, or delete old snapshots.</p>
-              <p><strong className="text-white">Reset tournament:</strong> clears the current match data, player list, results, and rankings. Use it only after exporting a backup if you still need the current data.</p>
-              <p><strong className="text-white">Storage:</strong> the app stores tournament data in browser localStorage and also keeps a backup key for recovery. It is recommended to export JSON files after important events.</p>
+            <h2 className="text-xl font-semibold text-white mb-6">Quick start</h2>
+            <div className="space-y-6">
+              <StepBlock number={1} title="Create the tournament" steps={['Set the tournament name and group count.', 'Choose the pairing mode and match length.', 'Import players or add them manually.', 'Start the tournament and enter results one round at a time.']} />
+              <StepBlock number={2} title="Record results" steps={['Select the match card to enter a result.', 'Use score buttons for BO3/BO5/BO7, or standard win/loss buttons for BO1.', 'Finish all matches in the current round before generating the next round.']} />
+              <StepBlock number={3} title="Use backup and reset" steps={['Open the backup manager to create or restore snapshots.', 'Reset the tournament after exporting a backup if you need a fresh start.', 'The app disables import after the tournament starts to protect active data.']} />
             </div>
           </section>
 
           <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-gold-400" />
-              Quick start
-            </h2>
-            <ol className="space-y-3 text-sm text-slate-300 list-decimal list-inside">
-              <li>Set the tournament name and group count.</li>
-              <li>Choose the pairing mode and match length.</li>
-              <li>Import players or add them manually.</li>
-              <li>Start the tournament and enter results round by round.</li>
-              <li>Use backups before reset or major changes.</li>
-            </ol>
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><Database className="w-5 h-5 text-gold-400" />Storage and backups</h2>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+              <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
+                <li>The app stores tournament data in browser localStorage.</li>
+                <li>Every save writes both a primary key and a backup key.</li>
+                <li>Automatic snapshots are created after each completed round.</li>
+                <li>Export JSON files for recovery on another device or as a long-term backup.</li>
+              </ul>
+            </div>
           </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6">FAQ</h2>
+            <div className="space-y-4">
+              <FAQItem question="How do I undo a round?" answer="Use the Undo option in the control panel or press Ctrl/Cmd + Z while the round is still active." />
+              <FAQItem question="Why is import disabled after the tournament starts?" answer="The app prevents accidental overwrites of active data. Reset the tournament first if you want to import a different dataset." />
+              <FAQItem question="What is a snapshot?" answer="A snapshot is an automatic backup of the current state. It is useful for quick rollback during the tournament." />
+              <FAQItem question="What is the difference between a snapshot and JSON export?" answer="Snapshots are stored in the browser and are convenient for quick restores. JSON export is portable and useful for storage or cross-device migration." />
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" />Disclaimer</h2>
+            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
+              <p className="text-sm text-slate-300 leading-relaxed">This app is designed around a specific Swiss pairing and ranking model. It may not match every tournament rule set exactly.</p>
+              <p className="text-sm text-slate-300 leading-relaxed">Users are responsible for confirming the pairing and ranking logic matches their event requirements before using it in formal play.</p>
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><ExternalLink className="w-5 h-5 text-gold-400" />Links</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <a href="https://github.com/yyt43/match-statistic" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
+                <div className="text-slate-300"><Github className="w-8 h-8" /></div>
+                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">GitHub project</div><div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div></div>
+                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
+              </a>
+              <a href="https://space.bilibili.com/526320039" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
+                <div className="text-slate-300"><Youtube className="w-8 h-8" /></div>
+                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">Developer Bilibili</div><div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div></div>
+                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
+              </a>
+            </div>
+          </section>
+
+          <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
+            <div>Poetic · Tournament Results System · local-only data storage</div>
+            <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
+          </div>
         </div>
       </div>
     );
-  }
-
-  return (
     <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Close button */}
