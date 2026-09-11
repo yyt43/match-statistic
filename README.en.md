@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.2.2
+Current version: v0.2.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.2.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.2)
+[![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
 
 A lightweight tournament management and result tracking tool for small card-game and competitive events. It helps with registration, grouping, round planning, match tracking, and leaderboard maintenance. It supports multiple groups, Swiss / single-elimination formats, BO1 / BO3 / BO5 / BO7 settings, and Excel / image / JSON exports.
 

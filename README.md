@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.2.2
+当前版本：v0.2.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.2.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.2)
+[![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
 
 一个适合小型牌类 / 竞技类赛事的轻量战绩统计与配对工具，帮助你快速完成报名、分组、轮次安排、战绩复盘和排行榜维护。支持多小组并行运行、瑞士轮 / 单败淘汰两种赛制、BO1 / BO3 / BO5 / BO7 局数配置，以及 Excel / 图片 / JSON 多格式导出。
 
