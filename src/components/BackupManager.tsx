@@ -170,7 +170,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
         {pendingRestore && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 rounded-2xl" onClick={() => setPendingRestore(null)}>
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-              <h4 className="text-sm font-semibold text-white mb-2">确认恢复快照</h4>
+              <h4 className="text-sm font-semibold text-white mb-2">{isEnglish ? 'Confirm snapshot restore' : '确认恢复快照'}</h4>
               <p className="text-xs text-slate-400 mb-4">
                 {isEnglish ? `This will restore “${pendingRestore.label}” (${formatTime(pendingRestore.savedAt)}) and overwrite all current unsaved data. Continue?` : `将恢复到「${pendingRestore.label}」（${formatTime(pendingRestore.savedAt)}），当前所有未保存的数据将被覆盖。是否继续？`}
               </p>
@@ -179,7 +179,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                   onClick={() => setPendingRestore(null)}
                   className="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors text-xs"
                 >
-                  取消
+                  {isEnglish ? 'Cancel' : '取消'}
                 </button>
                 <button
                   onClick={confirmRestore}
@@ -196,7 +196,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
         {pendingDelete && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 rounded-2xl" onClick={() => setPendingDelete(null)}>
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-              <h4 className="text-sm font-semibold text-white mb-2">确认删除快照</h4>
+              <h4 className="text-sm font-semibold text-white mb-2">{isEnglish ? 'Confirm snapshot delete' : '确认删除快照'}</h4>
               <p className="text-xs text-slate-400 mb-4">
                 {isEnglish ? `This will delete “${pendingDelete.label}”. This action cannot be undone. Continue?` : `将删除「${pendingDelete.label}」，此操作不可恢复。是否继续？`}
               </p>
@@ -205,7 +205,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                   onClick={() => setPendingDelete(null)}
                   className="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors text-xs"
                 >
-                  取消
+                  {isEnglish ? 'Cancel' : '取消'}
                 </button>
                 <button
                   onClick={confirmDelete}

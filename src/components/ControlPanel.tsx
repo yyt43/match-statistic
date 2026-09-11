@@ -1355,14 +1355,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-sky-400 hover:bg-sky-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
             >
               <History className="w-3.5 h-3.5" />
-              备份管理
+              {isEnglish ? 'Backup manager' : '备份管理'}
             </button>
             <button
               onClick={() => setShowResetConfirm(true)}
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              重置比赛
+              {isEnglish ? 'Reset tournament' : '重置比赛'}
             </button>
           </div>
         </div>
@@ -1399,9 +1399,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <ConfirmDialog
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
-        title="确认重置"
-        message="此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。"
-        confirmText="确认重置"
+        title={isEnglish ? 'Confirm reset' : '确认重置'}
+        message={isEnglish ? 'This will clear all tournament data, including player info, match results, and rankings. This action cannot be undone.' : '此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。'}
+        confirmText={isEnglish ? 'Confirm reset' : '确认重置'}
         onConfirm={() => resetCompetition()}
       />
 
@@ -1409,9 +1409,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <ConfirmDialog
         isOpen={showUndoConfirm}
         onClose={() => setShowUndoConfirm(false)}
-        title="确认撤回"
-        message={`确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
-        confirmText="确认撤回"
+        title={isEnglish ? 'Confirm undo' : '确认撤回'}
+        message={isEnglish ? `Are you sure you want to undo all match results from round ${currentGroup.currentRound}? This action cannot be undone.` : `确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
+        confirmText={isEnglish ? 'Confirm undo' : '确认撤回'}
         onConfirm={() => undoLastRound()}
       />
 
