@@ -1400,8 +1400,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
         title={isEnglish ? 'Confirm reset' : '确认重置'}
-        message={isEnglish ? 'This will clear all tournament data, including player info, match results, and rankings. This action cannot be undone.' : '此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。'}
-        confirmText={isEnglish ? 'Confirm reset' : '确认重置'}
+        message={isEnglish ? 'This will clear all tournament data, including players, matches, results, and rankings. This action cannot be undone.' : '此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。'}
+        confirmText={isEnglish ? 'Reset now' : '确认重置'}
         onConfirm={() => resetCompetition()}
       />
 
@@ -1410,8 +1410,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         isOpen={showUndoConfirm}
         onClose={() => setShowUndoConfirm(false)}
         title={isEnglish ? 'Confirm undo' : '确认撤回'}
-        message={isEnglish ? `Are you sure you want to undo all match results from round ${currentGroup.currentRound}? This action cannot be undone.` : `确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
-        confirmText={isEnglish ? 'Confirm undo' : '确认撤回'}
+        message={isEnglish ? `Are you sure you want to undo all results from round ${currentGroup.currentRound}? This action cannot be undone.` : `确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
+        confirmText={isEnglish ? 'Undo now' : '确认撤回'}
         onConfirm={() => undoLastRound()}
       />
 

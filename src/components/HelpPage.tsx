@@ -1,5 +1,6 @@
 import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle, Github, ExternalLink, Youtube, MessageCircle } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
+import { useLanguagePreference } from '../i18n';
 
 interface HelpPageProps {
   isOpen: boolean;
@@ -8,7 +9,74 @@ interface HelpPageProps {
 
 export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   useEscapeClose(isOpen, onClose);
+  const { language } = useLanguagePreference();
+  const isEnglish = language === 'en';
   if (!isOpen) return null;
+
+  if (isEnglish) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-12">
+          <button
+            onClick={onClose}
+            aria-label="Close help page"
+            className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <Trophy className="w-10 h-10 text-gold-400" />
+              <h1 className="text-3xl font-bold text-white">Poetic Tournament Results System</h1>
+            </div>
+            <p className="text-slate-400">Tournament management, pairings, rankings, backups, and exports</p>
+          </div>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-gold-400" />
+              Features
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-300">
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Multi-group setup:</strong> create and configure multiple groups with one click.</div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Swiss / elimination:</strong> supports Swiss pairing and single-elimination formats.</div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Excel import:</strong> import players from Excel, CSV, or TXT with automatic name-column detection.</div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Results tracking:</strong> record results, generate next rounds, and review rankings.</div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Backups:</strong> create snapshots, restore them, and export tournament data as JSON.</div>
+              <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4"><strong className="text-white">Exports:</strong> export rankings and bracket tables as images or Excel files.</div>
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <Database className="w-5 h-5 text-gold-400" />
+              Backup and reset
+            </h2>
+            <div className="space-y-4 text-sm text-slate-300">
+              <p><strong className="text-white">Backup manager:</strong> in the lower-right control area, open the backup panel to create a snapshot, restore one, or delete old snapshots.</p>
+              <p><strong className="text-white">Reset tournament:</strong> clears the current match data, player list, results, and rankings. Use it only after exporting a backup if you still need the current data.</p>
+              <p><strong className="text-white">Storage:</strong> the app stores tournament data in browser localStorage and also keeps a backup key for recovery. It is recommended to export JSON files after important events.</p>
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <Settings className="w-5 h-5 text-gold-400" />
+              Quick start
+            </h2>
+            <ol className="space-y-3 text-sm text-slate-300 list-decimal list-inside">
+              <li>Set the tournament name and group count.</li>
+              <li>Choose the pairing mode and match length.</li>
+              <li>Import players or add them manually.</li>
+              <li>Start the tournament and enter results round by round.</li>
+              <li>Use backups before reset or major changes.</li>
+            </ol>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
