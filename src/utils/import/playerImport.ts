@@ -391,8 +391,6 @@ async function parseWorkbookFile(file: File): Promise<ParsedWorkbookSheet[]> {
       worker.onerror = event => reject(new Error(event.message));
       worker.postMessage({ id, type: 'parse', buffer }, [buffer]);
     });
-  } catch (error) {
-    throw error;
   } finally {
     worker.terminate();
   }
