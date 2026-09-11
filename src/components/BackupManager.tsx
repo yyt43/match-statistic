@@ -3,6 +3,7 @@ import { X, History, RotateCcw, Trash2, Plus, Clock } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { listSnapshots, deleteSnapshot, type Snapshot } from '../utils/snapshot';
+import { useLanguagePreference } from '../i18n';
 
 interface BackupManagerProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface BackupManagerProps {
 
 export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   useEscapeClose(isOpen, onClose);
+  const { language } = useLanguagePreference();
   const { createSnapshot, restoreFromSnapshot } = useTournamentStore();
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
@@ -31,10 +33,12 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     window.setTimeout(() => setToast(null), 1800);
   };
 
+  const isEnglish = language === 'en';
+
   const handleCreate = () => {
     createSnapshot();
     setSnapshots(listSnapshots());
-    showToast('已创建快照');
+    showToast(isEnglish ? 'Snapshot created' : '已创建快照');
   };
 
   const handleRestore = (snapshot: Snapshot) => {
@@ -46,10 +50,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     const ok = restoreFromSnapshot(pendingRestore.id);
     setPendingRestore(null);
     if (ok) {
-      showToast('已恢复，列表将关闭');
+      showToast(isEnglish ? 'Restored and closing the list' : '已恢复，列表将关闭');
       window.setTimeout(() => onClose(), 800);
     } else {
-      showToast('恢复失败，快照可能已损坏');
+      showToast(isEnglish ? 'Restore failed; the snapshot may be corrupted' : '恢复失败，快照可能已损坏');
     }
   };
 
@@ -62,7 +66,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
     deleteSnapshot(pendingDelete.id);
     setSnapshots(listSnapshots());
     setPendingDelete(null);
-    showToast('已删除快照');
+    showToast(isEnglish ? 'Snapshot deleted' : '已删除快照');
   };
 
   const formatTime = (iso: string): string => {
@@ -88,9 +92,9 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
               <History className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-white">备份管理</h3>
+              <h3 className="text-base font-semibold text-white">{isEnglish ? 'Backup manager' : '备份管理'}</h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                每轮完赛时自动创建快照，最多保留 5 份
+                {isEnglish ? 'Auto-create snapshots after each completed round, up to 5 total' : '每轮完赛时自动创建快照，最多保留 5 份'}
               </p>
             </div>
           </div>
@@ -106,7 +110,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-400 hover:bg-sky-500/25 transition-colors text-xs font-medium border border-sky-500/30"
           >
             <Plus className="w-3.5 h-3.5" />
-            立即创建快照
+            {isEnglish ? 'Create snapshot now' : '立即创建快照'}
           </button>
         </div>
 
@@ -115,9 +119,9 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
           {snapshots.length === 0 ? (
             <div className="text-center py-10 text-slate-500">
               <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">暂无快照</p>
+              <p className="text-sm">{isEnglish ? 'No snapshots' : '暂无快照'}</p>
               <p className="text-xs mt-1 text-slate-600">
-                比赛每轮完赛时会自动创建快照
+                {isEnglish ? 'Snapshots are created automatically after each round ends' : '比赛每轮完赛时会自动创建快照'}
               </p>
             </div>
           ) : (
@@ -142,7 +146,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                     title="恢复到此快照"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    恢复
+                    {isEnglish ? 'Restore' : '恢复'}
                   </button>
                   <button
                     onClick={() => handleDelete(snapshot)}
@@ -159,7 +163,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
 
         {/* 底部提示 */}
         <div className="px-5 py-3 border-t border-slate-700/50 text-[11px] text-slate-500">
-          恢复快照会覆盖当前所有数据，建议先导出当前数据
+          {isEnglish ? 'Restoring a snapshot will overwrite all current data. Consider exporting first.' : '恢复快照会覆盖当前所有数据，建议先导出当前数据'}
         </div>
 
         {/* 恢复确认弹窗 */}
@@ -168,7 +172,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 max-w-sm w-full" onClick={e => e.stopPropagation()}>
               <h4 className="text-sm font-semibold text-white mb-2">确认恢复快照</h4>
               <p className="text-xs text-slate-400 mb-4">
-                将恢复到「{pendingRestore.label}」（{formatTime(pendingRestore.savedAt)}），当前所有未保存的数据将被覆盖。是否继续？
+                {isEnglish ? `This will restore “${pendingRestore.label}” (${formatTime(pendingRestore.savedAt)}) and overwrite all current unsaved data. Continue?` : `将恢复到「${pendingRestore.label}」（${formatTime(pendingRestore.savedAt)}），当前所有未保存的数据将被覆盖。是否继续？`}
               </p>
               <div className="flex gap-2 justify-end">
                 <button
@@ -181,7 +185,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                   onClick={confirmRestore}
                   className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors text-xs font-medium"
                 >
-                  确认恢复
+                  {isEnglish ? 'Confirm restore' : '确认恢复'}
                 </button>
               </div>
             </div>
@@ -194,7 +198,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 max-w-sm w-full" onClick={e => e.stopPropagation()}>
               <h4 className="text-sm font-semibold text-white mb-2">确认删除快照</h4>
               <p className="text-xs text-slate-400 mb-4">
-                将删除「{pendingDelete.label}」，此操作不可恢复。是否继续？
+                {isEnglish ? `This will delete “${pendingDelete.label}”. This action cannot be undone. Continue?` : `将删除「${pendingDelete.label}」，此操作不可恢复。是否继续？`}
               </p>
               <div className="flex gap-2 justify-end">
                 <button
@@ -207,7 +211,7 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                   onClick={confirmDelete}
                   className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30 transition-colors text-xs font-medium"
                 >
-                  确认删除
+                  {isEnglish ? 'Confirm delete' : '确认删除'}
                 </button>
               </div>
             </div>

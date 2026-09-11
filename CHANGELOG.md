@@ -1,5 +1,18 @@
 # 更新日志 CHANGELOG
 
+## [0.2.1] - 2026-09-11
+
+### Added
+
+- Added a bilingual language toggle for the site interface, with persisted Chinese/English preference stored in localStorage.
+- Added a dedicated English project README at [README.en.md](README.en.md).
+- Completed the public-facing copy sweep for the main app shell, roster preview, backup manager, playoff panel, and confirmation dialogs.
+
+### Updated
+
+- The project now supports switching between Chinese and English on the website without changing tournament logic.
+- README and release notes updated for bilingual publishing and GitHub Pages presentation.
+
 ## [0.2.0] - 2026-09-11
 
 ### 新增

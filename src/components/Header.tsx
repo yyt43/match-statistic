@@ -1,19 +1,20 @@
 import { Trophy, Swords, Medal } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useLanguagePreference } from '../i18n';
 
 export function Header() {
   const currentGroup = useCurrentGroup();
   const competition = useTournamentStore(state => state.competition);
-  // 比赛开始前显示网站标题，开始后显示赛事名称 - 小组名称（同一行）
+  const { language, t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
-  const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : '诗意 · 比赛战绩统计系统';
-  
+  const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : (language === 'en' ? 'Tournament Results System' : '赛事战绩统计系统');
+
   const statusText = {
-    setup: '准备阶段',
-    in_progress: '进行中',
-    completed: '已结束',
+    setup: t.setup,
+    in_progress: t.inProgress,
+    completed: t.finished,
   }[currentGroup.status];
-  
+
   const statusColor = {
     setup: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
     in_progress: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -50,25 +51,25 @@ export function Header() {
                   {currentGroup.currentRound > 0 && (
                     <span className="text-sm text-slate-400 flex items-center gap-1.5">
                       <Medal className="w-4 h-4 text-gold-400" />
-                      第 {currentGroup.currentRound} / {currentGroup.totalRounds} 轮
+                      {language === 'en' ? `Round ${currentGroup.currentRound} / ${currentGroup.totalRounds}` : `第 ${currentGroup.currentRound} / ${currentGroup.totalRounds} 轮`}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="glass-panel rounded-xl px-4 py-2.5 text-center">
                 <div className="text-2xl font-bold font-mono text-gold-400">
                   {currentGroup.players.length}
                 </div>
-                <div className="text-xs text-slate-400">参赛选手</div>
+                <div className="text-xs text-slate-400">{t.players}</div>
               </div>
               <div className="glass-panel rounded-xl px-4 py-2.5 text-center">
                 <div className="text-2xl font-bold font-mono text-emerald-400">
                   {currentGroup.matches.filter(m => m.result !== 'pending').length}
                 </div>
-                <div className="text-xs text-slate-400">已完赛场次</div>
+                <div className="text-xs text-slate-400">{t.completedMatches}</div>
               </div>
             </div>
           </div>

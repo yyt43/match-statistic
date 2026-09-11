@@ -113,7 +113,30 @@ function normalizeWorkbookRows(rows: unknown[]): { headers: string[]; dataRows: 
   }
 
   if (Array.isArray(firstNonEmptyRow)) {
-    const headers = firstNonEmptyRow.map(value => String(value ?? '').trim()).filter(Boolean);
+    const rawHeaders = firstNonEmptyRow.map(value => String(value ?? '').trim()).filter(Boolean);
+    const looksLikeHeaderRow = rawHeaders.some(header =>
+      NAME_COLUMN_CANDIDATES.some(candidate =>
+        normalizeColumnLabel(header).includes(normalizeColumnLabel(candidate))
+      ) || /^(姓名|name|player|选手|playername|参赛者|fullname|full name)$/i.test(header)
+    );
+
+    if (!looksLikeHeaderRow) {
+      const maxColumns = Math.max(...rows.filter(Array.isArray).map(row => row.length), 1);
+      const headers = Array.from({ length: maxColumns }, (_, index) => `Column${index + 1}`);
+      const dataRows = rows
+        .filter(Array.isArray)
+        .map(row => {
+          const values = row as Array<string | number | null>;
+          const result: Record<string, string> = {};
+          headers.forEach((header, index) => {
+            result[header] = String(values[index] ?? '').trim();
+          });
+          return result;
+        });
+      return { headers, dataRows };
+    }
+
+    const headers = rawHeaders;
     const dataRows = rows
       .filter(row => row !== firstNonEmptyRow && Array.isArray(row))
       .map(row => {

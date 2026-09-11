@@ -9,13 +9,19 @@ export default defineConfig({
   base: './',
   build: {
     sourcemap: 'hidden',
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
-        // 拆分大型第三方依赖到独立 chunk，减小初始 bundle 体积
-        // 注意：xlsx / html2canvas 在源码中通过动态 import() 加载，
-        // Rollup 会自动将其拆为懒加载 chunk，无需在此显式声明。
+        // 拆分大型第三方依赖到独立 chunk，减小初始 bundle 体积。
+        // Excel 导入和截图导出按功能维度拆分，避免在首屏加载时把大体积库混入主包。
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('xlsx')) {
+              return 'xlsx-vendor';
+            }
+            if (id.includes('html2canvas')) {
+              return 'html2canvas-vendor';
+            }
             if (id.includes('react-router-dom') || id.includes('/react/') || id.includes('/react-dom/')) {
               return 'react-vendor';
             }

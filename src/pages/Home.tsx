@@ -1,21 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Header } from '../components/Header';
 import { PlayerRanking } from '../components/PlayerRanking';
 import { MatchList } from '../components/MatchList';
 import { ControlPanel } from '../components/ControlPanel';
-import { ImageExportModal } from '../components/ImageExportModal';
-import { ExcelExportModal } from '../components/ExcelExportModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { HelpPage } from '../components/HelpPage';
-import { PlayerPreviewModal } from '../components/PlayerPreviewModal';
 import { StorageBanner } from '../components/StorageBanner';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords } from 'lucide-react';
+import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages } from 'lucide-react';
+import { useLanguagePreference } from '../i18n';
+
+const ImageExportModal = lazy(() => import('../components/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
+const ExcelExportModal = lazy(() => import('../components/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
+const HelpPage = lazy(() => import('../components/HelpPage').then(module => ({ default: module.HelpPage })));
+const PlayerPreviewModal = lazy(() => import('../components/PlayerPreviewModal').then(module => ({ default: module.PlayerPreviewModal })));
 
 export default function Home() {
   const { loadSavedCompetition, undoLastRound } = useTournamentStore();
   const currentGroup = useCurrentGroup();
+  const { language, setLanguage, t } = useLanguagePreference();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
   const [exportAllGroups, setExportAllGroups] = useState(false);
@@ -62,19 +65,28 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col relative">
-      {/* 存储状态提示横幅 */}
+      {/* Storage status banner */}
       <StorageBanner />
 
-      {/* 帮助按钮 */}
+      <button
+        onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}
+        className="fixed top-4 right-28 z-50 flex items-center gap-1.5 px-2.5 py-2 rounded-full bg-slate-800/60 hover:bg-slate-700 text-slate-200 hover:text-gold-400 transition-all border border-slate-700/40 hover:border-gold-500/30 backdrop-blur-sm text-xs font-medium"
+        title={language === 'en' ? 'Switch to Chinese' : 'Switch to English'}
+      >
+        <Languages className="w-3.5 h-3.5" />
+        <span>{t.swapLanguage}</span>
+      </button>
+
+      {/* Help button */}
       <button
         onClick={() => setShowHelp(true)}
         className="fixed top-4 right-16 z-50 p-2 rounded-full bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-gold-400 transition-all border border-slate-700/40 hover:border-gold-500/30 backdrop-blur-sm"
-        title="帮助与说明"
+        title={t.help}
       >
         <HelpCircle className="w-4 h-4" />
       </button>
 
-      {/* 测试模式按钮 */}
+      {/* Test mode button */}
       <button
         onClick={() => setTestMode(!testMode)}
         className={`fixed top-4 right-4 z-50 p-2 rounded-full transition-all border backdrop-blur-sm ${
@@ -82,7 +94,7 @@ export default function Home() {
             ? 'bg-violet-500/15 hover:bg-violet-500/25 text-violet-400 border-violet-500/25'
             : 'bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-violet-400 border-slate-700/40 hover:border-violet-500/25'
         }`}
-        title={testMode ? '关闭测试模式' : '开启测试模式'}
+        title={testMode ? t.testModeOn : t.testModeOff}
       >
         <FlaskConical className="w-4 h-4" />
       </button>
@@ -102,10 +114,10 @@ export default function Home() {
             <button
               onClick={() => setShowPlayerPreview(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-sm border border-slate-700/50 hover:border-slate-600"
-              title="整体预览所有小组选手名称"
+              title={t.previewAllPlayers}
             >
               <Users className="w-4 h-4" />
-              <span>预览选手</span>
+              <span>{t.previewPlayers}</span>
             </button>
             <button
               onClick={() => { setExportType('ranking'); setExportAllGroups(false); setIsExportOpen(true); }}
@@ -113,7 +125,7 @@ export default function Home() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700/50 hover:border-slate-600"
             >
               <Camera className="w-4 h-4" />
-              <span>导出图片</span>
+              <span>{t.exportImage}</span>
             </button>
             <button
               onClick={() => { setExcelType('ranking'); setIsExcelOpen(true); }}
@@ -121,7 +133,7 @@ export default function Home() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700/50 hover:border-slate-600"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>导出Excel</span>
+              <span>{t.exportExcel}</span>
             </button>
           </div>
 
@@ -151,22 +163,24 @@ export default function Home() {
       </main>
 
       <footer className="py-4 text-center text-xs text-slate-600 space-y-0.5">
-        <div>诗意 · 比赛战绩统计系统</div>
+        <div>Poetic Tournament Results System</div>
         <div>© 2026 ShiyiPai. All rights reserved.</div>
       </footer>
 
-      <ImageExportModal
-        isOpen={isExportOpen}
-        onClose={() => setIsExportOpen(false)}
-        initialType={exportType}
-        exportAllGroups={exportAllGroups}
-      />
+      <Suspense fallback={null}>
+        <ImageExportModal
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          initialType={exportType}
+          exportAllGroups={exportAllGroups}
+        />
 
-      <ExcelExportModal
-        isOpen={isExcelOpen}
-        onClose={() => setIsExcelOpen(false)}
-        initialType={excelType}
-      />
+        <ExcelExportModal
+          isOpen={isExcelOpen}
+          onClose={() => setIsExcelOpen(false)}
+          initialType={excelType}
+        />
+      </Suspense>
 
       <ConfirmDialog
         isOpen={showConfirm}
@@ -192,9 +206,11 @@ export default function Home() {
         <PairingPreview confirmType={confirmType} />
       </ConfirmDialog>
 
-      <HelpPage isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      <Suspense fallback={null}>
+        <HelpPage isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
-      <PlayerPreviewModal isOpen={showPlayerPreview} onClose={() => setShowPlayerPreview(false)} />
+        <PlayerPreviewModal isOpen={showPlayerPreview} onClose={() => setShowPlayerPreview(false)} />
+      </Suspense>
 
       {/* 撤回成功提示 toast */}
       {showUndoToast && (
@@ -209,10 +225,11 @@ export default function Home() {
 
 function GroupTabs() {
   const { competition, setCurrentGroup } = useTournamentStore();
+  const { language } = useLanguagePreference();
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2">
-      <span className="text-xs text-slate-500 mr-1">小组切换：</span>
+      <span className="text-xs text-slate-500 mr-1">{language === 'en' ? 'Group switch:' : '小组切换：'}</span>
       {competition.groups.map((group, index) => {
         const isActive = index === competition.currentGroupIndex;
         return (
@@ -230,7 +247,7 @@ function GroupTabs() {
             {group.name}
             {group.status === 'in_progress' && (
               <span className="ml-1 text-xs text-slate-500">
-                {group.currentRound}/{group.totalRounds}轮
+                {language === 'en' ? `R${group.currentRound}/${group.totalRounds}` : `${group.currentRound}/${group.totalRounds}轮`}
               </span>
             )}
             {group.status === 'completed' && (

@@ -231,6 +231,50 @@ describe('parsePlayerNamesFromText', () => {
     expect(summary.groups[0].validNames).toEqual(['张三', '李四']);
     expect(summary.groups[0].duplicateNames).toEqual(['张三']);
   });
+
+  it('单列无表头名单也能正确解析为选手', () => {
+    type SheetCell = { t: string; v: string };
+    type WorkbookLike = {
+      SheetNames: string[];
+      Sheets: Record<string, Record<string, SheetCell>>;
+    };
+    type FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => Array<Array<string>>;
+      };
+    };
+
+    const workbook: WorkbookLike = {
+      SheetNames: ['A组'],
+      Sheets: {
+        A组: {
+          A1: { t: 's', v: '张三' },
+          A2: { t: 's', v: '李四' },
+          A3: { t: 's', v: '张三' },
+          A4: { t: 's', v: '#ignore#' },
+        },
+      },
+    };
+
+    const fakeXlsx: FakeXlsxLike = {
+      utils: {
+        sheet_to_json: (sheet: Record<string, SheetCell>) => {
+          const rows: Array<Array<string>> = [];
+          const maxRow = Math.max(...Object.keys(sheet).map(key => Number(key.replace(/[^\d]/g, '')) || 0));
+          for (let row = 1; row <= maxRow; row++) {
+            const cell = sheet[`A${row}`];
+            rows.push(cell ? [cell.v] : []);
+          }
+          return rows.filter(row => row.length > 0);
+        },
+      },
+    };
+
+    const summary = summarizeWorkbookImport(workbook as never, fakeXlsx as unknown as typeof import('xlsx'));
+    expect(summary.totalValidNames).toBe(2);
+    expect(summary.groups[0].validNames).toEqual(['张三', '李四']);
+    expect(summary.groups[0].duplicateNames).toEqual(['张三']);
+  });
 });
 
 describe('generateSwissPairings', () => {

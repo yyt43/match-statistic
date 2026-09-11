@@ -13,51 +13,51 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   return (
     <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-12">
-        {/* 关闭按钮 */}
+        {/* Close button */}
         <button
           onClick={onClose}
-          aria-label="关闭帮助页面"
+          aria-label="Close help page"
           className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* 标题 */}
+        {/* Title */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-3 mb-4">
             <Trophy className="w-10 h-10 text-gold-400" />
-            <h1 className="text-3xl font-bold text-white">诗意 · 比赛战绩统计系统</h1>
+            <h1 className="text-3xl font-bold text-white">Poetic Tournament Results System</h1>
           </div>
-          <p className="text-slate-400">专业的比赛管理与战绩统计工具</p>
+          <p className="text-slate-400">Professional tournament management and results tracking tool</p>
         </div>
 
-        {/* 功能介绍 */}
+        {/* Feature overview */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-gold-400" />
-            功能介绍
+            Features
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FeatureCard
               icon={<Users className="w-5 h-5" />}
-              title="多小组管理"
-              description="支持手动设置小组数量（1~20 个，如 128 人分 4 组、每组 32 人），新增小组自动延续选手编号。各小组既能独立比赛，也可一键同时开赛。"
+              title="Multi-group management"
+              description="Set the number of groups manually (1–20, such as 128 players split into 4 groups of 32), and new groups automatically continue the player numbering. Each group can run independently or all groups can be started together with one click."
             />
             <FeatureCard
               icon={<Eye className="w-5 h-5" />}
-              title="选手整体预览"
-              description="比赛开始前可一键预览全部小组的选手名单，自动检测重名与空小组，支持搜索过滤与一键复制全部名单，便于核对录入。"
+              title="Player overview"
+              description="Preview all player lists before the tournament starts, detect duplicate names and empty groups automatically, and filter or copy the full roster for quick validation."
             />
             <FeatureCard
               icon={<UserCog className="w-5 h-5" />}
-              title="选手名单管理"
-              description="支持手动逐个编辑选手名称，或通过「批量导入」一次性粘贴多行名单；并通过「批量设置所有小组」入口统一配置各组人数、轮次、赛制后一键「应用至所有小组」。Excel 导入还支持按表头识别姓名列，亦可手动选择某列作为选手名称。"
+              title="Roster management"
+              description="Edit player names individually or paste multiple names through batch import. Use the batch settings panel to configure each group's player count, round count, and format, then apply them across all groups at once. Excel import can also identify the name column automatically or let users choose it manually."
             />
             <FeatureCard
               icon={<Download className="w-5 h-5" />}
-              title="Excel 批量导入"
-              description="支持从 .xlsx / .xls / .csv / .txt 导入选手，自动识别表头中的姓名列，如遇多 sheet 会按 sheet 名创建对应小组；也可在导入前手动选择某一列作为姓名源，避免误读取分数、备注等无关列。"
+              title="Excel bulk import"
+              description="Import players from .xlsx, .xls, .csv, or .txt files. The app reads the correct name column automatically and creates group names from sheet names when needed. Users can also choose a specific column as the name source before importing."
             />
             <FeatureCard
               icon={<Swords className="w-5 h-5" />}
@@ -112,9 +112,9 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
           </div>
         </section>
 
-        {/* 使用指南 */}
+        {/* Usage guide */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-white mb-6">使用指南</h2>
+          <h2 className="text-xl font-semibold text-white mb-6">How to use</h2>
 
           <div className="space-y-6">
             <StepBlock

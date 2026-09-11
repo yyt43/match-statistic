@@ -6,52 +6,10 @@ import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
 import { buildRankedGroup, evaluateGroupStatus, isRoundComplete, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
-}
-
-function createNewGroup(name: string, playerCount: number = 32, rounds: number = 5, gameType: GameType = 'bo1', pairingType: PairingType = 'swiss', startPlayerIndex: number = 1): TournamentGroup {
-  const playerNames: string[] = [];
-  for (let i = 0; i < playerCount; i++) {
-    playerNames.push(`选手${String(startPlayerIndex + i).padStart(3, '0')}`);
-  }
-
-  const players = createPlayersFromNames(playerNames);
-  const totalRounds = pairingType === 'single_elimination'
-    ? getSingleEliminationRounds(playerCount)
-    : rounds;
-
-  return {
-    id: generateId(),
-    name,
-    currentRound: 0,
-    totalRounds,
-    status: 'setup',
-    players,
-    matches: [],
-    createdAt: new Date().toISOString(),
-    pairingType,
-    gameType,
-    roundGameTypes: new Array(totalRounds).fill(gameType),
-  };
-}
-
-function createNewCompetition(name: string, groupCount: number = 1, playerCountPerGroup: number = 32, roundsPerGroup: number = 5, gameType: GameType = 'bo1', pairingType: PairingType = 'swiss'): TournamentCompetition {
-  const groups: TournamentGroup[] = [];
-  for (let i = 0; i < groupCount; i++) {
-    const startIdx = i * playerCountPerGroup + 1;
-    groups.push(createNewGroup(`小组${String(i + 1).padStart(2, '0')}`, playerCountPerGroup, roundsPerGroup, gameType, pairingType, startIdx));
-  }
-
-  return {
-    id: generateId(),
-    name,
-    groups,
-    currentGroupIndex: 0,
-    createdAt: new Date().toISOString(),
-  };
-}
+import { createNewCompetition, createNewGroup, generateId } from './tournamentFactory';
+import { updateCurrentGroup } from './competitionMutators';
+import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
+import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
 
 interface CompetitionState {
   competition: TournamentCompetition;
@@ -125,171 +83,6 @@ export function useIsCurrentRoundComplete(): boolean {
   return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
 }
 
-// ===== 比赛结果应用/撤销的公共函数（消除三处重复） =====
-
-/** 撤销一场比赛的结果对选手数据的影响 */
-function revertMatchResult(
-  playerMap: Map<string, Player>,
-  match: Match,
-  res: MatchResult,
-  wasPreDrop: boolean,
-  isSingleElimination: boolean
-): void {
-  const isPlayoff = !!match.isPlayoff;
-  const p1Id = match.player1Id;
-  const p2Id = match.player2Id;
-
-  if (p2Id === 'bye') {
-    const p1 = playerMap.get(p1Id);
-    if (!p1) return;
-    if (res === 'player1') {
-      if (isPlayoff) {
-        p1.playoffWins = (p1.playoffWins || 0) - 1;
-      } else {
-        p1.points -= 1; p1.wins -= 1;
-        p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-      }
-    }
-    if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
-      p1.totalGames -= match.player1Games + match.player2Games;
-      p1.wonGames -= match.player1Games;
-    }
-    return;
-  }
-
-  const p1 = playerMap.get(p1Id);
-  const p2 = playerMap.get(p2Id);
-  if (!p1 || !p2) return;
-
-  // 加赛：只撤销 playoffWins
-  if (isPlayoff) {
-    if (res === 'player1') {
-      p1.playoffWins = (p1.playoffWins || 0) - 1;
-    } else if (res === 'player2') {
-      p2.playoffWins = (p2.playoffWins || 0) - 1;
-    }
-    return;
-  }
-
-  if (res === 'player1') {
-    p1.points -= 1; p1.wins -= 1;
-    if (!wasPreDrop) p2.losses -= 1;
-    if (!wasPreDrop) {
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-    } else {
-      p2.dropped = false;
-    }
-    if (isSingleElimination) p2.eliminated = false;
-  } else if (res === 'player2') {
-    p2.points -= 1; p2.wins -= 1;
-    if (!wasPreDrop) p1.losses -= 1;
-    if (!wasPreDrop) {
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-    } else {
-      p1.dropped = false;
-    }
-    if (isSingleElimination) p1.eliminated = false;
-  } else if (res === 'draw') {
-    p1.losses -= 1; p2.losses -= 1;
-    if (!wasPreDrop) {
-      p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
-      p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
-    }
-    if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
-  }
-
-  if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-    p1.totalGames -= match.player1Games + match.player2Games;
-    p1.wonGames -= match.player1Games;
-    p2.totalGames -= match.player1Games + match.player2Games;
-    p2.wonGames -= match.player2Games;
-  }
-}
-
-/** 应用一场比赛的结果到选手数据 */
-function applyMatchResultToMap(
-  playerMap: Map<string, Player>,
-  match: Match,
-  res: MatchResult,
-  isPreDrop: boolean,
-  isSingleElimination: boolean,
-  player1Games?: number,
-  player2Games?: number
-): void {
-  const isPlayoff = !!match.isPlayoff;
-  const p1Id = match.player1Id;
-  const p2Id = match.player2Id;
-
-  if (p2Id === 'bye') {
-    const p1 = playerMap.get(p1Id);
-    if (!p1) return;
-    if (res === 'player1') {
-      if (isPlayoff) {
-        p1.playoffWins = (p1.playoffWins || 0) + 1;
-      } else {
-        p1.points += 1; p1.wins += 1;
-        p1.playedAgainst.push('bye');
-      }
-    }
-    if (!isPlayoff && player1Games !== undefined && player2Games !== undefined) {
-      p1.totalGames += player1Games + player2Games;
-      p1.wonGames += player1Games;
-    }
-    return;
-  }
-
-  const p1 = playerMap.get(p1Id);
-  const p2 = playerMap.get(p2Id);
-  if (!p1 || !p2) return;
-
-  // 加赛：只写 playoffWins
-  if (isPlayoff) {
-    if (res === 'player1') {
-      p1.playoffWins = (p1.playoffWins || 0) + 1;
-    } else if (res === 'player2') {
-      p2.playoffWins = (p2.playoffWins || 0) + 1;
-    }
-    return;
-  }
-
-  if (res === 'player1') {
-    p1.points += 1; p1.wins += 1;
-    if (!isPreDrop) p2.losses += 1;
-    if (!isPreDrop) {
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
-    } else {
-      p2.dropped = true;
-    }
-    if (isSingleElimination) p2.eliminated = true;
-  } else if (res === 'player2') {
-    p2.points += 1; p2.wins += 1;
-    if (!isPreDrop) p1.losses += 1;
-    if (!isPreDrop) {
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
-    } else {
-      p1.dropped = true;
-    }
-    if (isSingleElimination) p1.eliminated = true;
-  } else if (res === 'draw') {
-    p1.losses += 1; p2.losses += 1;
-    if (!isPreDrop) {
-      p1.playedAgainst.push(p2Id);
-      p2.playedAgainst.push(p1Id);
-    }
-    if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
-  }
-
-  if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
-    p1.totalGames += player1Games + player2Games;
-    p1.wonGames += player1Games;
-    p2.totalGames += player1Games + player2Games;
-    p2.wonGames += player2Games;
-  }
-}
 
 const initialCompetition = createNewCompetition('新建赛事');
 
@@ -537,9 +330,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       playedAgainst: [], dropped: false,
     };
 
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = { ...group, players: [...group.players, newPlayer] };
-    const updated = { ...competition, groups: updatedGroups };
+    const updated = updateCurrentGroup(competition, group => ({ ...group, players: [...group.players, newPlayer] }));
     set({ competition: updated });
     saveCompetition(updated);
   },
@@ -560,9 +351,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       playedAgainst: [], dropped: false,
     }));
 
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = { ...group, players: [...group.players, ...newPlayers] };
-    const updated = { ...competition, groups: updatedGroups };
+    const updated = updateCurrentGroup(competition, group => ({ ...group, players: [...group.players, ...newPlayers] }));
     set({ competition: updated });
     saveCompetition(updated);
   },
@@ -574,9 +363,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     if (group.status !== 'setup') return;
 
     const newPlayers = createPlayersFromNames(names.filter(n => n.trim()));
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = { ...group, players: newPlayers };
-    const updated = { ...competition, groups: updatedGroups };
+    const updated = updateCurrentGroup(competition, group => ({ ...group, players: newPlayers }));
     set({ competition: updated });
     saveCompetition(updated);
   },
@@ -587,9 +374,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const group = competition.groups[idx];
     if (group.status !== 'setup') return;
 
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = { ...group, players: group.players.filter(p => p.id !== playerId) };
-    const updated = { ...competition, groups: updatedGroups };
+    const updated = updateCurrentGroup(competition, group => ({ ...group, players: group.players.filter(p => p.id !== playerId) }));
     set({ competition: updated });
     saveCompetition(updated);
   },
@@ -599,12 +384,10 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const idx = competition.currentGroupIndex;
     const group = competition.groups[idx];
 
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = {
+    const updated = updateCurrentGroup(competition, group => ({
       ...group,
       players: group.players.map(p => p.id === playerId ? { ...p, name: name.trim() } : p),
-    };
-    const updated = { ...competition, groups: updatedGroups };
+    }));
     set({ competition: updated });
     saveCompetition(updated);
   },
@@ -765,66 +548,39 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   startTournament: (totalRounds: number) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const group = competition.groups[idx];
-    if (group.players.length < 2) return;
-
-    // 单败淘汰自动计算轮次
-    const rounds = group.pairingType === 'single_elimination'
-      ? getSingleEliminationRounds(group.players.length)
-      : totalRounds;
-
-    // 一步到位：设置状态并生成第一轮
-    const updatedGroups = [...competition.groups];
-    updatedGroups[idx] = { ...group, totalRounds: rounds, status: 'in_progress' as TournamentStatus, currentRound: 0 };
-    let updated = { ...competition, groups: updatedGroups };
+    let updated = startTournamentForGroup(competition, idx, totalRounds);
     set({ competition: updated });
     saveCompetition(updated);
 
-    get().generateNextRoundForGroup(idx);
-
-    // 同步 viewRound
-    updated = get().competition;
-    set({ viewRound: updated.groups[idx].currentRound });
+    updated = generateNextRoundForCompetition(updated, idx);
+    set({ competition: updated, viewRound: updated.groups[idx].currentRound });
     saveCompetition(updated);
   },
 
   startAllGroups: () => {
     const { competition } = get();
-    const updatedGroups = competition.groups.map(group => {
-      if (group.status !== 'setup' || group.players.length < 2) return group;
-      const rounds = group.pairingType === 'single_elimination'
-        ? getSingleEliminationRounds(group.players.length)
-        : group.totalRounds;
-      return { ...group, totalRounds: rounds, status: 'in_progress' as TournamentStatus, currentRound: 0 };
-    });
-    let updated = { ...competition, groups: updatedGroups };
+    let updated = startAllGroupsInCompetition(competition);
     set({ competition: updated });
     saveCompetition(updated);
 
-    // 为每个 setup -> in_progress 的小组生成第一轮
     for (let i = 0; i < updated.groups.length; i++) {
       const g = updated.groups[i];
       if (g.status === 'in_progress' && g.currentRound === 0) {
-        get().generateNextRoundForGroup(i);
+        updated = generateNextRoundForCompetition(updated, i);
       }
     }
 
-    // 同步当前小组的 viewRound
-    updated = get().competition;
     const currentGroup = updated.groups[updated.currentGroupIndex];
-    set({ viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 });
+    set({ competition: updated, viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 });
     saveCompetition(updated);
   },
 
   generateNextRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    get().generateNextRoundForGroup(idx);
-    // 同步 viewRound
-    const updated = get().competition;
-    if (updated.currentGroupIndex === idx) {
-      set({ viewRound: updated.groups[idx].currentRound });
-    }
+    const updated = generateNextRoundForCompetition(competition, idx);
+    set({ competition: updated, viewRound: updated.groups[idx].currentRound });
+    saveCompetition(updated);
   },
 
   generateNextRoundForGroup: (groupIdx: number) => {
