@@ -1,9 +1,8 @@
-import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
-import * as XLSX from 'xlsx';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4173;
@@ -60,19 +59,8 @@ try {
 
   await page.getByRole('button', { name: /Player management/ }).click();
   await page.getByRole('button', { name: 'Bulk import' }).click();
-  const importFile = join(browserDataDir, 'players.xlsx');
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.aoa_to_sheet([['Name'], ['Alice'], ['Bob'], ['Charlie'], ['Diana']]),
-    'Group A'
-  );
-  writeFileSync(
-    importFile,
-    XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
-  );
-  await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles(importFile);
-  await page.getByRole('button', { name: 'Import using current headers' }).click();
+  await page.locator('textarea').fill('Alice\nBob\nCharlie\nDiana');
+  await page.getByRole('button', { name: /Import 4 players/ }).click();
   await waitForText(page, '4 players');
 
   await page.getByRole('button', { name: /Start this group/ }).click();
