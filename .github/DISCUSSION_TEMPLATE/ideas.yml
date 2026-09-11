@@ -1,0 +1,10 @@
+title: "[Idea] "
+labels: []
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 功能想法
+      description: 请说明使用场景、期望行为和现有替代方案。
+    validations:
+      required: true

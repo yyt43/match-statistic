@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
+import * as XLSX from 'xlsx';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4173;
@@ -59,12 +60,35 @@ try {
 
   await page.getByRole('button', { name: /Player management/ }).click();
   await page.getByRole('button', { name: 'Bulk import' }).click();
-  await page.locator('textarea').fill('Alice\nBob\nCharlie\nDiana');
-  await page.getByRole('button', { name: /Import 4 players/ }).click();
+  const importFile = join(browserDataDir, 'players.xlsx');
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([['Name'], ['Alice'], ['Bob'], ['Charlie'], ['Diana']]),
+    'Group A'
+  );
+  writeFileSync(
+    importFile,
+    XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  );
+  await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles(importFile);
+  await page.getByRole('button', { name: 'Import using current headers' }).click();
   await waitForText(page, '4 players');
 
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
+
+  await page.getByRole('button', { name: 'Export Excel' }).click();
+  await page.getByRole('button', { name: 'Match table' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download Excel' }).click();
+  const download = await downloadPromise;
+  const downloadPath = join(browserDataDir, 'round-export.xlsx');
+  await download.saveAs(downloadPath);
+  if (statSync(downloadPath).size === 0) {
+    throw new Error('Excel export produced an empty file.');
+  }
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.reload({ waitUntil: 'networkidle' });
   await waitForText(page, 'Round 1 match list');
@@ -92,7 +116,7 @@ try {
   await page.getByTitle('Switch to Chinese').click();
   await waitForText(page, '诗意 · 比赛战绩统计系统');
 
-  console.log('Browser smoke test passed: create roster, start event, reload persistence, switch language.');
+  console.log('Browser smoke test passed: create roster, start event, export Excel, reload persistence, switch language.');
 } finally {
   await browser?.close();
   server.kill();

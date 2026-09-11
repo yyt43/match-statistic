@@ -1,28 +1,28 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { Header } from '../components/Header';
-import { PlayerRanking } from '../components/PlayerRanking';
-import { MatchList } from '../components/MatchList';
-import { ControlPanel } from '../components/ControlPanel';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { StorageBanner } from '../components/StorageBanner';
-import { GroupTabs } from '../components/GroupTabs';
+import { Header } from '../components/common/Header';
+import { PlayerRanking } from '../components/players/PlayerRanking';
+import { MatchList } from '../components/matches/MatchList';
+import { ControlPanel } from '../components/competition/ControlPanel';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { StorageBanner } from '../components/common/StorageBanner';
+import { GroupTabs } from '../components/competition/GroupTabs';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages, RefreshCw } from 'lucide-react';
-import { useLanguagePreference } from '../i18nContext';
-import { formatText } from '../i18nData';
+import { useLanguagePreference } from '../i18n/context';
+import { formatText } from '../i18n/data';
 
-const ImageExportModal = lazy(() => import('../components/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
-const ExcelExportModal = lazy(() => import('../components/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
-const HelpPage = lazy(() => import('../components/HelpPage').then(module => ({ default: module.HelpPage })));
-const PlayerPreviewModal = lazy(() => import('../components/PlayerPreviewModal').then(module => ({ default: module.PlayerPreviewModal })));
+const ImageExportModal = lazy(() => import('../components/export/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
+const ExcelExportModal = lazy(() => import('../components/export/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
+const HelpPage = lazy(() => import('../components/help/HelpPage').then(module => ({ default: module.HelpPage })));
+const PlayerPreviewModal = lazy(() => import('../components/players/PlayerPreviewModal').then(module => ({ default: module.PlayerPreviewModal })));
 
 export default function Home() {
   const { loadSavedCompetition, undoLastRound } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
-  const { lastSavedAt, syncedFromOtherTab } = useStorageSync();
+  const { lastSavedAt, syncedFromOtherTab, conflictDetected } = useStorageSync();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
   const [exportAllGroups, setExportAllGroups] = useState(false);
@@ -228,6 +228,13 @@ export default function Home() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
           <RefreshCw className="w-4 h-4" />
           {t.syncedFromOtherTab}
+        </div>
+      )}
+
+      {conflictDetected && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-200 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
+          <AlertTriangle className="w-4 h-4" />
+          {t.conflictFromOtherTab}
         </div>
       )}
     </div>

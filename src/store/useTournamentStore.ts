@@ -2,16 +2,16 @@ import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFo
 import { create } from 'zustand';
 import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { saveCompetition } from '../utils/storage';
-import { saveSnapshot } from '../utils/snapshot';
+import { saveCompetition } from '../utils/storage/storage';
+import { saveSnapshot } from '../utils/storage/snapshot';
 import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 import { createNewCompetition, createNewGroup, generateId } from './tournamentFactory';
 import { updateCurrentGroup } from './competitionMutators';
 import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
-import { createCompetitionActions } from './competitionActions';
-import { createSnapshotActions } from './snapshotActions';
+import { createCompetitionActions } from './actions/competitionActions';
+import { createSnapshotActions } from './actions/snapshotActions';
 
 export interface CompetitionState {
   competition: TournamentCompetition;

@@ -34,6 +34,20 @@
 
 ## 项目简介
 
+### 源码结构
+
+- `src/components/common`：通用弹窗、页头、错误边界和状态提示
+- `src/components/competition`：赛事控制、小组、轮次和加赛
+- `src/components/players`：选手管理、预览、弃赛和排行榜
+- `src/components/matches`：对阵列表、结果录入和整轮编辑
+- `src/components/export`：Excel、图片导出与导出预览
+- `src/i18n`：翻译数据、语言上下文和国际化测试
+- `src/store/actions`：从主 Store 拆出的赛事生命周期与快照动作
+- `src/utils/storage`：IndexedDB、localStorage、快照和跨标签页同步
+- `src/utils/export`：Excel、图片和 JSON 导出
+- `src/utils/import`：Excel、CSV、TXT 选手导入
+- `src/utils/schema.ts`：导入与持久化数据结构校验
+
 ### 开放与复用
 
 本项目采用 MIT License，适合公开展示、二次开发与轻量工具复用。该协议简单直接，允许自由使用、修改和分发，同时保留版权说明。
@@ -85,6 +99,10 @@
 其中，Excel 导入支持文本粘贴、单表名单导入和多表格工作簿导入；当工作簿中存在多个 sheet 时，系统会按表名自动识别为多个小组，并按每个 sheet 的内容分别导入选手名单。
 
 ## 目录
+
+- [产品需求文档（PRD）](docs/PRD.md)
+
+- [技术架构](docs/ARCHITECTURE.md)
 
 - [功能特性](#功能特性)
 
@@ -194,6 +212,12 @@ npm test
 
 # 浏览器冒烟测试（需要本机 Chrome 或 Edge）
 npm run smoke
+
+# 离线 PWA 测试
+npm run smoke:offline
+
+# 视觉回归检查
+npm run visual:check
 
 # 构建生产版
 npm run build

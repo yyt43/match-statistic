@@ -34,6 +34,20 @@ This project is suited for tournament management, club events, team activities, 
 
 ## Project Overview
 
+### Source structure
+
+- `src/components/common`: shared dialogs, header, error boundary, and storage notices
+- `src/components/competition`: tournament controls, groups, rounds, and playoffs
+- `src/components/players`: player management, preview, drops, and rankings
+- `src/components/matches`: match lists, result entry, and round editing
+- `src/components/export`: Excel/image export and export previews
+- `src/i18n`: translations, language context, and localization tests
+- `src/store/actions`: competition lifecycle and snapshot actions
+- `src/utils/storage`: IndexedDB, localStorage, snapshots, and cross-tab sync
+- `src/utils/export`: Excel, image, and JSON export
+- `src/utils/import`: Excel, CSV, and TXT player import
+- `src/utils/schema.ts`: import and persistence data validation
+
 ### Open and reusable
 
 This project is licensed under the MIT License, which makes it suitable for public display, custom development, and lightweight tool reuse. The license is simple and permissive: you may use, modify, and distribute the software while keeping copyright notices intact.
@@ -85,6 +99,10 @@ For small projects, `main` + `feature/*` is also perfectly acceptable.
 Excel imports support text pasting, single-sheet imports, and multi-sheet workbook imports. When a workbook contains multiple sheets, the app automatically treats each sheet name as a group name and imports player names separately by sheet.
 
 ## Contents
+
+- [Product Requirements (PRD)](docs/PRD.md)
+
+- [Technical Architecture](docs/ARCHITECTURE.md)
 
 - [Features](#features)
 - [Bulk player import from Excel](#bulk-player-import-from-excel)
@@ -167,6 +185,12 @@ npm test
 
 # browser smoke test (requires local Chrome or Edge)
 npm run smoke
+
+# offline PWA test
+npm run smoke:offline
+
+# visual regression check
+npm run visual:check
 
 # production build
 npm run build

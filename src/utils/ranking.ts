@@ -1,5 +1,5 @@
 import type { Match, Player } from '../types';
-import type { AppLanguage } from '../i18nData';
+import type { AppLanguage } from '../i18n/data';
 
 /**
  * 单败淘汰头衔：根据排名与总轮次计算。默认中文，保持向后兼容。

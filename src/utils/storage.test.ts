@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNewCompetition } from '../store/tournamentFactory';
-import { flushStorage, loadCompetition, saveCompetition } from './storage';
+import { flushStorage, loadCompetition, saveCompetition } from './storage/storage';
 
 const STORAGE_KEY = 'swiss_tournament_data';
 const BACKUP_KEY = 'swiss_tournament_data_backup';
