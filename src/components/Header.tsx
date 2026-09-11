@@ -1,7 +1,6 @@
-import { Medal } from 'lucide-react';
+import { Trophy, Swords, Medal } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useLanguagePreference, formatText } from '../i18n';
-import { BrandMark } from './BrandMark';
 
 export function Header() {
   const currentGroup = useCurrentGroup();
@@ -32,7 +31,14 @@ export function Header() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <BrandMark className="w-14 h-14 shrink-0 drop-shadow-[0_10px_20px_rgba(250,204,21,0.16)]" />
+              <div className="relative">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shadow-lg shadow-gold-500/30">
+                  <Trophy className="w-7 h-7 text-indigo-900" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-indigo-900 flex items-center justify-center">
+                  <Swords className="w-3 h-3 text-white" />
+                </div>
+              </div>
               
               <div>
                 <h1 className="font-display text-2xl md:text-3xl font-bold gold-gradient tracking-wider">
