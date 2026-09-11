@@ -31,6 +31,17 @@
 - 默认分支：main
 - 建议协作流程：feature 分支 -> PR -> review -> merge 到 main
 - 问题反馈：通过 GitHub Issues 提交 bug 或需求；敏感安全问题请参考 SECURITY.md
+- 贡献指南：见 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 参与贡献
+
+欢迎参与改进和扩展本项目。建议在提交前先确认以下事项：
+
+- 先在 Issues 中确认需求或复现步骤，避免重复开发
+- 使用 `main` 作为稳定基线，新功能请从 `feature/*` 或 `fix/*` 分支切出
+- 遵循现有代码结构和测试规范，必要时补充回归测试
+- 提交 PR 前请运行：`npm run check`、`npm test -- --run`、`npm run build`
+- 若涉及 Excel 导入、赛制规则、排名逻辑，请同步更新文档和测试案例
 
 ## 分支策略
 
