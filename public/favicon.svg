@@ -1,4 +1,51 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="32" height="32" fill="#0A0B0D"/>
-<path d="M26.6677 23.7149H8.38057V20.6496H5.33301V8.38159H26.6677V23.7149ZM8.38057 20.6496H23.6201V11.4482H8.38057V20.6496ZM16.0011 16.0021L13.8461 18.1705L11.6913 16.0021L13.8461 13.8337L16.0011 16.0021ZM22.0963 16.0008L19.9414 18.1691L17.7865 16.0008L19.9414 13.8324L22.0963 16.0008Z" fill="#32F08C"/>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="8" y1="4" x2="57" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E1B4B" />
+      <stop offset="0.55" stop-color="#111827" />
+      <stop offset="1" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="gold" x1="21" y1="14" x2="45" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A" />
+      <stop offset="0.42" stop-color="#FACC15" />
+      <stop offset="1" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="emerald" x1="12" y1="44" x2="52" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6EE7B7" />
+      <stop offset="1" stop-color="#10B981" />
+    </linearGradient>
+  </defs>
+
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#background)" />
+  <rect x="3" y="3" width="58" height="58" rx="15" stroke="#818CF8" stroke-opacity="0.28" stroke-width="2" />
+
+  <path
+    d="M18.5 18.5H45.5V29C45.5 36.456 39.456 42.5 32 42.5C24.544 42.5 18.5 36.456 18.5 29V18.5Z"
+    fill="url(#gold)"
+  />
+  <path
+    d="M18.5 22H14.5C12.567 22 11 23.567 11 25.5V27C11 32.523 15.477 37 21 37"
+    stroke="#FBBF24"
+    stroke-width="3.2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M45.5 22H49.5C51.433 22 53 23.567 53 25.5V27C53 32.523 48.523 37 43 37"
+    stroke="#FBBF24"
+    stroke-width="3.2"
+    stroke-linecap="round"
+  />
+
+  <path d="M29 42H35V47H29V42Z" fill="#D97706" />
+  <path d="M24.5 47H39.5C41.433 47 43 48.567 43 50.5V52H21V50.5C21 48.567 22.567 47 24.5 47Z" fill="url(#gold)" />
+  <path d="M20 52H44" stroke="#FDE68A" stroke-width="2.4" stroke-linecap="round" />
+
+  <path
+    d="M32 8.5L33.7 12.7L38 14.5L33.7 16.3L32 20.5L30.3 16.3L26 14.5L30.3 12.7L32 8.5Z"
+    fill="#F8FAFC"
+  />
+  <circle cx="13.5" cy="47.5" r="3.5" fill="url(#emerald)" />
+  <circle cx="50.5" cy="47.5" r="3.5" fill="url(#emerald)" />
+  <path d="M16.5 45.5L23 40.5" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" />
+  <path d="M47.5 45.5L41 40.5" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" />
 </svg>
