@@ -100,6 +100,10 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 
 ## Contents
 
+- [Product Requirements (PRD)](docs/PRD.md)
+
+- [Technical Architecture](docs/ARCHITECTURE.md)
+
 - [Features](#features)
 - [Bulk player import from Excel](#bulk-player-import-from-excel)
 - [Multi-sheet Excel import](#multi-sheet-excel-import)

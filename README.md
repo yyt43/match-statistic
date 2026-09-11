@@ -100,6 +100,10 @@
 
 ## 目录
 
+- [产品需求文档（PRD）](docs/PRD.md)
+
+- [技术架构](docs/ARCHITECTURE.md)
+
 - [功能特性](#功能特性)
 
 - [Excel 批量录入选手](#excel-批量录入选手)
