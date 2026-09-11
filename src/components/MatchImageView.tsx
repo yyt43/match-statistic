@@ -1,9 +1,11 @@
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import type { Match } from '../types';
+import { useLanguagePreference, formatText } from '../i18n';
 
 export function MatchImageView() {
   const currentGroup = useCurrentGroup();
   const { viewRound } = useTournamentStore();
+  const { t } = useLanguagePreference();
 
   const matches = currentGroup.matches.filter(m => m.round === viewRound);
   const playerMap = new Map(currentGroup.players.map(p => [p.id, p]));
@@ -12,8 +14,8 @@ export function MatchImageView() {
   const roundGameType = currentGroup.roundGameTypes?.[viewRound - 1] ?? currentGroup.gameType;
 
   const getPlayerName = (id: string) => {
-    if (id === 'bye') return '轮空';
-    return playerMap.get(id)?.name || '未知选手';
+    if (id === 'bye') return t.bye;
+    return playerMap.get(id)?.name || t.unknownPlayer;
   };
 
   const getScore = (match: Match, playerNum: 1 | 2) => {
@@ -38,7 +40,7 @@ export function MatchImageView() {
   if (currentGroup.currentRound === 0) {
     return (
       <div id="match-image" className="p-6 bg-slate-900 min-h-[400px]">
-        <div className="text-center text-slate-500 py-20">暂无对阵数据</div>
+        <div className="text-center text-slate-500 py-20">{t.noMatchData}</div>
       </div>
     );
   }
@@ -48,11 +50,11 @@ export function MatchImageView() {
       <div className="bg-slate-800 rounded-lg overflow-hidden">
         <div className="px-6 py-3 bg-slate-700/50 border-b border-slate-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white">{currentGroup.name} - 第 {viewRound} 轮对阵表</h2>
-            <p className="text-xs text-slate-400 mt-1">共 {matches.length} 场对阵</p>
+            <h2 className="text-lg font-bold text-white">{formatText(t.matchImageTitle, { group: currentGroup.name, round: viewRound })}</h2>
+            <p className="text-xs text-slate-400 mt-1">{formatText(t.matchImageCount, { count: matches.length })}</p>
           </div>
           <div className="px-3 py-1 bg-orange-500 rounded text-xs font-bold text-white">
-            第 {viewRound} 轮
+            {formatText(t.matchImageRoundBadge, { round: viewRound })}
           </div>
         </div>
 
@@ -60,7 +62,9 @@ export function MatchImageView() {
           {matches.map((match) => (
             <div key={match.id} className="bg-slate-800/60 rounded-lg overflow-hidden">
               <div className="px-3 py-1.5 bg-slate-700/30 text-[11px] text-slate-400 text-right">
-                {isSingleElimination ? `单败淘汰 ${roundGameType.toUpperCase()}` : roundGameType.toUpperCase()}
+                {isSingleElimination
+                  ? `${t.singleElimination} ${roundGameType.toUpperCase()}`
+                  : roundGameType.toUpperCase()}
               </div>
 
               <div className="flex items-stretch">
@@ -121,11 +125,11 @@ export function MatchImageView() {
               borderRadius: '50%',
               background: 'rgba(251, 191, 36, 0.7)',
             }} />
-            诗意 · 比赛战绩统计系统
+            {t.appName}
           </span>
           <span style={{ flex: 1 }} />
           <span style={{ color: '#64748b' }}>
-            共 {matches.length} 场 · {isSingleElimination ? '单败淘汰' : '瑞士轮'} · {roundGameType.toUpperCase()}
+            {formatText(t.matchImageFooter, { count: matches.length, format: isSingleElimination ? t.singleElimination : t.swiss, gameType: roundGameType.toUpperCase() })}
           </span>
         </div>
       </div>

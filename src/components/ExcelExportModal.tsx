@@ -4,6 +4,7 @@ import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore
 import { getRankingTableData, getMatchTableData, exportAllGroupsRankingToExcel, exportAllGroupsCurrentRoundMatchesToExcel, exportAllGroupsToExcel, exportGroupSummaryToExcel } from '../utils/excelExport';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import type { TournamentGroup } from '../types';
+import { useLanguagePreference, formatText } from '../i18n';
 
 type ExportType = 'ranking' | 'match' | 'summary';
 
@@ -20,6 +21,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'building' | 'saving'>('idle');
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
+  const { language, t } = useLanguagePreference();
 
   useEscapeClose(isOpen && !isExporting, onClose);
 
@@ -37,7 +39,6 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   const availableGroups = allGroups.filter(g => g.currentRound > 0);
   const hasAvailableGroups = availableGroups.length > 1;
 
-  // 判断指定小组本轮是否全部完赛（无 pending 对局）
   const isGroupRoundComplete = (g: TournamentGroup): boolean => {
     if (g.currentRound === 0) return false;
     const ms = g.matches.filter(m => m.round === g.currentRound);
@@ -45,12 +46,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   };
   const currentGroupRoundComplete = isGroupRoundComplete(currentGroup);
   const allAvailableGroupsRoundComplete = availableGroups.every(isGroupRoundComplete);
-  // 排行榜/总表导出条件：单小组需本轮完赛；全部小组需每个有进度的小组本轮都完赛
   const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : currentGroupRoundComplete;
   const rankingBlockedReason = !canExportRanking
-    ? (exportAllGroups
-        ? '部分小组本轮对局尚未全部结束，暂时无法导出"所有小组排行榜/总表"，请等待所有小组本轮完赛后再导出'
-        : '本小组本轮对局尚未全部结束，暂时无法导出排行榜/总表，请等待本轮完赛后再导出')
+    ? (exportAllGroups ? t.blockedReasonAllExcel : t.blockedReasonSingleExcel)
     : '';
 
   const currentPreviewIdx = allGroups.findIndex(g => g === currentGroup);
@@ -60,17 +58,15 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     useTournamentStore.getState().setCurrentGroup(idx);
   };
 
-  // 生成预览数据
   const previewGroup = currentGroup;
   const isRanking = activeType === 'ranking';
   const isSummary = activeType === 'summary';
 
-  // 总表预览：显示排行榜 + 各轮对阵概览
   const tableData = isRanking
-    ? getRankingTableData(previewGroup)
+    ? getRankingTableData(previewGroup, language)
     : isSummary
-      ? getRankingTableData(previewGroup)
-      : getMatchTableData(previewGroup, viewRound);
+      ? getRankingTableData(previewGroup, language)
+      : getMatchTableData(previewGroup, viewRound, language);
 
   const handleDownload = async () => {
     setIsExporting(true);
@@ -78,9 +74,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     try {
       if (isSummary) {
         if (exportAllGroups) {
-          await exportAllGroupsToExcel(availableGroups, competition.name);
+          await exportAllGroupsToExcel(availableGroups, competition.name, language);
         } else {
-          await exportGroupSummaryToExcel(previewGroup, competition.name);
+          await exportGroupSummaryToExcel(previewGroup, competition.name, language);
         }
         return;
       }
@@ -88,30 +84,29 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       setExportPhase('building');
       if (exportAllGroups) {
         if (isRanking) {
-          await exportAllGroupsRankingToExcel(availableGroups, competition.name);
+          await exportAllGroupsRankingToExcel(availableGroups, competition.name, language);
         } else {
-          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name);
+          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name, language);
         }
       } else {
-        // 单小组导出：复用动态加载的 xlsx 模块
         const XLSX = await import('xlsx');
         setExportPhase('saving');
         const { headers, rows } = isRanking
-          ? getRankingTableData(previewGroup)
-          : getMatchTableData(previewGroup, viewRound);
+          ? getRankingTableData(previewGroup, language)
+          : getMatchTableData(previewGroup, viewRound, language);
         const data: (string | number)[][] = [headers, ...rows];
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        const sheetName = isRanking ? '排行榜' : `第${viewRound}轮`;
+        const sheetName = isRanking ? t.ranking : formatText(t.roundN, { round: viewRound });
         const fileName = isRanking
-          ? `${competition.name}-${previewGroup.name}-排行榜.xlsx`
-          : `${competition.name}-${previewGroup.name}-第${viewRound}轮对阵表.xlsx`;
+          ? `${competition.name}-${previewGroup.name}-${t.ranking}.xlsx`
+          : `${competition.name}-${previewGroup.name}-${formatText(t.roundN, { round: viewRound })} ${t.matchTable}.xlsx`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
         XLSX.writeFile(wb, fileName);
       }
     } catch (err) {
       console.error('导出 Excel 失败:', err);
-      alert('导出失败，请重试');
+      alert(t.exportFailedAlert);
     } finally {
       setIsExporting(false);
       setExportPhase('idle');
@@ -120,9 +115,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
 
   const exportPhaseText: Record<typeof exportPhase, string> = {
     idle: '',
-    loading: '加载组件中...',
-    building: '生成工作表中...',
-    saving: '保存文件中...',
+    loading: t.exportingLoading,
+    building: t.exportingBuilding,
+    saving: t.exportingSaving,
   };
 
   return (
@@ -131,7 +126,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            导出 Excel
+            {t.excelExportTitle}
           </h3>
           <button
             onClick={onClose}
@@ -152,7 +147,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
               }`}
             >
               <Trophy className="w-4 h-4" />
-              排行榜
+              {t.ranking}
             </button>
             <button
               onClick={() => setActiveType('match')}
@@ -163,7 +158,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
               }`}
             >
               <Swords className="w-4 h-4" />
-              对阵表
+              {t.matchTable}
             </button>
             <button
               onClick={() => setActiveType('summary')}
@@ -174,7 +169,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
               }`}
             >
               <Layers className="w-4 h-4" />
-              总表
+              {t.summary}
             </button>
           </div>
 
@@ -191,7 +186,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                       : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                   }`}
                 >
-                  全部小组
+                  {t.allGroups}
                 </button>
                 {allGroups.map((group, idx) => (
                   <button
@@ -224,9 +219,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
-                    第{round}轮
+                    {formatText(t.roundN, { round })}
                     {round === currentGroup.currentRound && (
-                      <span className="ml-1 text-[10px] text-emerald-400">当前</span>
+                      <span className="ml-1 text-[10px] text-emerald-400">{t.current}</span>
                     )}
                   </button>
                 ))}
@@ -247,25 +242,32 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
           {exportAllGroups ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="w-12 h-12 text-emerald-400/50 mb-4" />
-              <p className="text-slate-300 font-medium mb-2">将导出全部 {availableGroups.length} 个小组的{isRanking ? '排行榜' : isSummary ? '总表（排行榜+对阵）' : '本轮对阵表'}</p>
+              <p className="text-slate-300 font-medium mb-2">
+                {formatText(
+                  isRanking ? t.exportAllGroupsExcelRankingInfo : isSummary ? t.exportAllGroupsExcelSummaryInfo : t.exportAllGroupsExcelMatchInfo,
+                  { count: availableGroups.length }
+                )}
+              </p>
               <div className="max-w-md space-y-1.5 text-slate-500 text-sm">
-                <p>· 所有小组的数据将汇总到一个 Excel 文件中</p>
-                <p>· 每个小组的数据位于独立的 Sheet 工作表</p>
-                {isSummary && <p>· 总表包含排行榜和各轮对阵，每个小组多个工作表</p>}
-                {!isRanking && !isSummary && <p>· 对阵表将导出各小组当前轮次的比赛</p>}
-                <p>· 共 {availableGroups.length} 个小组</p>
+                <p>· {t.exportAllGroupsTip1}</p>
+                <p>· {t.exportAllGroupsTip2}</p>
+                {isSummary && <p>· {t.exportAllGroupsTip3Summary}</p>}
+                {!isRanking && !isSummary && <p>· {t.exportAllGroupsTip3Match}</p>}
+                <p>· {formatText(t.exportAllGroupsTip4, { count: availableGroups.length })}</p>
               </div>
             </div>
           ) : currentGroup.currentRound === 0 ? (
-            <div className="text-center text-slate-500 py-20">暂无{isRanking ? '排行' : '对阵'}数据</div>
+            <div className="text-center text-slate-500 py-20">
+              {t.noRankingData}
+            </div>
           ) : (
             <div className="flex justify-center">
               <div className="inline-block">
                 <div className="mb-3 text-sm text-slate-400">
                   {previewGroup.name}
-                  {isRanking && ' · 排行榜'}
-                  {isSummary && ' · 总表（排行榜+全部对阵）'}
-                  {!isRanking && !isSummary && ` · 第 ${viewRound} 轮`}
+                  {isRanking && ` · ${t.ranking}`}
+                  {isSummary && ` · ${t.summary}`}
+                  {!isRanking && !isSummary && ` · ${formatText(t.roundN, { round: viewRound })}`}
                 </div>
                 <table className="border-collapse bg-slate-800/60 rounded-lg overflow-hidden">
                   <thead>
@@ -284,7 +286,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                     {tableData.rows.length === 0 ? (
                       <tr>
                         <td colSpan={tableData.headers.length} className="px-4 py-8 text-center text-slate-500 text-sm">
-                          暂无数据
+                          {t.noData}
                         </td>
                       </tr>
                     ) : (
@@ -316,7 +318,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
             disabled={isExporting}
             className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            取消
+            {t.cancel}
           </button>
           <button
             onClick={handleDownload}
@@ -326,12 +328,12 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
             {isExporting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {exportPhaseText[exportPhase] || '导出中...'}
+                {exportPhaseText[exportPhase] || t.exportingSimple}
               </>
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                {(isRanking || isSummary) && !canExportRanking ? '本轮未完赛，无法导出' : '下载 Excel'}
+                {(isRanking || isSummary) && !canExportRanking ? t.roundNotFinished : t.downloadExcel}
               </>
             )}
           </button>

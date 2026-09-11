@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { getStoredLanguage, translations } from '../i18n';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -45,24 +46,25 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
     } catch (e) {
       console.error('导出数据失败：', e);
-      alert('导出数据失败，请手动复制 localStorage 中的 swiss_tournament_data 键。');
+      alert(translations[getStoredLanguage()].errorBoundaryExportFailed);
     }
   };
 
   render() {
     if (this.state.hasError) {
+      const t = translations[getStoredLanguage()];
       return (
         <div className="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-8 z-50">
           <div className="max-w-md w-full bg-slate-800 border border-rose-500/30 rounded-2xl p-6 text-center">
             <div className="text-5xl mb-4">⚠️</div>
-            <h1 className="text-xl font-bold text-rose-400 mb-2">应用遇到异常</h1>
+            <h1 className="text-xl font-bold text-rose-400 mb-2">{t.errorBoundaryTitle}</h1>
             <p className="text-sm text-slate-400 mb-4">
-              页面渲染过程中发生了错误。你的数据可能仍然安全保存在本地存储中。
+              {t.errorBoundaryDescription}
             </p>
             <details className="mb-4 text-left">
-              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400">查看错误详情</summary>
+              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-400">{t.errorBoundaryDetails}</summary>
               <pre className="mt-2 text-[10px] text-slate-500 bg-slate-900/50 rounded p-2 overflow-x-auto max-h-32">
-                {this.state.error?.message ?? '未知错误'}
+                {this.state.error?.message ?? t.errorBoundaryUnknown}
                 {'\n'}
                 {this.state.error?.stack ?? ''}
               </pre>
@@ -72,13 +74,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 onClick={this.handleReload}
                 className="w-full py-2 rounded-lg bg-sky-500/20 border border-sky-500/30 text-sky-400 hover:bg-sky-500/30 transition-colors text-sm font-medium"
               >
-                刷新页面重试
+                {t.errorBoundaryReload}
               </button>
               <button
                 onClick={this.handleExportData}
                 className="w-full py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:bg-amber-500/30 transition-colors text-sm font-medium"
               >
-                导出当前数据（防止丢失）
+                {t.errorBoundaryExport}
               </button>
             </div>
           </div>

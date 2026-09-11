@@ -1,6 +1,6 @@
 import { PlayoffPanel } from './PlayoffPanel';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference, formatText } from '../i18n';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
   Edit2, UserX, UserCheck, Trash2, Upload, FileText,
@@ -23,7 +23,7 @@ interface ControlPanelProps {
 export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
   const isCurrentRoundComplete = useIsCurrentRoundComplete();
-  const { language } = useLanguagePreference();
+  const { language, t } = useLanguagePreference();
   const isEnglish = language === 'en';
   const {
     competition,
@@ -87,8 +87,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const playerFileInputRef = useRef<HTMLInputElement>(null);
   const batchImportSummary = useMemo(() => summarizePlayerNameInput(batchNames), [batchNames]);
   const importRuleText = useMemo(
-    () => 'Excel 会优先读取表头包含 姓名 / Name / Player 的列；若没有此列，则按当前表格第一列兜底。用户也可以在导入前手动指定某一列作为选手名称。',
-    []
+    () => isEnglish ? t.importRuleTextZh : 'Excel 会优先读取表头包含 姓名 / Name / Player 的列；若没有此列，则按当前表格第一列兜底。用户也可以在导入前手动指定某一列作为选手名称。',
+    [isEnglish, t.importRuleTextZh]
   );
 
   useEffect(() => {
@@ -164,7 +164,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const handleImportPlayersFromText = () => {
     const names = parsePlayerNamesFromText(batchNames);
     if (names.length === 0) {
-      setPlayerImportError('请输入至少一个有效选手名称');
+      setPlayerImportError(t.textImportNoValidNames);
       return;
     }
     replacePlayers(names);
@@ -186,11 +186,11 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       setPlayerImportError(null);
 
       if (choices.length === 0) {
-        setPlayerImportError('Excel 文件中未找到任何可用表格');
+        setPlayerImportError(t.excelImportEmptySheets);
       }
     } catch (error) {
       console.error(error);
-      setPlayerImportError(error instanceof Error ? error.message : 'Excel 导入失败');
+      setPlayerImportError(error instanceof Error ? error.message : t.excelImportFailed);
     }
   };
 
@@ -205,7 +205,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
       const groups = await parsePlayerGroupsFromExcel(selectedFile, selectedColumns);
       if (groups.length === 0) {
-        setPlayerImportError('Excel 文件中未找到可用的选手名称');
+        setPlayerImportError(t.excelImportNoNames);
         return;
       }
 
@@ -222,7 +222,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       const baseCompetition = useTournamentStore.getState().competition;
       const nextGroups = groups.map((groupConfig, index) => {
         const template = baseCompetition.groups[index] ?? baseCompetition.groups[0];
-        const generatedName = (groupConfig.groupName || `小组${String(index + 1).padStart(2, '0')}`).trim() || `小组${String(index + 1).padStart(2, '0')}`;
+        const fallbackGroupName = formatText(t.defaultGroupName, { index: String(index + 1).padStart(2, '0') });
+        const generatedName = (groupConfig.groupName || fallbackGroupName).trim() || fallbackGroupName;
         const totalRounds = template?.totalRounds ?? 5;
         const roundGameTypes = template?.roundGameTypes ? [...template.roundGameTypes] : new Array(totalRounds).fill(template?.gameType ?? 'bo1');
 
@@ -267,7 +268,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       setExcelColumnSelections({});
     } catch (error) {
       console.error(error);
-      setPlayerImportError(error instanceof Error ? error.message : 'Excel 导入失败');
+      setPlayerImportError(error instanceof Error ? error.message : t.excelImportFailed);
     }
   };
 
@@ -334,7 +335,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
               // 比赛进行中禁止导入
               if (competition.groups.some(g => g.status !== 'setup')) {
-                setImportError('比赛已开始，请先重置比赛数据再导入');
+                setImportError(t.importBlockedStarted);
                 if (fileInputRef.current) {
                   fileInputRef.current.value = '';
                 }
@@ -346,7 +347,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 const data = await importCompetitionFromFile(file);
                 importCompetition(data);
               } catch (err) {
-                setImportError(err instanceof Error ? err.message : '导入失败');
+                setImportError(err instanceof Error ? err.message : t.importFailed);
               }
 
               // 清空文件输入
@@ -421,7 +422,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 onClick={() => addGroup()}
                 disabled={hasAnyStarted}
                 className="p-1 rounded hover:bg-slate-700 text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                title={hasAnyStarted ? '比赛已开始，不可添加小组' : '添加小组'}
+                title={hasAnyStarted ? t.addGroupBlocked : t.addGroup}
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -521,7 +522,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         setEditingGroupIndex(index);
                         setEditGroupNameValue(group.name);
                       }}
-                      title="单击切换小组 / 双击编辑名称"
+                      title={t.clickToSwitchDblclickEdit}
                     >
                       {group.name}
                     </span>
@@ -535,7 +536,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         setEditGroupNameValue(group.name);
                       }}
                       className="p-0.5 rounded hover:bg-slate-700 text-slate-500 hover:text-gold-400 transition-colors"
-                      title="编辑小组名称"
+                      title={t.editGroupName}
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
@@ -547,7 +548,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         removeGroup(index);
                       }}
                       className="p-0.5 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-colors"
-                      title="删除小组"
+                      title={t.deleteGroup}
                     >
                       <Minus className="w-3 h-3" />
                     </button>
@@ -652,7 +653,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs text-slate-500">设置参赛人数</label>
+                  <label className="text-xs text-slate-500">{t.setPlayerCount}</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="range" min="2" max="100"
@@ -956,7 +957,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                             <div className="space-y-1.5">
                               {Array.from({ length: computedRounds }, (_, i) => i + 1).map(round => (
                                 <div key={round} className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500 w-10 shrink-0">第{round}轮</span>
+                                  <span className="text-xs text-slate-500 w-10 shrink-0">{formatText(t.roundNShort, { round })}</span>
                                   <div className="flex-1 grid grid-cols-4 gap-1.5">
                                     {(['bo1', 'bo3', 'bo5', 'bo7'] as GameType[]).map(gt => (
                                       <button
@@ -1264,8 +1265,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                   <span className="text-xs text-slate-300 truncate">{player.name}</span>
                                   {isPreDropped && (
-                                    <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title="该选手曾在某轮单场赛前弃赛，已自动退赛。">
-                                      赛前弃赛
+                                    <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title={t.preDropTitle}>
+                                      {t.preDropTag}
                                     </span>
                                   )}
                                 </div>
@@ -1279,12 +1280,12 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                   }
                                   title={
                                     isPreDropped
-                                      ? '该选手已因赛前弃赛退赛。若此处显示，通常是执行过「恢复」，点此重新标记退赛。'
-                                      : '赛后弃赛：针对选手个人的退赛标记。后续不再安排对阵，不产生新胜负归属，已完赛场次全部保留。'
+                                      ? t.confirmDropTitle
+                                      : t.postDropTitle
                                   }
                                 >
                                   <UserX className="w-2.5 h-2.5" />
-                                  {isPreDropped ? '确认退赛' : '赛后弃赛'}
+                                  {isPreDropped ? t.confirmDropTag : t.postDropTag}
                                 </button>
                               </div>
                             );
@@ -1292,13 +1293,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         </div>
                         {currentGroup.players.some(p => p.eliminated) && (
                           <div className="space-y-1">
-                            <h4 className="text-[10px] text-slate-500">已淘汰</h4>
+                            <h4 className="text-[10px] text-slate-500">{t.eliminatedSection}</h4>
                             <div className="max-h-16 overflow-y-auto space-y-1">
                               {currentGroup.players.filter(p => p.eliminated).map(player => (
                                 <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-slate-700/20 rounded-md">
                                   <span className="text-xs text-slate-500">{player.name}</span>
                                   <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded bg-slate-600/20 border border-slate-500/20">
-                                    淘汰
+                                    {t.eliminatedMarkSimple}
                                   </span>
                                 </div>
                               ))}
@@ -1307,7 +1308,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         )}
                         {currentGroup.players.some(p => p.dropped) && (
                           <div className="space-y-1">
-                            <h4 className="text-[10px] text-slate-500">已退赛</h4>
+                            <h4 className="text-[10px] text-slate-500">{t.droppedSection}</h4>
                             <div className="max-h-16 overflow-y-auto space-y-1">
                               {currentGroup.players.filter(p => p.dropped).map(player => (
                                 <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
@@ -1315,10 +1316,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                                   <button
                                     onClick={() => togglePlayerDropped(player.id)}
                                     className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                    title="恢复：将该选手重新纳入后续轮次配对。已产生的结果不变。"
+                                    title={t.restoreTitle}
                                   >
                                     <UserCheck className="w-2.5 h-2.5" />
-                                    恢复
+                                    {t.restore}
                                   </button>
                                 </div>
                               ))}
@@ -1326,9 +1327,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                           </div>
                         )}
                         <div className="text-[9px] leading-relaxed text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1.5 space-y-1">
-                          <p><strong className="text-rose-400/80">赛前弃赛</strong>：对阵卡片「赛前弃」按钮，针对某场比赛。对方直接记胜，弃赛方不记败场，该场不计入对手胜率网络。</p>
-                          <p><strong className="text-slate-400/80">赛后弃赛</strong>：本面板「赛后弃赛」按钮，针对选手个人。不产生新胜负，仅标记退赛，已完赛场次正常计入对手胜率网络。</p>
-                          <p>两者<strong>都会让选手退赛、不再安排后续对阵</strong>，最终都进入上方「已退赛」列表。</p>
+                          <p>{t.preDropExplanation}</p>
+                          <p>{t.postDropExplanation}</p>
+                          <p>{t.dropBothExplanation}</p>
                         </div>
                       </>
                     );
@@ -1341,9 +1342,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           {isCompleted && (
             <div className="text-center py-3">
               <Trophy className="w-6 h-6 text-gold-400 mx-auto mb-1.5" />
-              <p className="text-gold-400 font-semibold text-sm">比赛结束</p>
+              <p className="text-gold-400 font-semibold text-sm">{t.matchEnded}</p>
               <p className="text-xs text-slate-500 mt-0.5">
-                共 {currentGroup.totalRounds} 轮
+                {formatText(t.matchEndedRounds, { rounds: currentGroup.totalRounds })}
               </p>
               {currentGroup.pairingType === 'swiss' && <PlayoffPanel key={currentGroup.id} />}
             </div>
@@ -1376,7 +1377,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             className="w-full py-2.5 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/40"
           >
             <Play className="w-4 h-4" />
-            生成下一轮对阵
+            {t.generateNextRound}
           </button>
           {competition.groups.length > 1 && competition.groups.some(g => {
             if (g.status !== 'in_progress') return false;
@@ -1389,7 +1390,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
             >
               <Play className="w-4 h-4" />
-              全部小组开始下一轮
+              {t.allGroupsNextRound}
             </button>
           )}
         </div>
@@ -1399,9 +1400,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <ConfirmDialog
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
-        title={isEnglish ? 'Confirm reset' : '确认重置'}
-        message={isEnglish ? 'This will clear all tournament data, including players, matches, results, and rankings. This action cannot be undone.' : '此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。'}
-        confirmText={isEnglish ? 'Reset now' : '确认重置'}
+        title={t.confirmResetTitle}
+        message={t.confirmResetMsg}
+        confirmText={t.resetNow}
         onConfirm={() => resetCompetition()}
       />
 
@@ -1409,9 +1410,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <ConfirmDialog
         isOpen={showUndoConfirm}
         onClose={() => setShowUndoConfirm(false)}
-        title={isEnglish ? 'Confirm undo' : '确认撤回'}
-        message={isEnglish ? `Are you sure you want to undo all results from round ${currentGroup.currentRound}? This action cannot be undone.` : `确定要撤回第 ${currentGroup.currentRound} 轮的所有比赛结果吗？此操作不可恢复。`}
-        confirmText={isEnglish ? 'Undo now' : '确认撤回'}
+        title={t.confirmUndoTitle}
+        message={formatText(t.confirmUndoMsg, { round: currentGroup.currentRound })}
+        confirmText={t.undoNow}
         onConfirm={() => undoLastRound()}
       />
 

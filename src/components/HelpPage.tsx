@@ -1,800 +1,366 @@
-import { X, Trophy, Users, Swords, Settings, Download, HelpCircle, FlaskConical, Eye, ArrowLeftRight, UserCog, Database, Shield, GripVertical, History, Keyboard, AlertTriangle, Github, ExternalLink, Youtube, MessageCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  Database,
+  Download,
+  Eye,
+  ExternalLink,
+  FlaskConical,
+  Github,
+  GripVertical,
+  HelpCircle,
+  History,
+  Keyboard,
+  MessageCircle,
+  Shield,
+  Swords,
+  Trophy,
+  UserCog,
+  Users,
+  X,
+  Youtube,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference, type AppLanguage } from '../i18n';
 
 interface HelpPageProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface HelpFeature {
+  icon: ReactNode;
+  title: string;
+  description: string;
+}
+
+interface HelpStep {
+  title: string;
+  items: string[];
+}
+
+interface HelpRule {
+  title: string;
+  text: string;
+}
+
+interface HelpFaq {
+  question: string;
+  answer: string;
+}
+
+interface HelpCopy {
+  close: string;
+  subtitle: string;
+  features: string;
+  featureItems: HelpFeature[];
+  quickStart: string;
+  steps: HelpStep[];
+  rules: string;
+  swissRules: string;
+  swissRuleItems: HelpRule[];
+  eliminationRules: string;
+  eliminationRuleItems: string[];
+  storage: string;
+  storageItems: string[];
+  faq: string;
+  faqItems: HelpFaq[];
+  disclaimer: string;
+  disclaimerItems: string[];
+  links: string;
+  github: string;
+  bilibili: string;
+  qq: string;
+  qqHint: string;
+  contact: string;
+  footer: string;
+}
+
+const content: Record<AppLanguage, HelpCopy> = {
+  zh: {
+    close: '关闭帮助页面',
+    subtitle: '专业比赛管理与成绩统计工具',
+    features: '功能概览',
+    featureItems: [
+      { icon: <Users className="w-5 h-5" />, title: '多小组管理', description: '支持 1-20 个小组独立配置和开赛，也可一键启动全部小组。' },
+      { icon: <Eye className="w-5 h-5" />, title: '选手总览', description: '开赛前集中核对名单，自动检测重名和空小组，支持搜索与复制。' },
+      { icon: <UserCog className="w-5 h-5" />, title: '名单管理', description: '逐个修改选手，或从文本、Excel、CSV、TXT 批量导入。' },
+      { icon: <Swords className="w-5 h-5" />, title: '双赛制支持', description: '支持瑞士轮和单败淘汰，每轮可独立设置 BO1、BO3、BO5 或 BO7。' },
+      { icon: <ArrowLeftRight className="w-5 h-5" />, title: '对阵编辑', description: '单败淘汰当前轮可交换选手，并支持随机分配和按录入顺序重排。' },
+      { icon: <Trophy className="w-5 h-5" />, title: '实时排名', description: '自动计算胜率、对手胜率、局胜率，并展示淘汰、弃赛和加赛状态。' },
+      { icon: <Download className="w-5 h-5" />, title: '导出工具', description: '排行榜、对阵表和总表可导出为 PNG 或 Excel，赛事数据可导出为 JSON。' },
+      { icon: <Database className="w-5 h-5" />, title: '本地双备份', description: '主键与备份键双重保存；每轮完赛还会自动创建快照。' },
+      { icon: <FlaskConical className="w-5 h-5" />, title: '测试模式', description: '可随机生成当前轮或整场赛果，用于演示、调试和导出预览。' },
+      { icon: <GripVertical className="w-5 h-5" />, title: '拖拽改序', description: '正常查看对阵时可直接拖动卡片调整显示顺序，并自动保存。' },
+      { icon: <History className="w-5 h-5" />, title: '快照恢复', description: '保留最近 5 份自动快照，也可手动创建、恢复或删除快照。' },
+      { icon: <Keyboard className="w-5 h-5" />, title: '快捷操作', description: '使用 Ctrl/Cmd+Z 撤回上一轮，破坏性操作均会二次确认。' },
+    ],
+    quickStart: '使用说明',
+    steps: [
+      {
+        title: '创建比赛',
+        items: ['设置赛事名称和小组数量。', '配置配对方式、比赛局数和轮次。', '导入或录入选手名单，并预览核对。', '开始本组比赛或一键启动全部小组。'],
+      },
+      {
+        title: '录入赛果',
+        items: ['点击待进行的比赛卡片。', '选择胜负、比分、双负或赛前弃赛。', '当前轮全部完成后生成下一轮对阵。'],
+      },
+      {
+        title: '管理进度',
+        items: ['需要改判时撤回上一轮，系统会恢复选手状态。', '可在弃赛管理中标记赛后弃赛或恢复选手。', '每轮完成后可查看、恢复或删除自动快照。'],
+      },
+      {
+        title: '导出与备份',
+        items: ['图片和 Excel 支持当前小组或全部小组。', '总表包含排行榜和各轮对阵。', '重要比赛后建议导出 JSON 备份。'],
+      },
+    ],
+    rules: '赛制与排名',
+    swissRules: '瑞士轮配对规则',
+    swissRuleItems: [
+      { title: '首轮随机配对', text: '第一轮随机生成对阵，作为后续战绩分组的起点。' },
+      { title: '避免重复对阵', text: '同一赛事中任意两名选手不会重复匹配。' },
+      { title: '按战绩分组', text: '从第 2 轮开始按胜场分组，并在相邻战绩组之间处理上下移。' },
+      { title: '优先标记与次数', text: '跨组匹配优先处理已有上下标记、匹配次数较少和排名位置合适的选手。' },
+      { title: '对折与穷举', text: '组内优先对折匹配，必要时使用回溯穷举避免重复对阵。' },
+      { title: '轮空规则', text: '最终无法匹配的选手轮空；轮空比分计入排名和对手胜率网络。' },
+    ],
+    eliminationRules: '单败淘汰规则',
+    eliminationRuleItems: [
+      '第一轮随机配对，后续按上轮胜者顺序配对。',
+      '每轮可独立设置 BO1-BO7。',
+      '败者自动淘汰，奇数人数时产生轮空。',
+      '撤回上一轮会恢复被淘汰选手的状态。',
+    ],
+    storage: '数据存储',
+    storageItems: [
+      '数据保存在当前浏览器的 localStorage 中。',
+      '每次保存同时写入主键和备份键，主键损坏时可自动恢复。',
+      '快照保存在浏览器内，清除浏览器数据会一并删除。',
+      '跨设备迁移或长期保存请导出 JSON 文件。',
+    ],
+    faq: '常见问题',
+    faqItems: [
+      { question: '如何修改已录入的比赛结果？', answer: '使用撤回上一轮功能回退，再重新录入。单败淘汰会同时恢复被淘汰选手。' },
+      { question: '为什么比赛开始后不能导入？', answer: '为避免覆盖进行中的数据，导入会禁用；请先重置赛事，再导入新的 JSON 文件。' },
+      { question: 'Excel 如何识别选手姓名？', answer: '系统会优先识别姓名、Name、Player 等表头，也可在导入前手动指定列。' },
+      { question: '快照和 JSON 导出有什么区别？', answer: '快照适合浏览器内快速回滚；JSON 文件适合长期备份和跨设备迁移。' },
+      { question: '为什么排行榜导出会被限制？', answer: '为保证同一小组选手比赛场数一致，排行榜和总表需要本轮全部完赛。对阵表不受此限制。' },
+      { question: '加赛会影响常规排名吗？', answer: '加赛只用于区分名次，不计入对手胜率、对手对手胜率和局胜率等常规小分。' },
+    ],
+    disclaimer: '免责声明',
+    disclaimerItems: [
+      '本系统基于特定的瑞士轮配对算法与排名规则设计，不一定适用于所有赛事规则。',
+      '正式比赛前建议使用测试模式模拟完整赛程，并结合实际规则核对配对和排名结果。',
+    ],
+    links: '相关链接',
+    github: 'GitHub 项目地址',
+    bilibili: '开发者 B 站主页',
+    qq: '开发者 QQ',
+    qqHint: '加好友备注来意',
+    contact: '如有 Bug 反馈、功能建议或规则讨论，欢迎联系开发者（ShiyiPai）。',
+    footer: '诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网',
+  },
+  en: {
+    close: 'Close help page',
+    subtitle: 'Tournament management, pairings, rankings, backups, and exports',
+    features: 'Features',
+    featureItems: [
+      { icon: <Users className="w-5 h-5" />, title: 'Multi-group management', description: 'Configure and run 1-20 groups independently, or start every group together.' },
+      { icon: <Eye className="w-5 h-5" />, title: 'Player overview', description: 'Validate every roster before play, with duplicate and empty-group detection, search, and copy tools.' },
+      { icon: <UserCog className="w-5 h-5" />, title: 'Roster management', description: 'Edit players individually or import from text, Excel, CSV, and TXT files.' },
+      { icon: <Swords className="w-5 h-5" />, title: 'Swiss and elimination', description: 'Use Swiss or single-elimination pairings with per-round BO1, BO3, BO5, or BO7 settings.' },
+      { icon: <ArrowLeftRight className="w-5 h-5" />, title: 'Match editing', description: 'Swap players in the current elimination round, randomize, or assign by entry order.' },
+      { icon: <Trophy className="w-5 h-5" />, title: 'Live rankings', description: 'Track win rate, opponent win rate, game win rate, eliminations, drops, and playoffs.' },
+      { icon: <Download className="w-5 h-5" />, title: 'Export tools', description: 'Export rankings, match tables, and summaries as PNG or Excel, or save tournament data as JSON.' },
+      { icon: <Database className="w-5 h-5" />, title: 'Local backups', description: 'Primary and backup storage keys protect local data, with automatic snapshots after each round.' },
+      { icon: <FlaskConical className="w-5 h-5" />, title: 'Test mode', description: 'Generate random current-round or full-event results for demos, debugging, and export previews.' },
+      { icon: <GripVertical className="w-5 h-5" />, title: 'Drag to reorder', description: 'Reorder match cards in normal view; the new display order is saved automatically.' },
+      { icon: <History className="w-5 h-5" />, title: 'Snapshot recovery', description: 'Keep up to five automatic snapshots, or create, restore, and delete snapshots manually.' },
+      { icon: <Keyboard className="w-5 h-5" />, title: 'Quick actions', description: 'Undo the last round with Ctrl/Cmd+Z; destructive actions require confirmation.' },
+    ],
+    quickStart: 'Quick start',
+    steps: [
+      {
+        title: 'Create the tournament',
+        items: ['Set the tournament name and number of groups.', 'Configure pairing type, match length, and rounds.', 'Import players or enter names, then verify the preview.', 'Start one group or launch all groups together.'],
+      },
+      {
+        title: 'Record results',
+        items: ['Select a pending match card.', 'Choose a winner, score, double-loss, or pre-drop.', 'Generate the next round after every match is complete.'],
+      },
+      {
+        title: 'Manage progress',
+        items: ['Undo the previous round when a result must be changed.', 'Mark post-drops or restore players in dropout management.', 'Review, restore, or delete automatic snapshots after each round.'],
+      },
+      {
+        title: 'Export and back up',
+        items: ['Export images and Excel for one group or all groups.', 'Summary files include rankings and every completed round.', 'Export a JSON backup after important matches.'],
+      },
+    ],
+    rules: 'Formats and rankings',
+    swissRules: 'Swiss pairing rules',
+    swissRuleItems: [
+      { title: 'Random first round', text: 'Round one is randomly paired and establishes the first score groups.' },
+      { title: 'No repeat pairings', text: 'Two players never face each other twice in the same tournament.' },
+      { title: 'Score groups', text: 'From round two onward, players are grouped by wins and matched across adjacent score groups when needed.' },
+      { title: 'Priority and balance', text: 'Cross-group matching prefers existing up/down markers, fewer previous moves, and suitable rank positions.' },
+      { title: 'Fold and search', text: 'Groups first attempt fold pairing, then backtracking to avoid repeat opponents.' },
+      { title: 'Byes', text: 'Any remaining unmatched player receives a bye; bye games count toward rankings and opponent-rate calculations.' },
+    ],
+    eliminationRules: 'Single-elimination rules',
+    eliminationRuleItems: [
+      'Round one is random; later rounds pair winners in order.',
+      'Each round can use a different BO1-BO7 setting.',
+      'The loser is eliminated, and an odd field creates a bye.',
+      'Undoing the previous round restores eliminated players.',
+    ],
+    storage: 'Data storage',
+    storageItems: [
+      'Tournament data is stored in the current browser localStorage.',
+      'Each save writes both a primary key and a backup key for automatic recovery.',
+      'Snapshots remain in the browser and are removed when browser data is cleared.',
+      'Use JSON export for long-term backup or moving to another device.',
+    ],
+    faq: 'FAQ',
+    faqItems: [
+      { question: 'How do I correct an entered result?', answer: 'Undo the previous round, then enter the results again. Elimination status is restored automatically.' },
+      { question: 'Why is import disabled after the tournament starts?', answer: 'This prevents active data from being overwritten. Reset the tournament before importing a new JSON file.' },
+      { question: 'How does Excel import detect player names?', answer: 'The app prioritizes headers such as Name, Player, and 姓名, and you can choose the column manually before import.' },
+      { question: 'What is the difference between snapshots and JSON export?', answer: 'Snapshots are quick in-browser rollback points. JSON files are portable and better for long-term storage.' },
+      { question: 'Why is ranking export restricted?', answer: 'Rankings and summaries require every match in the round to be complete so players have comparable game counts. Match-table export is unrestricted.' },
+      { question: 'Do playoffs affect regular rankings?', answer: 'No. Playoffs only separate tied placements and do not change opponent rates or other regular tiebreak metrics.' },
+    ],
+    disclaimer: 'Disclaimer',
+    disclaimerItems: [
+      'This application implements a specific Swiss pairing model and ranking system that may not match every tournament ruleset.',
+      'Before formal use, simulate a complete event in test mode and verify pairings and rankings against your own rules.',
+    ],
+    links: 'Links',
+    github: 'GitHub project',
+    bilibili: 'Developer Bilibili',
+    qq: 'Developer QQ',
+    qqHint: 'Mention the purpose when adding',
+    contact: 'For bug reports, feature requests, or rule discussions, contact the developer (ShiyiPai).',
+    footer: 'Poetic · Tournament Results System · Local-only data storage',
+  },
+};
+
 export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   useEscapeClose(isOpen, onClose);
-  const { language } = useLanguagePreference();
-  const isEnglish = language === 'en';
+  const { language, t } = useLanguagePreference();
+  const copy = content[language];
+
   if (!isOpen) return null;
 
-  if (!isEnglish) {
-    return (
-      <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-12">
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            aria-label="关闭帮助页面"
-            className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-          {/* Title */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-3 mb-4">
-              <Trophy className="w-10 h-10 text-gold-400" />
-              <h1 className="text-3xl font-bold text-white">诗意 · 比赛战绩统计系统</h1>
-            </div>
-            <p className="text-slate-400">专业比赛管理与成绩统计工具</p>
-          </div>
-
-          {/* Feature overview */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-gold-400" />
-              功能概览
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeatureCard icon={<Users className="w-5 h-5" />} title="多小组管理" description="手动设置小组数量（1-20，如 128 人分成 4 组，每组 32 人），新增小组会自动延续选手编号。每个小组可独立开赛，也可一键全部开赛。" />
-              <FeatureCard icon={<Eye className="w-5 h-5" />} title="选手总览" description="比赛开始前可预览全部选手名单，自动检测重复姓名和空小组，并支持筛选/复制全 roster 方便快速核对。" />
-              <FeatureCard icon={<UserCog className="w-5 h-5" />} title="名单管理" description="支持逐个修改选手昵称，也可通过批量导入粘贴多名选手。批量设置面板可配置每组人数、轮次和赛制，然后统一应用到所有小组。Excel 导入还能自动识别姓名列或手动指定。" />
-              <FeatureCard icon={<Download className="w-5 h-5" />} title="Excel 批量导入" description="支持 .xlsx / .xls / .csv / .txt 导入。系统会优先识别姓名列，也可在导入前手动指定列。工作簿包含多个 Sheet 时，每个 Sheet 名会自动作为小组名导入。" />
-              <FeatureCard icon={<Swords className="w-5 h-5" />} title="双赛制支持" description="提供瑞士轮与单败淘汰两种配对方式：前者按同战绩配对，后者每轮淘汰败者直至决出冠军。两种赛制均支持 BO1~BO7 局数设置。" />
-              <FeatureCard icon={<ArrowLeftRight className="w-5 h-5" />} title="对阵编辑" description="单败淘汰当前轮支持整轮对阵编辑：点击选手金色高亮选中，再点击另一槽位即可交换两人，跨场比赛调整也支持。另提供随机分配与按录入顺序重排。" />
-              <FeatureCard icon={<Trophy className="w-5 h-5" />} title="实时排名" description="根据 BO1/BO3/BO5/BO7 自动计算胜率、对手胜率、局胜率等排名指标；单败淘汰则按淘汰轮次排序，被淘汰和弃赛选手分开展示。" />
-              <FeatureCard icon={<Settings className="w-5 h-5" />} title="灵活配置" description="先选配对方式（瑞士轮 / 单败淘汰），再选比赛局数（BO1 / BO3 / BO5 / BO7）。单败淘汰每轮可独立设置局数，如决赛使用 BO5/BO7 更公平。" />
-              <FeatureCard icon={<Download className="w-5 h-5" />} title="数据导出" description="支持将排行榜 / 对阵表导出为图片或 Excel 文件（Excel 另含总表类型，含排行榜 + 各轮对阵），可单独导出当前小组，也可全部导出。还可导出 JSON 文件备份完整赛事数据。" />
-              <FeatureCard icon={<Database className="w-5 h-5" />} title="双备份本地存储" description="比赛数据自动保存到浏览器 localStorage，采用主键 + 备份键双写机制：主键损坏时自动从备份键恢复。支持 JSON 导出/导入，实现跨设备迁移。" />
-              <FeatureCard icon={<FlaskConical className="w-5 h-5" />} title="测试模式" description="开启后可在排行榜顶部快速随机生成比赛结果，用于演示、调试或预览导出效果。随机生成多轮结果时显示实时进度条。" />
-              <FeatureCard icon={<GripVertical className="w-5 h-5" />} title="对阵拖拽改序" description="非编辑模式下，可直接拖动比赛卡片调整显示顺序，拖拽中有状态提示，释放后立即保存新顺序。" />
-              <FeatureCard icon={<History className="w-5 h-5" />} title="自动快照备份" description="每轮完赛时自动创建快照（保留最近 5 份），点击控制面板底部的“备份管理”即可查看、恢复或删除快照。恢复时会自动重算所有排名。" />
-              <FeatureCard icon={<Keyboard className="w-5 h-5" />} title="快捷操作" description="Ctrl + Z（Mac 为 Cmd + Z）撤回上一轮比赛结果；生成下一轮前会弹出配对预览；所有破坏性操作均使用统一确认弹窗。" />
-            </div>
-          </section>
-
-          {/* Usage guide */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6">使用说明</h2>
-
-            <div className="space-y-6">
-              <StepBlock number={1} title="创建比赛" steps={['设置比赛名称：点击顶部赛事名称即可编辑', '设置小组数量：左侧“小组管理”区域设置 1~20 个小组，新增小组自动延续选手编号', '配置小组参数：先选配对方式（瑞士轮 / 单败淘汰），再选比赛局数（BO1 / BO3 / BO5 / BO7）', '单败淘汰轮次会按人数自动计算，修改人数后轮次自动同步；瑞士轮可手动指定', '管理选手名单：可手动逐个编辑，也可通过“批量导入”粘贴名单，或从 Excel / CSV / TXT 文件导入', 'Excel 导入时会优先识别姓名列，必要时可手动指定某列；多个 Sheet 时每个 Sheet 会作为小组名自动分组', '点击“预览选手”整体核对所有小组名单（自动检测重名和空小组）', '点击“开始本组比赛”或“全部小组同时开赛”']} />
-              <StepBlock number={2} title="录入比赛结果" steps={['比赛开始后自动生成第一轮对阵表', '在中部对阵表中点击待进行的比赛卡片展开结果录入区', 'BO1：点击“左侧胜 (1-0)”“右侧胜 (0-1)”或“双负 (0-0)”', 'BO3/BO5/BO7：点击具体比分按钮录入，如“左侧 2-0”“右侧 1-2”，也支持“双负 (0-0)”', '录入错误时点击“重置”按钮可清除该场结果并重录', '当前轮所有比赛录完后，“生成下一轮”按钮自动解锁']} />
-              <StepBlock number={3} title="编辑对阵（单败淘汰）" steps={['单败淘汰当前轮上方会出现“编辑对阵”按钮', '点击进入整轮编辑模式，可编辑本轮全部待进行、非轮空对局', '点击任意选手槽位选中（金色高亮 + 脉动光点），再次点击同一槽位可取消选中', '选中一个槽位再点击另一槽位即可交换两人，也可跨场比赛交换', '工具栏提供“随机分配”和“按录入顺序”一键重排', '若某场双方为同一人，卡片会变红并提示“双方为同一人，请调整”', '调整完成后点击“保存对阵”生效，或点击“取消”放弃修改']} />
-              <StepBlock number={4} title="生成下一轮" steps={['当前轮所有比赛完成后，点击“生成下一轮对阵”', '瑞士轮按战绩分组、对折匹配、下移组跨组匹配完成完整配对（见下文瑞士轮规则）', '单败淘汰按上轮胜者顺序配对', '支持“全部小组开始下一轮”批量操作', '如需修改已录入的结果，可点击“撤回第 X 轮结果”回退上一轮（X 为当前轮次）']} />
-              <StepBlock number={5} title="使用测试模式" steps={['点击页面右上角紫色烧瓶图标开启/关闭测试模式', '开启后，中路对阵表顶部会出现随机生成按钮', '“随机生成当前轮结果”：随机录入本组本轮所有待进行比赛的胜负与比分', '“随机生成所有小组当前轮结果”：一键随机录入所有小组当前轮结果', '“随机生成所有小组比赛结果”：模拟整场比赛快速预览。生成时显示实时进度条与骰子动画', '适用于演示、调试排名算法、预览导出效果等场景', '注意：随机生成会覆盖真实数据，正式比赛中请勿开启']} />
-              <StepBlock number={6} title="拖拽调整对阵顺序" steps={['非编辑模式下，每张比赛卡片都可拖拽', '鼠标悬停在卡片上时，左上角会出现拖拽手柄提示', '按住并拖动到目标位置释放，被拖卡片变半透明，目标位置顶部高亮', '释放后新顺序会立即保存并持久化', '编辑对阵模式下拖拽自动禁用，避免与选手交换冲突']} />
-              <StepBlock number={7} title="快照备份与恢复" steps={['系统在每轮完赛时自动创建快照，保留最近 5 份，无需手动操作', '点击右侧控制面板底部“备份管理”打开快照管理面板', '面板中可查看所有快照标签和保存时间', '点击“立即创建快照”可手动保存当前状态', '点击“恢复”可回滚到该快照，恢复前会弹出确认', '点击“删除”可删除单条快照，需确认后执行']} />
-              <StepBlock number={8} title="快捷键与配对预览" steps={['Ctrl + Z（Mac 为 Cmd + Z）：撤回上一轮比赛结果', '当任意弹窗打开、输入框聚焦、或比赛无可撤回轮次时快捷键不生效', '点击“生成下一轮”前会弹出确认面板，展示本轮摘要与下一轮对阵预览', '所有破坏性操作都使用统一风格的自制确认弹窗，替代原生 confirm']} />
-              <StepBlock number={9} title="导出数据" steps={['导出图片：点击顶部工具栏“导出图片”，将排行榜或对阵表生成 PNG 图片，可选当前小组或所有小组', '导出 Excel：可选排行榜 / 对阵表 / 总表（含排行榜 + 各轮对阵），支持当前小组或所有小组', '导出比赛数据：点击左侧控制面板顶部赛事名称下方的“导出比赛数据”，下载 JSON 文件备份完整比赛数据', '导入比赛数据：同样位于赛事设置区域，选择 JSON 文件即可加载；比赛开始后导入被禁用，需先重置再导入']} />
-            </div>
-          </section>
-
-          {/* 赛制规则说明 */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6">赛制规则说明</h2>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gold-400 mb-2">瑞士轮配对规则</h3>
-                <div className="text-sm text-slate-300 space-y-3">
-                  <RuleItem num="1" title="首轮随机配对">第一轮按赛前抽签编号随机生成对阵。 </RuleItem>
-                  <RuleItem num="2" title="不重复对阵">任意两人不会在赛事中重复匹配第二次。 </RuleItem>
-                  <RuleItem num="3" title="战绩分组下移选择">按胜场相同进行分组，向下匹配时优先考虑已有向下标记、匹配次数最少和排名靠后选手。 </RuleItem>
-                  <RuleItem num="4" title="下移组与下一组1V1">下移组选手与下一战绩组匹配时，优先选择有向上标记、向上匹配次数少和排名靠前的选手。 </RuleItem>
-                  <RuleItem num="5" title="上下匹配标记补偿">向下匹配的选手会获得一次向上优先权，向上匹配的选手会获得一次向下优先权。 </RuleItem>
-                  <RuleItem num="6" title="轮空说明">最后一组若无法匹配，则余下选手直接轮空，轮空场次自动计入比分与排名。 </RuleItem>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-gold-400 mb-2">单败淘汰规则</h3>
-                <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                  <li>第一轮随机配对，后续轮次按上轮胜者顺序配对；</li>
-                  <li>每轮可独立设置赛制（BO1~BO7）；</li>
-                  <li>每场比赛败者直接淘汰；</li>
-                  <li>撤回上一轮时会自动恢复被淘汰选手状态。</li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          {/* Data storage rules */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><Shield className="w-5 h-5 text-gold-400" />数据存储说明</h2>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
-              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>采用浏览器 localStorage 持久化存储，关闭浏览器后数据保留；</li>
-                <li>每次保存同时写入主键 + 备份键，主键损坏时可自动从备份恢复；</li>
-                <li>每轮完赛后自动创建快照，最多保留 5 份；</li>
-                <li>重要赛事结束后建议导出 JSON 文件备份，避免浏览器数据丢失。</li>
-              </ul>
-            </div>
-          </section>
-
-          {/* FAQ */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6">常见问题</h2>
-            <div className="space-y-4">
-              <FAQItem question="如何修改已录入的比赛结果？" answer="点击“撤回第 X 轮结果”按钮（X 为当前轮次），可回退到上一轮状态；单败淘汰中撤回还会自动恢复被淘汰选手状态。" />
-              <FAQItem question="Excel 导入如何识别选手姓名？" answer="系统会优先匹配包含“姓名 / Name / Player”的列；如表头不明显，可在导入前手动指定某一列。多个 Sheet 时每个 Sheet 会作为小组名。" />
-              <FAQItem question="为什么比赛开始后不能再导入？" answer="为防止覆盖正在进行中的数据，比赛开始后导入功能会自动禁用；如需导入新数据，请先点击“重置比赛”清空当前赛事。" />
-              <FAQItem question="重置比赛会清除哪些数据？" answer="点击“重置比赛”后会清空当前所有比赛数据，包括选手、对阵、结果和排名。操作前请先导出需要保留的数据备份。" />
-              <FAQItem question="快照和 JSON 导出有什么区别？" answer="快照是浏览器内自动保存的回滚副本，适合赛中快速恢复；JSON 导出可跨设备迁移，更适合长期备份。" />
-            </div>
-          </section>
-
-          {/* disclaimer */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" />免责声明</h2>
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
-              <p className="text-sm text-slate-300 leading-relaxed">本系统配对与排名规则是基于特定赛制设计，不一定完全等同于所有官方规则。正式比赛前建议先通过测试模式模拟完整赛程。 </p>
-              <p className="text-sm text-slate-300 leading-relaxed">使用者应自行核对是否符合赛事要求，因使用本系统造成的任何后果由使用者自行承担。 </p>
-            </div>
-          </section>
-
-          {/* links */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><ExternalLink className="w-5 h-5 text-gold-400" />相关链接</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <a href="https://github.com/yyt43/match-statistic" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
-                <div className="text-slate-300"><Github className="w-8 h-8" /></div>
-                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">GitHub 项目地址</div><div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div></div>
-                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
-              </a>
-              <a href="https://space.bilibili.com/526320039" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
-                <div className="text-slate-300"><Youtube className="w-8 h-8" /></div>
-                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">开发者 B 站主页</div><div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div></div>
-                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
-              </a>
-            </div>
-          </section>
-
-          <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
-            <div>诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网</div>
-            <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-      <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-12">
-          <button
-            onClick={onClose}
-            aria-label="Close help page"
-            className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-3 mb-4">
-              <Trophy className="w-10 h-10 text-gold-400" />
-              <h1 className="text-3xl font-bold text-white">Poetic Tournament Results System</h1>
-            </div>
-            <p className="text-slate-400">Professional tournament management and results tracking tool</p>
-          </div>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-gold-400" />
-              Features
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeatureCard icon={<Users className="w-5 h-5" />} title="Multi-group management" description="Set the number of groups manually (1-20), and new groups automatically continue the player numbering. Each group can run independently or all groups can be started together with one click." />
-              <FeatureCard icon={<Eye className="w-5 h-5" />} title="Player overview" description="Preview all player lists before the tournament starts, detect duplicate names and empty groups automatically, and filter or copy the full roster for quick validation." />
-              <FeatureCard icon={<UserCog className="w-5 h-5" />} title="Roster management" description="Edit player names individually or paste multiple names through batch import. Configure each group count, round count, and format, then apply them across all groups at once." />
-              <FeatureCard icon={<Download className="w-5 h-5" />} title="Excel bulk import" description="Import players from .xlsx, .xls, .csv, or .txt files. The app detects the correct name column automatically or lets the user choose it manually before import." />
-              <FeatureCard icon={<Swords className="w-5 h-5" />} title="Dual format support" description="Support Swiss pairing and single-elimination formats. Both can use BO1 to BO7 match lengths." />
-              <FeatureCard icon={<ArrowLeftRight className="w-5 h-5" />} title="Match editing" description="For single-elimination rounds, edit the entire round as a batch and swap players by selecting two slots. Quick reassign options include randomize and entry-order assignment." />
-              <FeatureCard icon={<Trophy className="w-5 h-5" />} title="Live rankings" description="Automatically calculate win rate, opponent win rate, game win rate, and related metrics. Single-elimination rounds also show elimination order." />
-              <FeatureCard icon={<Settings className="w-5 h-5" />} title="Flexible configuration" description="Select pairing mode and match length before the tournament starts. Each single-elimination round can be configured independently." />
-              <FeatureCard icon={<Download className="w-5 h-5" />} title="Data export" description="Export rankings or match tables as PNG or Excel. You can export the current group or all groups, and also save a JSON tournament backup file." />
-              <FeatureCard icon={<Database className="w-5 h-5" />} title="Double backup storage" description="Tournament data is persisted in browser localStorage with a primary key and backup key. JSON export/import helps with cross-device migration." />
-              <FeatureCard icon={<FlaskConical className="w-5 h-5" />} title="Test mode" description="Randomly generate match results for demos or debugging. The system shows progress while generating multi-round outcomes." />
-              <FeatureCard icon={<GripVertical className="w-5 h-5" />} title="Drag-to-reorder" description="In normal match view, drag match cards to reorder the display order. The new order is immediately saved." />
-              <FeatureCard icon={<History className="w-5 h-5" />} title="Automatic snapshots" description="Every completed round creates a snapshot. Open the backup manager to restore or delete snapshots quickly." />
-              <FeatureCard icon={<Keyboard className="w-5 h-5" />} title="Quick actions" description="Use Ctrl/Cmd + Z to undo the last round, preview pairings before advancing, and rely on confirmation dialog boxes for destructive actions." />
-            </div>
-          </section>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6">Quick start</h2>
-            <div className="space-y-6">
-              <StepBlock number={1} title="Create the tournament" steps={['Set the tournament name and group count.', 'Choose the pairing mode and match length.', 'Import players or add them manually.', 'Start the tournament and enter results one round at a time.']} />
-              <StepBlock number={2} title="Record results" steps={['Select the match card to enter a result.', 'Use score buttons for BO3/BO5/BO7, or standard win/loss buttons for BO1.', 'Finish all matches in the current round before generating the next round.']} />
-              <StepBlock number={3} title="Use backup and reset" steps={['Open the backup manager to create or restore snapshots.', 'Reset the tournament after exporting a backup if you need a fresh start.', 'The app disables import after the tournament starts to protect active data.']} />
-            </div>
-          </section>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><Database className="w-5 h-5 text-gold-400" />Storage and backups</h2>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
-              <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
-                <li>The app stores tournament data in browser localStorage.</li>
-                <li>Every save writes both a primary key and a backup key.</li>
-                <li>Automatic snapshots are created after each completed round.</li>
-                <li>Export JSON files for recovery on another device or as a long-term backup.</li>
-              </ul>
-            </div>
-          </section>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6">FAQ</h2>
-            <div className="space-y-4">
-              <FAQItem question="How do I undo a round?" answer="Use the Undo option in the control panel or press Ctrl/Cmd + Z while the round is still active." />
-              <FAQItem question="Why is import disabled after the tournament starts?" answer="The app prevents accidental overwrites of active data. Reset the tournament first if you want to import a different dataset." />
-              <FAQItem question="What is a snapshot?" answer="A snapshot is an automatic backup of the current state. It is useful for quick rollback during the tournament." />
-              <FAQItem question="What is the difference between a snapshot and JSON export?" answer="Snapshots are stored in the browser and are convenient for quick restores. JSON export is portable and useful for storage or cross-device migration." />
-            </div>
-          </section>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" />Disclaimer</h2>
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
-              <p className="text-sm text-slate-300 leading-relaxed">This app is designed around a specific Swiss pairing and ranking model. It may not match every tournament rule set exactly.</p>
-              <p className="text-sm text-slate-300 leading-relaxed">Users are responsible for confirming the pairing and ranking logic matches their event requirements before using it in formal play.</p>
-            </div>
-          </section>
-
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2"><ExternalLink className="w-5 h-5 text-gold-400" />Links</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <a href="https://github.com/yyt43/match-statistic" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
-                <div className="text-slate-300"><Github className="w-8 h-8" /></div>
-                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">GitHub project</div><div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div></div>
-                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
-              </a>
-              <a href="https://space.bilibili.com/526320039" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors">
-                <div className="text-slate-300"><Youtube className="w-8 h-8" /></div>
-                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-white mb-0.5">Developer Bilibili</div><div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div></div>
-                <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
-              </a>
-            </div>
-          </section>
-
-          <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
-            <div>Poetic · Tournament Results System · local-only data storage</div>
-            <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
-          </div>
-        </div>
-      </div>
-    );
     <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-12">
-        {/* Close button */}
         <button
           onClick={onClose}
-          aria-label="Close help page"
+          aria-label={copy.close}
           className="fixed top-6 right-6 p-3 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Title */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-3 mb-4">
             <Trophy className="w-10 h-10 text-gold-400" />
-            <h1 className="text-3xl font-bold text-white">Poetic Tournament Results System</h1>
+            <h1 className="text-3xl font-bold text-white">{t.appName}</h1>
           </div>
-          <p className="text-slate-400">Professional tournament management and results tracking tool</p>
+          <p className="text-slate-400">{copy.subtitle}</p>
         </div>
 
-        {/* Feature overview */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-gold-400" />
-            Features
+            {copy.features}
           </h2>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FeatureCard
-              icon={<Users className="w-5 h-5" />}
-              title="Multi-group management"
-              description="Set the number of groups manually (1–20, such as 128 players split into 4 groups of 32), and new groups automatically continue the player numbering. Each group can run independently or all groups can be started together with one click."
-            />
-            <FeatureCard
-              icon={<Eye className="w-5 h-5" />}
-              title="Player overview"
-              description="Preview all player lists before the tournament starts, detect duplicate names and empty groups automatically, and filter or copy the full roster for quick validation."
-            />
-            <FeatureCard
-              icon={<UserCog className="w-5 h-5" />}
-              title="Roster management"
-              description="Edit player names individually or paste multiple names through batch import. Use the batch settings panel to configure each group's player count, round count, and format, then apply them across all groups at once. Excel import can also identify the name column automatically or let users choose it manually."
-            />
-            <FeatureCard
-              icon={<Download className="w-5 h-5" />}
-              title="Excel bulk import"
-              description="Import players from .xlsx, .xls, .csv, or .txt files. The app reads the correct name column automatically and creates group names from sheet names when needed. Users can also choose a specific column as the name source before importing."
-            />
-            <FeatureCard
-              icon={<Swords className="w-5 h-5" />}
-              title="双赛制支持"
-              description="提供瑞士轮与单败淘汰两种配对方式：前者按同战绩配对，后者每轮淘汰败者直至决出冠军。两种赛制均支持 BO1~BO7 局数设置。"
-            />
-            <FeatureCard
-              icon={<ArrowLeftRight className="w-5 h-5" />}
-              title="对阵编辑"
-              description="单败淘汰当前轮支持整轮对阵编辑：点击选手金色高亮选中（带脉动光点），再点击另一槽位即可交换两人，可跨场比赛调整。另提供「随机分配」与「按录入顺序」一键重排，保存后立即生效。"
-            />
-            <FeatureCard
-              icon={<Trophy className="w-5 h-5" />}
-              title="实时排名"
-              description="根据 BO1/BO3/BO5/BO7 赛制自动计算胜率、对手胜率、局胜率等排名指标，数值均精确到小数点后两位；单败淘汰另按淘汰轮次排名，被淘汰选手与弃赛选手区分显示。"
-            />
-            <FeatureCard
-              icon={<Settings className="w-5 h-5" />}
-              title="灵活配置"
-              description="先选配对方式（瑞士轮/单败淘汰），再选比赛局数（BO1/BO3/BO5/BO7）。单败淘汰每轮可独立设置不同局数（如决赛用 BO5/BO7 更公平）。"
-            />
-            <FeatureCard
-              icon={<Download className="w-5 h-5" />}
-              title="数据导出"
-              description="支持将排行榜 / 对阵表导出为图片或 Excel 文件（Excel 另含「总表」类型，含排行榜 + 各轮对阵），可单独导出当前小组，也可导出所有小组。还可导出 JSON 文件备份完整赛事数据。导出的图片左下角自动添加系统标题水印。"
-            />
-            <FeatureCard
-              icon={<Database className="w-5 h-5" />}
-              title="双备份本地存储"
-              description="比赛数据自动保存到浏览器本地存储，采用主键 + 备份键双写机制：主键损坏时自动从备份键恢复。支持导出/导入 JSON 文件实现备份与跨设备迁移；比赛开始后导入功能自动禁用，需先重置再导入。"
-            />
-            <FeatureCard
-              icon={<FlaskConical className="w-5 h-5" />}
-              title="测试模式"
-              description="开启后在左侧排行榜面板顶部提供随机生成比赛结果的快捷按钮，便于演示、调试排名算法或预览导出效果，无需逐场手动录入。随机生成多轮结果时显示实时进度条。"
-            />
-            <FeatureCard
-              icon={<GripVertical className="w-5 h-5" />}
-              title="对阵拖拽改序"
-              description="非编辑模式下，对阵列表中的比赛卡片可直接拖拽调整显示顺序。鼠标悬停时左上角出现拖拽手柄提示，拖拽中被拖卡片半透明、目标位置顶部高亮，释放后立即保存新顺序。"
-            />
-            <FeatureCard
-              icon={<History className="w-5 h-5" />}
-              title="自动快照备份"
-              description="每轮完赛时自动创建快照（保留最近 5 份），无需手动操作。点击控制面板底部的「备份管理」可查看所有快照、手动创建快照、恢复到任意快照或删除快照。恢复时自动重算所有排名数据。"
-            />
-            <FeatureCard
-              icon={<Keyboard className="w-5 h-5" />}
-              title="快捷操作"
-              description="Ctrl+Z（Mac 为 Cmd+Z）撤回上一轮比赛结果，无需点击按钮；生成下一轮前弹出配对预览面板，展示本轮双负/轮空/弃赛摘要及下一轮对阵预览；所有破坏性操作均使用统一确认弹窗，替代浏览器原生 confirm。"
-            />
+            {copy.featureItems.map(feature => (
+              <FeatureCard key={feature.title} {...feature} />
+            ))}
           </div>
         </section>
 
-        {/* Usage guide */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-white mb-6">How to use</h2>
-
+          <h2 className="text-xl font-semibold text-white mb-6">{copy.quickStart}</h2>
           <div className="space-y-6">
-            <StepBlock
-              number={1}
-              title="创建比赛"
-              steps={[
-                '设置比赛名称：点击顶部赛事名称即可编辑',
-                '设置小组数量：在左侧「小组管理」区域拖动滑块或直接输入数字（1~20），数字输入框可完全清空后重新输入，新增小组自动延续选手编号',
-                '配置小组参数：先选配对方式（瑞士轮 / 单败淘汰），再选比赛局数（BO1 / BO3 / BO5 / BO7）',
-                '单败淘汰的轮次会按人数自动计算，修改人数后轮次自动同步（如 32 人 = 5 轮，16 人 = 4 轮）；瑞士轮可手动指定',
-                '管理选手名单：支持手动逐个编辑，也可通过「批量导入」粘贴名单，或直接从 Excel / CSV / TXT 文件导入',
-                'Excel 导入时会自动优先识别含「姓名 / Name / Player」的列；如表头不明显，可在导入前手动指定某列作为选手名称列。若工作簿含多个 Sheet，则每个 Sheet 名会作为小组名并自动分组导入',
-                '点击「预览选手」按钮，整体核对所有小组的选手名称（自动检测重名/空小组）',
-                '点击「开始本组比赛」或「全部小组同时开赛」'
-              ]}
-            />
-
-            <StepBlock
-              number={2}
-              title="录入比赛结果"
-              steps={[
-                '比赛开始后自动生成第一轮对阵表',
-                '在中路对阵表中点击待进行的比赛卡片以展开结果录入区',
-                'BO1：点击「左侧胜 (1-0)」「右侧胜 (0-1)」或「双负 (0-0)」按钮',
-                'BO3/BO5/BO7：点击具体比分按钮录入（如「左侧 2-0」「右侧 1-2」），并支持「双负 (0-0)」',
-                '录入错误时点击「重置」按钮可清除该场比赛结果，重新录入',
-                '当前轮所有比赛录完后，「生成下一轮」按钮自动解锁'
-              ]}
-            />
-
-            <StepBlock
-              number={3}
-              title="编辑对阵（单败淘汰）"
-              steps={[
-                '单败淘汰的当前轮对阵表上方会显示「编辑对阵」按钮',
-                '点击进入整轮编辑模式，展示本轮所有可编辑（待进行且非轮空）的比赛',
-                '点击任意选手槽位将其选中（金色高亮 + 右上角脉动光点），再次点击同一槽位可取消选中',
-                '选中一个槽位后再点击另一槽位即可交换两人，可跨场比赛交换',
-                '工具栏提供「随机分配」（打乱全部选手后两两配对）与「按录入顺序」（选手1 vs 选手2，选手3 vs 选手4...）一键重排',
-                '若某场比赛双方为同一人，卡片会变红并提示「双方为同一人，请调整」',
-                '调整完成后点击「保存对阵」生效，或点击「取消」放弃修改'
-              ]}
-            />
-
-            <StepBlock
-              number={4}
-              title="生成下一轮"
-              steps={[
-                '当前轮所有比赛完成后，点击「生成下一轮对阵」',
-                '瑞士轮按战绩分组 → 对折匹配 → 下移组跨组匹配的完整规则配对（详见下方「瑞士轮配对规则」）',
-                '单败淘汰按上轮胜者顺序配对',
-                '支持「全部小组开始下一轮」批量操作',
-                '如需修改已录入的结果，可点击「撤回第 X 轮结果」按钮回到上一步（X 为当前轮次）。撤回会同时恢复被淘汰选手状态'
-              ]}
-            />
-
-            <StepBlock
-              number={5}
-              title="使用测试模式"
-              steps={[
-                '点击页面右上角的紫色烧瓶图标开启/关闭测试模式',
-                '开启后，中路对阵表顶部会出现以下随机生成按钮（按需显示，编辑对阵模式下隐藏）',
-                '「随机生成当前轮结果」：为本组本轮所有待进行的比赛随机录入胜负与比分',
-                '「随机生成所有小组当前轮结果」：当多个小组均在进行中时出现，一键为各小组当前轮随机录入结果',
-                '「随机生成所有小组比赛结果」：一键模拟完所有小组全部轮次，用于快速预览。生成过程中显示实时进度条（骰子图标旋转）',
-                '适用于演示、调试排名算法、预览导出图片/Excel 效果等场景',
-                '注意：随机生成会覆盖真实数据，正式比赛中请勿开启'
-              ]}
-            />
-
-            <StepBlock
-              number={6}
-              title="拖拽调整对阵顺序"
-              steps={[
-                '在非编辑模式下（即正常对阵列表显示时），每张比赛卡片均可拖拽',
-                '鼠标悬停在卡片上时，左上角会出现拖拽手柄图标作为提示',
-                '按住并拖动卡片到目标位置释放：被拖卡片显示半透明 + 金色边框，目标卡片顶部显示金色高亮条',
-                '释放后新顺序立即保存并持久化，刷新页面后仍然保留',
-                '编辑对阵模式下拖拽自动禁用，避免与选手交换操作冲突',
-                '注意：拖拽仅调整显示顺序，不影响比赛结果与配对逻辑'
-              ]}
-            />
-
-            <StepBlock
-              number={7}
-              title="快照备份与恢复"
-              steps={[
-                '系统在每轮完赛时自动创建快照，保留最近 5 份，无需手动操作',
-                '点击右侧控制面板底部的「备份管理」按钮打开快照管理面板',
-                '面板中显示所有快照的标签（如「小组01·第3轮完赛」）和保存时间',
-                '点击「立即创建快照」可手动保存当前状态',
-                '点击「恢复」可将数据回滚到该快照状态（恢复前会弹出确认，恢复后自动重算所有排名）',
-                '点击「删除」可删除单条快照（需确认）',
-                '快照存储在浏览器 localStorage 中，清除浏览器数据会同时清除快照'
-              ]}
-            />
-
-            <StepBlock
-              number={8}
-              title="快捷键与配对预览"
-              steps={[
-                'Ctrl+Z（Mac 为 Cmd+Z）：撤回上一轮比赛结果，页面底部显示橙色提示条',
-                '快捷键在以下情况下不生效：任意弹窗打开时、焦点在输入框/文本域中、比赛未开始或无可撤回轮次',
-                '点击「生成下一轮」按钮后会弹出确认面板，包含本轮摘要（双负/轮空/弃赛信息）和下一轮配对预览',
-                '配对预览展示下一轮的完整对阵，便于在确认前核对配对结果',
-                '所有破坏性操作（撤回/重置/随机生成）均使用统一风格的自制确认弹窗，替代浏览器原生 confirm'
-              ]}
-            />
-
-            <StepBlock
-              number={9}
-              title="导出数据"
-              steps={[
-                '导出图片：点击页面顶部工具栏的「导出图片」按钮，将排行榜或对阵表生成为 PNG 图片，可选择「当前小组」或「所有小组」。图片左下角自动添加系统标题水印',
-                '导出 Excel：点击页面顶部工具栏的「导出 Excel」按钮，可选「排行榜」「对阵表」或「总表（含排行榜 + 各轮对阵）」三种类型，同样支持「当前小组 / 所有小组」',
-                '导出比赛数据：点击左侧控制面板顶部赛事名称下方的「导出比赛数据」按钮，下载 JSON 文件备份完整赛事数据，用于跨设备迁移',
-                '导入比赛数据：同样位于左侧赛事设置区域，选择 JSON 文件即可加载；比赛开始后导入按钮自动禁用并显示提示，需先重置比赛再导入',
-                '导出限制：为避免排行榜出现选手「比赛场数不一致」的情况，排行榜与总表的导出受本轮完赛状态限制 —— 本小组本轮对局未全部结束时，无法导出本组排行榜/总表；导出「所有小组排行榜/总表」时，要求所有有进度的小组本轮均已完赛。对阵表导出不受此限制'
-              ]}
-            />
+            {copy.steps.map((step, index) => (
+              <StepBlock key={step.title} number={index + 1} title={step.title} steps={step.items} />
+            ))}
           </div>
         </section>
 
-        {/* 赛制规则说明 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-white mb-6">赛制规则说明</h2>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-white mb-6">{copy.rules}</h2>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-5">
             <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">瑞士轮配对规则（10 条完整规则）</h3>
+              <h3 className="text-sm font-semibold text-gold-400 mb-3">{copy.swissRules}</h3>
               <div className="text-sm text-slate-300 space-y-3">
-                <p className="text-slate-400 text-xs leading-relaxed">系统严格遵循标准瑞士轮配对规则，按以下顺序执行：</p>
-                <RuleItem num="1" title="首轮随机配对">
-                  选手根据赛前抽签获取编号，第一轮随机生成对阵。这是后续战绩分组的起点。
-                </RuleItem>
-                <RuleItem num="2" title="不重复对阵">
-                  任意两人不会在整个赛事中重复匹配第二次。所有配对步骤均会检查历史对阵记录。
-                </RuleItem>
-                <RuleItem num="3" title="战绩分组下移选择">
-                  如相同战绩人数为奇数，按以下优先级选择进入下移组的人：
-                  <span className="block mt-1 pl-3 text-slate-400">a. 优先有向下标记的玩家 → b. 向下匹配次数最少的玩家 → c. 排名最靠后的玩家</span>
-                </RuleItem>
-                <RuleItem num="4" title="下移组与下一组1V1">
-                  下移组选手与下一战绩组匹配时，选择向上匹配选手的优先级：
-                  <span className="block mt-1 pl-3 text-slate-400">a. 优先有向上标记的玩家 → b. 向上匹配次数最少的玩家 → c. 排名最靠前的玩家</span>
-                </RuleItem>
-                <RuleItem num="5" title="上下匹配标记补偿">
-                  向下匹配的选手获得一次优先向上匹配权利（使用后清零）；向上匹配的选手获得一次优先向下匹配权利（使用后清零）。防止同一选手反复被跨组调配。
-                </RuleItem>
-                <RuleItem num="6" title="二次标记兜底">
-                  如战绩组内所有人都已用过上下匹配标记，需再次跨组时，赋予该组排名第一或最末的人第二次匹配次数。
-                </RuleItem>
-                <RuleItem num="7" title="最后轮空">
-                  向下递归匹配尽后，最后一组下移组中无法匹配到的玩家直接轮空。
-                </RuleItem>
-                <RuleItem num="8" title="轮空计分">
-                  轮空选手该轮得分为 2-0（BO1=1-0，BO3=2-0，BO5=3-0，BO7=4-0），该场次有效并计入局胜率、对手胜率等所有小分统计。每次轮空分别视为一个"0 胜 1 场（BO3=0 胜局/2 总局）"的虚拟对手，会轻微拉低轮空者的对手胜率。
-                  <span className="block mt-1 pl-3 text-slate-400">与赛前弃赛的区别：轮空计入对手胜率网络，赛前弃赛<strong className="text-amber-300">不计入</strong>对手胜率网络。</span>
-                </RuleItem>
-                <RuleItem num="9" title="组内匹配两级策略">
-                  战绩组组内匹配优先执行对折匹配（前半 vs 后半一一配对）；对折失败则进行组内穷举（回溯法寻找无重复对阵方案）；穷举仍失败则进入下移组。
-                </RuleItem>
-                <RuleItem num="10" title="下移组有序处理">
-                  下移组进入下一战绩组时：先在 downPool 内部互相匹配 → 剩余的与下一组 1V1 匹配（按规则4选对手）→ 仍无法匹配的进入再下一组。所有战绩组处理完毕后，最终残余的下移组再次优先内部互相匹配，仍无法匹配的才轮空（规则7）。下移组按排名靠前先匹配，下一组的组内匹配需等下移组全部处理完才开始。
-                </RuleItem>
+                {copy.swissRuleItems.map((rule, index) => (
+                  <RuleItem key={rule.title} num={String(index + 1)} title={rule.title}>
+                    {rule.text}
+                  </RuleItem>
+                ))}
               </div>
             </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">瑞士轮轮空说明</h3>
+              <h3 className="text-sm font-semibold text-gold-400 mb-2">{copy.eliminationRules}</h3>
               <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>奇数人数：必然出现 1 个轮空（数学必然）</li>
-                <li>偶数人数：理论上 0 轮空，但赛程后半段可能出现偶数个轮空（2、4 个）。原因是"不重复对阵 + 战绩严格分层"两个硬约束冲突时，少数选手找不到合法对手。这是规则设计的正常行为，轮空人数始终为偶数</li>
-                <li>轮空场次有效：比分按赛制自动填充（BO1=1-0, BO3=2-0...），计入局胜率与对手胜率（轮空对手视为"0 胜 / 1 场"的虚拟对手，按聚合公式计入）</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">单败淘汰规则</h3>
-              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>第一轮随机配对，后续轮次按上轮胜者顺序配对</li>
-                <li>支持手动编辑对阵：进入编辑模式后点选两个选手即可交换；另提供「随机分配」与「按录入顺序」一键重排</li>
-                <li>每场比赛败者直接被淘汰（自动标记为「淘汰」，与手动弃赛不同）</li>
-                <li>奇数人数时最后一人轮空，奇数胜者数时同样轮空</li>
-                <li>总轮次自动计算：⌈log₂(人数)⌉，如 32 人 = 5 轮；调整人数后轮次自动同步</li>
-                <li>每轮可独立设置赛制（BO1~BO7），决赛用 BO5/BO7 更公平</li>
-                <li>排行榜显示头衔（冠军/亚军/四强/八强等）、战绩与淘汰轮次</li>
-                <li>排名依据：未被淘汰轮次 → 胜场数 → 败场数 → 姓名</li>
-                <li>撤回上一轮时自动恢复被淘汰选手状态（eliminated 重置为 false）</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">排名规则</h3>
-              <div className="space-y-2">
-                <div>
-                  <span className="text-slate-400 text-xs">BO1 赛制：</span>
-                  <p className="text-sm text-slate-300">胜场数 → 对手胜率（SOS） → 对手对手胜率（SOSOS） → 积分</p>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-xs">BO3 / BO5 / BO7 赛制：</span>
-                  <p className="text-sm text-slate-300">胜场数 → 对手胜率 → 本人局胜率 → 对手局胜率 → 积分</p>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-xs">单败淘汰：</span>
-                  <p className="text-sm text-slate-300">未被淘汰轮次 → 胜场数 → 败场数 → 姓名</p>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-xs">加赛规则：</span>
-                  <p className="text-sm text-slate-300">
-                    比赛结束后，若多名选手的所有破分指标（胜场数 → 对手胜率 → 局胜率 → 对手局胜率 等）<strong className="text-amber-300">完全相同</strong>，则在排行榜中显示「需加赛」徽章。在控制面板点击「生成加赛」按钮，系统按同分组分别抽签，允许与常规赛对手再次交手。两人直接决胜；三人选择三进一或三进二，抽签等候者不记轮空胜；四人先两两对阵，再点击「生成下一阶段加赛」决出第1—4名。改判第一阶段胜者会清除该组后续加赛，需重新生成。<strong className="text-emerald-300">加赛结果只用于区分名次，不计入对手胜率、对手的对手胜率、本人局胜率、对手局胜率等任何小分指标</strong>，加赛胜场以独立的「加赛N胜」徽章展示。
-                  </p>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-xs">对手胜率 / 对手局胜率 计算方式（聚合公式）：</span>
-                  <p className="text-sm text-slate-300">
-                    对手胜率 = 所有对手的<strong>胜场和 / 总场次和</strong>；对手局胜率 = 所有对手的<strong>胜局和 / 总局和</strong>；对手对手胜率同理摊平计算。
-                    <span className="block mt-0.5 text-slate-400">
-                      优势：赛后弃赛选手因场次少会被自动降权，后续未打轮次不会进入分子分母；举例：对手一个 5-0、一个 0-1（赛后弃赛，个人战绩冻结），则对手胜率 = (5+0)/(5+1)=5/6，而非被 0% 人均公式过度拉低。
-                    </span>
-                    <span className="block mt-0.5 text-slate-400">
-                      赛前弃赛场次<strong className="text-amber-300">整体从该网络剔除</strong>：既不把对方加入对手集合，也在"有效战绩"中扣除该场胜/负；同时赛前弃赛败方（弃赛者本人）个人不记 losses，并<strong className="text-amber-300">自动进入退赛状态（从此不再安排后续对阵）</strong>——例：1-1 选手第 3 轮赛前弃赛，个人胜率仍为 1/(1+1)=0.5，计入对手胜率时仍按 1 胜 / 2 场计算。
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-xs">战绩分组键（瑞士轮第2轮起配对用）：</span>
-                  <p className="text-sm text-slate-300">仅需<strong className="text-white">胜场相同</strong>即归为同一战绩组进行组内配对（不再要求所有排名指标完全相同）；组内排序仍按完整排名链（胜率 → 对手胜率 → 局胜率 → ...）</p>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">特殊情况</h3>
-              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>双负（平局）：BO1 与多局赛制均支持，双方均不计胜场，仅用于极端特殊情况。单败淘汰中出现双负时双方均会被淘汰出局</li>
-                <li>
-                  <strong className="text-white">赛前弃赛（针对某场对阵）</strong>：对阵卡片展开后选择「赛前弃·右弃权·左胜」或「赛前弃·左弃权·右胜」。胜方计入个人胜场（个人胜率有效，如 4-1 含 1 场赛前弃赛胜 → 个人胜率 = 80%）；<strong className="text-amber-300">弃赛者本人自动进入退赛状态（等同于赛后弃赛，后续不再安排任何对阵）</strong>。
-                  <span className="block pl-4 text-slate-400">
-                    与轮空/赛后弃赛的关键区别：赛前弃赛场次<strong className="text-amber-300">不计入</strong>对手胜率、对手的对手胜率、对手局胜率网络（既不把对方加入对手集合，也在计算"有效战绩"时扣掉该场胜/负）；且弃赛方不记个人败场。
-                    <br />· 胜者视角例：某选手 4-1 含 1 场赛前弃赛胜 → 其对手计算对手胜率时，该选手按"3胜/4场"的有效战绩贡献。
-                    <br />· 弃赛者视角例：某选手已 1-1，第 3 轮赛前弃赛负 → 个人<strong>不记败场</strong>，个人胜率仍为 1/(1+1)=0.5；计入对手胜率时仍按 1 胜 / 2 场计算；后续轮次不再被安排对阵。
-                  </span>
-                </li>
-                <li>
-                  <strong className="text-white">赛后弃赛（针对选手个人）</strong>：在右侧控制面板「弃赛管理」区域，点击选手旁的「赛后弃赛」按钮手动标记退赛。<strong className="text-amber-300">不产生新的胜负归属给他人</strong>（与赛前弃赛不同——赛前弃赛会给对方一个胜场）；后续轮次不再参与配对；已完赛场次全部保留，冻结在弃赛时刻的个人战绩中，对手胜率仍按聚合公式计算（胜场和/总场次和），弃赛选手因场次少自动降权。
-                </li>
+                {copy.eliminationRuleItems.map(item => <li key={item}>{item}</li>)}
               </ul>
             </div>
           </div>
         </section>
 
-        {/* 数据存储说明 */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
             <Shield className="w-5 h-5 text-gold-400" />
-            数据存储说明
+            {copy.storage}
           </h2>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">存储机制</h3>
-              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>采用浏览器 localStorage 持久化存储，关闭浏览器/标签页后数据保留</li>
-                <li><strong className="text-white">双 key 备份</strong>：每次保存同时写入主键（swiss_tournament_data）和备份键（swiss_tournament_data_backup），主键损坏时自动从备份键恢复</li>
-                <li>每次保存写入时间戳，便于追踪数据保存时机</li>
-                <li><strong className="text-white">自动快照</strong>：每轮完赛时自动创建快照（保留最近 5 份），可在控制面板的「备份管理」中恢复或删除</li>
-                <li>容量预警：数据接近 4MB 时顶部横幅提示「建议导出备份」</li>
-                <li>旧数据自动迁移：兼容 Envelope v2、原始 v1、以及最老的 LegacyTournament 三种格式，加载时自动补全新字段</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">数据保留场景</h3>
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-emerald-400 text-xs mt-0.5">✓ 保留</span>
-                  <p className="text-sm text-slate-300">关闭标签页、关闭浏览器、重启电脑、浏览器升级</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-amber-400 text-xs mt-0.5">⚠ 不共享</span>
-                  <p className="text-sm text-slate-300">不同浏览器（Chrome/Edge/Firefox）、不同用户配置、隐身模式、localhost 与 127.0.0.1、不同端口（5173 vs 5174）</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-rose-400 text-xs mt-0.5">✗ 丢失</span>
-                  <p className="text-sm text-slate-300">手动清除浏览器数据、系统重装、更换电脑、硬盘故障（除非已导出 JSON 备份）</p>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-gold-400 mb-2">数据安全建议</h3>
-              <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                <li>每场重要比赛结束后使用「导出比赛数据」保存 JSON 文件到本地/U盘/云盘</li>
-                <li>赛中每隔几轮导出一次增量备份（JSON 文件很小，几 KB~几百 KB）</li>
-                <li>关闭浏览器前若赛事仍在进行中，至少导出一次 JSON</li>
-                <li>双 key 备份仅能缓解代码层面的数据损坏，无法防止浏览器/系统级风险</li>
-              </ul>
-            </div>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+            <ul className="text-sm text-slate-300 space-y-2 list-disc list-inside">
+              {copy.storageItems.map(item => <li key={item}>{item}</li>)}
+            </ul>
           </div>
         </section>
 
-        {/* 常见问题 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-white mb-6">常见问题</h2>
-
+          <h2 className="text-xl font-semibold text-white mb-6">{copy.faq}</h2>
           <div className="space-y-4">
-            <FAQItem
-              question="如何修改已录入的比赛结果？"
-              answer="点击「撤回第 X 轮结果」按钮（X 为当前轮次）可回退到上一轮状态：当前轮所有比赛结果、对阵与积分变动会被一并清除，需要重新「生成下一轮对阵」并录入。单败淘汰中撤回会自动恢复被淘汰选手状态。该操作不可撤销。"
-            />
-            <FAQItem
-              question="如何一次性设置多个小组？"
-              answer="在左侧「小组管理」区域使用「小组数量」滑块或数字输入框，可直接设置 1~20 个小组。增加小组时新小组自动沿用首组配置（人数/轮次/赛制）并延续选手编号；减少小组时仅删除未开始比赛的 setup 状态小组，已开始比赛的小组不会被删除。"
-            />
-            <FAQItem
-              question="「预览选手」按钮有什么用？"
-              answer="点击页面顶部工具栏（与「导出图片」「导出 Excel」同行）的「预览选手」按钮可打开整体预览弹窗，集中展示所有小组的全部选手名单。预览支持搜索过滤、一键复制全部名单（用于粘贴到外部文档），并会自动高亮重名选手、提示空小组，便于在开赛前核对录入是否正确。"
-            />
-            <FAQItem
-              question="Excel 导入如何识别选手姓名？"
-              answer="系统会先扫描每个 Sheet 的表头，优先匹配包含「姓名 / Name / Player」等关键词的列；如果表头不明显，或你想只导入某一列（例如姓名列而不是分数列），可以在导入前手动选择对应表头。多 Sheet 工作簿时，每个 Sheet 名会自动作为小组名，内容会归到对应小组中。为了避免误导入，系统会忽略空白、重复项、表头字段和明显的备注/数字列。"
-            />
-            <FAQItem
-              question="如何继续之前的比赛？"
-              answer="比赛数据会自动保存到浏览器本地（双 key 备份）。如需在其他设备继续，请先导出 JSON 文件，再在新设备上导入。注意：不同浏览器、不同端口、隐身模式之间数据不共享。"
-            />
-            <FAQItem
-              question="如何处理选手弃赛？单败淘汰中被淘汰和手动弃赛有什么区别？"
-              answer="分两种入口，两者<strong>都等同于退赛</strong>（后续不再安排对阵），但触发方式与胜负归属不同：① 赛前弃赛（针对某场具体对阵）：对阵卡片展开后选择「赛前弃·右弃权·左胜」或「赛前弃·左弃权·右胜」。胜方记个人胜场，弃赛方不记个人败场，该场整体不计入对手胜率网络，弃赛者本人自动进入退赛状态。② 赛后弃赛（针对选手个人）：在右侧控制面板的「弃赛管理」区域，点击选手旁的「赛后弃赛」按钮手动标记。不产生新的胜负归属给他人，仅标记选手从下一轮起退出，已完赛场次按真实结果正常计入对手胜率网络；如需恢复，可在「已退赛」列表中点击「恢复」按钮。单败淘汰中比赛败者会被自动标记为「淘汰」，与手动弃赛是两种不同状态：淘汰选手在排行榜显示灰色「淘汰」标签，仍保留在排行榜中；弃赛选手显示红色「弃赛」标签并加删除线，排在最后。"
-            />
-            <FAQItem
-              question="为什么无法生成下一轮对阵？"
-              answer="请确保当前轮的所有比赛结果都已录入完成。系统会在所有比赛完成后自动解锁「生成下一轮」按钮。"
-            />
-            <FAQItem
-              question="为什么导出图片 / Excel 时提示「本轮未完赛，无法导出」？"
-              answer="为保证排行榜数据一致（避免同一组选手比赛场数不同），排行榜与总表的导出需本轮全部完赛：单小组模式下要求本组本轮无 pending 对局；「全部小组」模式下要求所有有进度的小组本轮均已完赛。弹窗内会显示琥珀色提示横幅并禁用下载按钮，待本轮完赛后自动恢复。如急需导出，可改导出「对阵表」（不受此限制）。"
-            />
-            <FAQItem
-              question="单败淘汰如何手动调整对阵？"
-              answer="单败淘汰当前轮对阵表上方有「编辑对阵」按钮，点击进入整轮编辑模式。点击任意选手选中（金色高亮 + 右上角脉动光点），再点击另一选手即可交换两人位置，可跨场比赛交换。工具栏另提供「随机分配」（打乱后两两配对）与「按录入顺序」（选手1 vs 选手2，选手3 vs 选手4...）一键重排。若某场双方为同一人，卡片会变红提示。调整完点击「保存对阵」生效。"
-            />
-            <FAQItem
-              question="测试模式的随机数据会覆盖真实比赛吗？"
-              answer="会。测试模式的「随机生成」按钮会直接写入比赛结果并覆盖原有数据。虽然可通过「撤回第 X 轮结果」逐轮回退，但多轮随机生成后逐个撤回较繁琐，建议仅在演示或调试时使用，正式比赛请勿开启。如需保留真实数据，可先导出 JSON 备份。随机生成所有小组全部轮次时，按钮会显示进度条与骰子旋转动画，避免重复点击导致卡顿。"
-            />
-            <FAQItem
-              question="重置比赛会清除哪些数据？"
-              answer="点击左侧控制面板底部的「重置比赛」按钮并确认后，会清空当前所有比赛数据（选手、对阵、结果、排名），并生成一个全新的默认赛事。操作前请确保已通过「导出比赛数据」备份所需内容。"
-            />
-            <FAQItem
-              question="为什么导入比赛数据按钮用不了？"
-              answer="比赛开始后（任一小组处于进行中或已完成状态），导入功能会自动禁用，按钮下方会显示琥珀色提示「比赛已开始，导入功能已禁用，请先重置比赛数据」。这是为了防止误导入覆盖正在进行的比赛数据。如需导入新的数据，请先点击「重置比赛」清空当前数据后再导入。"
-            />
-            <FAQItem
-              question="为什么偶数人也会出现轮空？"
-              answer="瑞士轮中，当赛程进入后半段（R4、R5、R6），选手交手历史增多，可能出现「不重复对阵」与「战绩严格分层」两个硬约束冲突的情况——某些选手找不到合法对手。此时按规则7，下移组剩余者直接轮空（最终残余的下移组会先优先内部互相匹配，仍无法匹配的才轮空）。轮空人数始终为偶数（0、2、4 个），且轮空场次按赛制自动填充比分（BO1=1-0, BO3=2-0...），计入局胜率与对手胜率（轮空对手视为 0 胜 / 1 场的虚拟对手，赛后弃赛选手的已完赛场次一样按聚合公式胜场和/总场次和计入）；赛前弃赛场次则<strong>不计入</strong>这一网络（胜方虽有个人胜场，但该场不入对手集合与有效战绩），两者泾渭分明。这是规则设计的正常行为，不是 bug。"
-            />
-            <FAQItem
-              question="浏览器数据会被意外清除吗？"
-              answer="localStorage 数据在正常使用下不会丢失，但以下场景会清除：手动「清除浏览数据」、系统重装、更换电脑、浏览器配置目录损坏、企业策略配置为关闭即清空。系统采用双 key 备份机制（主键 + 备份键）防止代码层面的数据损坏，但无法防止上述浏览器/系统级风险。强烈建议每场重要比赛后导出 JSON 文件备份。"
-            />
-            <FAQItem
-              question="导出的图片有水印吗？"
-              answer="有。导出的排行榜和对阵表图片左下角自动添加「诗意 · 比赛战绩统计系统」水印，与图例同行，不影响图片主体内容。水印样式为半透明灰色文字 + 金色装饰圆点，与网站主题色呼应。"
-            />
-            <FAQItem
-              question="如何拖拽调整对阵卡片的顺序？"
-              answer="在非编辑模式下（即正常显示对阵列表时），每张比赛卡片都可以直接拖拽。鼠标悬停在卡片上时左上角会出现拖拽手柄图标提示。按住卡片拖到目标位置释放即可：被拖卡片会半透明显示，目标位置顶部出现金色高亮条。释放后新顺序立即保存并持久化。编辑对阵模式下拖拽自动禁用。拖拽仅调整显示顺序，不影响比赛结果与配对逻辑。"
-            />
-            <FAQItem
-              question="快照备份是什么？和 JSON 导出有什么区别？"
-              answer="快照是系统在每轮完赛时自动保存的比赛数据副本，保留最近 5 份，存储在浏览器 localStorage 中。与 JSON 文件导出的区别：① 快照是自动的，无需手动操作；② 快照在浏览器内，恢复只需一键；③ JSON 文件需要手动导出/导入，可跨设备迁移。建议两者结合使用：快照用于赛中快速回滚，JSON 导出用于跨设备迁移和长期备份。"
-            />
-            <FAQItem
-              question="恢复快照后排名数据会正确吗？"
-              answer="会。快照为节省存储空间将胜率字段置零，恢复时系统会自动为每个小组重新计算所有胜率指标（胜率、对手胜率、局胜率等）和排名，确保恢复后的数据与快照时的状态完全一致。"
-            />
-            <FAQItem
-              question="Ctrl+Z 撤回快捷键什么时候可用？"
-              answer="当比赛进行中且当前轮有可撤回的轮次时，按 Ctrl+Z（Mac 为 Cmd+Z）可撤回上一轮。以下情况快捷键不生效：① 任意弹窗打开时（导出/确认/帮助/预览）；② 焦点在输入框或文本域中（此时 Ctrl+Z 为浏览器原生撤销文本）；③ 比赛未开始或当前无可撤回轮次。撤回成功后页面底部显示橙色提示条。"
-            />
+            {copy.faqItems.map(item => <FAQItem key={item.question} {...item} />)}
           </div>
         </section>
 
-        {/* 免责声明 */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
-            免责声明
+            {copy.disclaimer}
           </h2>
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6 space-y-3">
-            <p className="text-sm text-slate-300 leading-relaxed">
-              本系统基于特定的瑞士轮配对算法与排名规则设计，<strong className="text-amber-400">并不一定适用于所有比赛规则与赛制</strong>。系统中的配对逻辑（战绩分层、对折/穷举匹配、上下移组等）、排名指标计算方式（胜率、对手胜率、局胜率等均采用聚合公式）、轮空与弃赛处理等均为本系统的特定实现，可能与某些赛事的官方规则存在差异。
-            </p>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              使用者应根据自身赛事的实际规则自行核对系统行为是否符合预期。在正式比赛中使用前，建议先通过测试模式模拟完整赛程以验证配对与排名结果。<strong className="text-rose-400">因使用本系统导致的任何争议、损失或不利后果，由使用者自行承担，开发者不承担任何责任。</strong>
-            </p>
+            {copy.disclaimerItems.map(item => (
+              <p key={item} className="text-sm text-slate-300 leading-relaxed">{item}</p>
+            ))}
           </div>
         </section>
 
-        {/* 相关链接 */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
             <ExternalLink className="w-5 h-5 text-gold-400" />
-            相关链接
+            {copy.links}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <a
               href="https://github.com/yyt43/match-statistic"
               target="_blank"
               rel="noopener noreferrer"
-              role="link"
-              aria-label="前往 GitHub 项目地址（新窗口打开）"
               className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
             >
-              <div className="text-slate-300 group-hover:text-gold-400 transition-colors">
-                <Github className="w-8 h-8" />
-              </div>
+              <div className="text-slate-300 group-hover:text-gold-400 transition-colors"><Github className="w-8 h-8" /></div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white mb-0.5">GitHub 项目地址</div>
+                <div className="text-sm font-semibold text-white mb-0.5">{copy.github}</div>
                 <div className="text-xs text-slate-400 truncate">github.com/yyt43/match-statistic</div>
               </div>
               <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-gold-400 transition-colors shrink-0" />
@@ -803,46 +369,37 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               href="https://space.bilibili.com/526320039"
               target="_blank"
               rel="noopener noreferrer"
-              role="link"
-              aria-label="前往开发者 B 站主页（新窗口打开）"
               className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 hover:bg-slate-800/80 transition-colors group"
             >
-              <div className="text-slate-300 group-hover:text-gold-400 transition-colors">
-                <Youtube className="w-8 h-8" />
-              </div>
+              <div className="text-slate-300 group-hover:text-gold-400 transition-colors"><Youtube className="w-8 h-8" /></div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white mb-0.5">开发者 B 站主页</div>
+                <div className="text-sm font-semibold text-white mb-0.5">{copy.bilibili}</div>
                 <div className="text-xs text-slate-400 truncate">space.bilibili.com/526320039</div>
               </div>
               <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-gold-400 transition-colors shrink-0" />
             </a>
             <div className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 cursor-default">
-              <div className="text-slate-300">
-                <MessageCircle className="w-8 h-8" />
-              </div>
+              <div className="text-slate-300"><MessageCircle className="w-8 h-8" /></div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white mb-0.5">开发者 QQ</div>
+                <div className="text-sm font-semibold text-white mb-0.5">{copy.qq}</div>
                 <div className="text-xs text-slate-400 truncate">2845850691</div>
               </div>
-              <span className="text-[10px] text-slate-500 shrink-0">加好友备注来意</span>
+              <span className="text-[10px] text-slate-500 shrink-0">{copy.qqHint}</span>
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-            如有 Bug 反馈、功能建议或规则讨论，欢迎通过 GitHub Issues、B 站私信或 QQ 联系开发者（ShiyiPai）。
-          </p>
+          <p className="text-xs text-slate-500 mt-3 leading-relaxed">{copy.contact}</p>
         </section>
 
-        {/* 底部 */}
         <div className="text-center text-slate-500 text-sm pt-6 border-t border-slate-700/50 space-y-1">
-          <div>诗意 · 比赛战绩统计系统 · 本地数据存储 · 无需联网</div>
-          <div className="text-xs text-slate-600">© 2026 ShiyiPai. All rights reserved.</div>
+          <div>{copy.footer}</div>
+          <div className="text-xs text-slate-600">{t.footerCopyright}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function FeatureCard({ icon, title, description }: HelpFeature) {
   return (
     <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-gold-500/30 transition-colors">
       <div className="flex items-start gap-3">
@@ -866,8 +423,8 @@ function StepBlock({ number, title, steps }: { number: number; title: string; st
         <h3 className="text-base font-semibold text-white">{title}</h3>
       </div>
       <ul className="space-y-1.5 pl-10">
-        {steps.map((step, idx) => (
-          <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
+        {steps.map(step => (
+          <li key={step} className="text-sm text-slate-300 flex items-start gap-2">
             <span className="text-slate-500">•</span>
             <span>{step}</span>
           </li>
@@ -877,21 +434,21 @@ function StepBlock({ number, title, steps }: { number: number; title: string; st
   );
 }
 
-function RuleItem({ num, title, children }: { num: string; title: string; children: React.ReactNode }) {
+function RuleItem({ num, title, children }: { num: string; title: string; children: ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gold-500/20 text-gold-400 flex items-center justify-center text-xs font-bold mt-0.5">
         {num}
       </div>
       <div className="flex-1">
-        <span className="text-white font-medium">{title}：</span>
+        <span className="text-white font-medium">{title}: </span>
         <span className="text-slate-300">{children}</span>
       </div>
     </div>
   );
 }
 
-function FAQItem({ question, answer }: { question: string; answer: string }) {
+function FAQItem({ question, answer }: HelpFaq) {
   return (
     <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-4">
       <h4 className="text-sm font-medium text-white mb-1">{question}</h4>

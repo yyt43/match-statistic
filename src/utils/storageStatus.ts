@@ -5,14 +5,27 @@
 
 export type StorageStatus = 'ok' | 'quota_exceeded' | 'error';
 
-type Listener = (status: StorageStatus, message: string) => void;
+export type StorageNoticeKey =
+  | 'storageQuotaExceeded'
+  | 'storageSaveFailed'
+  | 'storageCritical'
+  | 'storageWarning'
+  | 'storageUnexpected'
+  | 'storageRestored';
+
+export interface StorageNotice {
+  key: StorageNoticeKey;
+  params?: Record<string, string | number>;
+}
+
+type Listener = (status: StorageStatus, notice: StorageNotice | null) => void;
 
 const listeners = new Set<Listener>();
 let currentStatus: StorageStatus = 'ok';
-let currentMessage = '';
+let currentNotice: StorageNotice | null = null;
 
-export function getStorageStatus(): { status: StorageStatus; message: string } {
-  return { status: currentStatus, message: currentMessage };
+export function getStorageStatus(): { status: StorageStatus; notice: StorageNotice | null } {
+  return { status: currentStatus, notice: currentNotice };
 }
 
 export function subscribeStorageStatus(listener: Listener): () => void {
@@ -22,10 +35,10 @@ export function subscribeStorageStatus(listener: Listener): () => void {
   };
 }
 
-export function notifyStorageStatus(status: StorageStatus, message: string): void {
+export function notifyStorageStatus(status: StorageStatus, notice: StorageNotice | null): void {
   currentStatus = status;
-  currentMessage = message;
-  listeners.forEach(l => l(status, message));
+  currentNotice = notice;
+  listeners.forEach(l => l(status, notice));
 }
 
 /**

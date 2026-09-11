@@ -193,10 +193,12 @@ export function saveCompetition(competition: TournamentCompetition): void {
       localStorage.setItem(STORAGE_KEY, serialized);
     } catch (setItemErr) {
       const isQuota = setItemErr instanceof DOMException && (setItemErr.name === 'QuotaExceededError' || setItemErr.code === 22);
-      const msg = isQuota
-        ? '本地存储已满，数据未能保存。请先「导出比赛数据」备份，再清理或刷新页面'
-        : `数据保存失败：${setItemErr instanceof Error ? setItemErr.message : String(setItemErr)}`;
-      notifyStorageStatus(isQuota ? 'quota_exceeded' : 'error', msg);
+      notifyStorageStatus(
+        isQuota ? 'quota_exceeded' : 'error',
+        isQuota
+          ? { key: 'storageQuotaExceeded' }
+          : { key: 'storageSaveFailed', params: { message: setItemErr instanceof Error ? setItemErr.message : String(setItemErr) } }
+      );
       console.error('Failed to save competition:', setItemErr);
       return;
     }
@@ -209,14 +211,14 @@ export function saveCompetition(competition: TournamentCompetition): void {
     // 成功：分级预警
     const prevStatus = getStorageStatus().status;
     if (rawSize >= STORAGE_CRITICAL_BYTES) {
-      notifyStorageStatus('ok', `本地数据已超容量警戒线（约 ${(rawSize / 1024 / 1024).toFixed(2)} MB），强烈建议立即「导出比赛数据」备份`);
+      notifyStorageStatus('ok', { key: 'storageCritical', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
     } else if (rawSize >= STORAGE_WARN_BYTES) {
-      notifyStorageStatus('ok', `本地数据已接近容量上限（约 ${(rawSize / 1024 / 1024).toFixed(2)} MB），建议尽快导出备份`);
+      notifyStorageStatus('ok', { key: 'storageWarning', params: { size: (rawSize / 1024 / 1024).toFixed(2) } });
     } else if (prevStatus !== 'ok') {
-      notifyStorageStatus('ok', '');
+      notifyStorageStatus('ok', null);
     }
   } catch (e) {
-    notifyStorageStatus('error', `保存时发生未预期错误：${e instanceof Error ? e.message : String(e)}`);
+    notifyStorageStatus('error', { key: 'storageUnexpected', params: { message: e instanceof Error ? e.message : String(e) } });
     console.error('Failed to save competition (outer):', e);
   }
 }
@@ -247,7 +249,7 @@ export function loadCompetition(): TournamentCompetition | null {
     }
     // 恢复后立刻写回主 key（备份仍保留，双保险）
     try { saveCompetition(competition); } catch { /* ignore */ }
-    notifyStorageStatus('ok', '已从本地备份恢复数据，建议立即「导出比赛数据」备份');
+    notifyStorageStatus('ok', { key: 'storageRestored' });
     return competition;
   }
 

@@ -1,11 +1,11 @@
 import { Trophy, Swords, Medal } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference, formatText } from '../i18n';
 
 export function Header() {
   const currentGroup = useCurrentGroup();
   const competition = useTournamentStore(state => state.competition);
-  const { language, t } = useLanguagePreference();
+  const { t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
   const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
 
@@ -51,7 +51,7 @@ export function Header() {
                   {currentGroup.currentRound > 0 && (
                     <span className="text-sm text-slate-400 flex items-center gap-1.5">
                       <Medal className="w-4 h-4 text-gold-400" />
-                      {language === 'en' ? `Round ${currentGroup.currentRound} / ${currentGroup.totalRounds}` : `第 ${currentGroup.currentRound} / ${currentGroup.totalRounds} 轮`}
+                      {formatText(t.roundN, { round: `${currentGroup.currentRound} / ${currentGroup.totalRounds}` })}
                     </span>
                   )}
                 </div>

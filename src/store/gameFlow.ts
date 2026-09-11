@@ -1,4 +1,4 @@
-import type { Match, MatchResult, Player, TournamentGroup } from '../types';
+import type { MatchResult, Player, TournamentGroup } from '../types';
 import { calculateAllWinRates, getRankedPlayers, getRoundGameType, generatePairings } from '../utils/swissPairing';
 
 export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {

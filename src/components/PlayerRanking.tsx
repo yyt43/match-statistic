@@ -2,11 +2,13 @@ import { Trophy, Medal, Award, BarChart2 } from 'lucide-react';
 import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo } from 'react';
 import { useLanguagePreference } from '../i18n';
-import { getEliminationTitle, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
+import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
 import { getRankedPlayers, detectTieGroups } from '../utils/swissPairing';
 
 export function PlayerRanking() {
   const currentGroup = useCurrentGroup();
+  const { language, t } = useLanguagePreference();
+  const isEnglish = language === 'en';
   const isCompleted = currentGroup.status === 'completed';
 
   const rankedPlayers = useMemo(() => {
@@ -66,7 +68,6 @@ export function PlayerRanking() {
   };
 
   if (currentGroup.currentRound === 0) {
-    const isEnglish = useLanguagePreference().language === 'en';
     return (
       <div className="glass-panel rounded-2xl p-5 h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
@@ -88,7 +89,6 @@ export function PlayerRanking() {
 
   const isMultiGame = currentGroup.gameType !== 'bo1';
   const isSingleElimination = currentGroup.pairingType === 'single_elimination';
-  const isEnglish = useLanguagePreference().language === 'en';
 
   return (
     <div className="glass-panel rounded-2xl p-4 h-full flex flex-col">
@@ -166,7 +166,7 @@ export function PlayerRanking() {
                       <span className={`text-xs font-bold ${
                         rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : 'text-amber-500'
                       }`}>
-                        {getEliminationTitle(rank, currentGroup.totalRounds)}
+                        {getEliminationTitleI18n(rank, currentGroup.totalRounds, language)}
                       </span>
                     </div>
                     <div className="col-span-2 flex items-center justify-center">
@@ -247,7 +247,7 @@ export function PlayerRanking() {
                           <div key={i} className="shrink-0">{getResultBlock(h.result)}</div>
                         ))
                       ) : (
-                        <span className="text-[10px] text-slate-500">无</span>
+                        <span className="text-[10px] text-slate-500">{t.none}</span>
                       )}
                     </div>
                   </div>

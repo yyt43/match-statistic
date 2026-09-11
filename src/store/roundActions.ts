@@ -1,4 +1,4 @@
-import type { TournamentCompetition, TournamentGroup, TournamentStatus, MatchResult, Player } from '../types';
+import type { TournamentCompetition, TournamentGroup, TournamentStatus, Player } from '../types';
 import { calculateAllWinRates, generatePairings, getRankedPlayers, getRoundGameType, getSingleEliminationRounds } from '../utils/swissPairing';
 
 export function startTournamentForGroup(

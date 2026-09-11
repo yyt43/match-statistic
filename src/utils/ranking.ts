@@ -1,19 +1,27 @@
 import type { Match, Player } from '../types';
+import type { AppLanguage } from '../i18n';
 
 /**
- * 单败淘汰头衔：根据排名与总轮次计算「冠军 / 亚军 / 四强 / 八强 / ...」
- * 三处原实现完全一致，统一抽到此处。
+ * 单败淘汰头衔：根据排名与总轮次计算。默认中文，保持向后兼容。
+ * 推荐使用 getEliminationTitleI18n(rank, totalRounds, language)。
  */
 export function getEliminationTitle(rank: number, totalRounds: number): string {
-  if (rank === 1) return '冠军';
-  if (rank === 2) return '亚军';
+  return getEliminationTitleI18n(rank, totalRounds, 'zh');
+}
+
+/** 同上，但根据 language 返回本地化标题。 */
+export function getEliminationTitleI18n(rank: number, totalRounds: number, language: AppLanguage): string {
+  const isEn = language === 'en';
+  if (rank === 1) return isEn ? 'Champion' : '冠军';
+  if (rank === 2) return isEn ? 'Runner-up' : '亚军';
+  const roundOfNamesZh: Record<number, string> = { 4: '四强', 8: '八强', 16: '十六强', 32: '三十二强', 64: '六十四强' };
+  const roundOfNamesEn: Record<number, string> = { 4: 'Semi-finals', 8: 'Quarter-finals', 16: 'Round of 16', 32: 'Round of 32', 64: 'Round of 64' };
   let size = 4;
-  let label = '四强';
+  let label = isEn ? 'Semi-finals' : '四强';
   for (let r = totalRounds - 1; r >= 1; r--) {
     if (rank <= size) return label;
     size *= 2;
-    const sizeNames: Record<number, string> = { 8: '八强', 16: '十六强', 32: '三十二强', 64: '六十四强' };
-    label = sizeNames[size] || `${size}强`;
+    label = (isEn ? roundOfNamesEn : roundOfNamesZh)[size] || (isEn ? `Round of ${size}` : `${size}强`);
   }
   return label;
 }

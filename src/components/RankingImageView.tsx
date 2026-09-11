@@ -1,10 +1,12 @@
 import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo, useState, useEffect } from 'react';
-import { getEliminationTitle, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
+import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
 import { getRankedPlayers } from '../utils/swissPairing';
+import { useLanguagePreference, formatText } from '../i18n';
 
 export function RankingImageView() {
   const currentGroup = useCurrentGroup();
+  const { t, language } = useLanguagePreference();
 
   const rankedPlayers = useMemo(() => {
     return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
@@ -14,86 +16,10 @@ export function RankingImageView() {
   const isSingleElimination = currentGroup.pairingType === 'single_elimination';
   const isCompleted = currentGroup.status === 'completed';
 
-  const HistoryBadges = ({ history }: { history: { result: 'win' | 'loss' | 'draw' | 'bye' }[] }) => {
-    const [dataUrl, setDataUrl] = useState('');
-    useEffect(() => {
-      const size = 20;
-      const gap = 3;
-      const count = history.length;
-      const totalW = count * size + (count - 1) * gap;
-      const canvas = document.createElement('canvas');
-      canvas.width = totalW * 2;
-      canvas.height = size * 2;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.scale(2, 2);
-      ctx.clearRect(0, 0, totalW, size);
-      history.forEach((h, i) => {
-        const x = i * (size + gap);
-        const y = 0;
-        let bg = '#ef4444';
-        let text = '胜';
-        let borderColor: string | null = null;
-        if (h.result === 'win') { bg = '#ef4444'; text = '胜'; }
-        else if (h.result === 'loss') { bg = '#000'; text = '负'; borderColor = '#475569'; }
-        else if (h.result === 'draw') { bg = '#f97316'; text = '双'; }
-        else { bg = '#f59e0b'; text = '轮'; }
-        const radius = 3;
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + size - radius, y);
-        ctx.quadraticCurveTo(x + size, y, x + size, y + radius);
-        ctx.lineTo(x + size, y + size - radius);
-        ctx.quadraticCurveTo(x + size, y + size, x + size - radius, y + size);
-        ctx.lineTo(x + radius, y + size);
-        ctx.quadraticCurveTo(x, y + size, x, y + size - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
-        ctx.closePath();
-        ctx.fillStyle = bg;
-        ctx.fill();
-        if (borderColor) {
-          ctx.strokeStyle = borderColor;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px "PingFang SC", "Microsoft YaHei", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, x + size / 2, y + size / 2 + 0.5);
-      });
-      setDataUrl(canvas.toDataURL('image/png'));
-    }, [history]);
-    const count = history.length;
-    const totalW = count * 20 + (count - 1) * 3;
-    return (
-      <span style={{
-        display: 'inline-block',
-        width: `${totalW}px`,
-        height: '20px',
-        verticalAlign: 'middle',
-        marginTop: '2px',
-      }}>
-        {dataUrl && (
-          <img
-            src={dataUrl}
-            alt=""
-            style={{
-              display: 'block',
-              width: `${totalW}px`,
-              height: '20px',
-            }}
-          />
-        )}
-      </span>
-    );
-  };
-
   if (currentGroup.currentRound === 0) {
     return (
       <div id="ranking-image" className="p-6 bg-slate-900 min-h-[400px]">
-        <div className="text-center text-slate-500 py-20">暂无排行榜数据</div>
+        <div className="text-center text-slate-500 py-20">{t.noRankingData}</div>
       </div>
     );
   }
@@ -130,40 +56,43 @@ export function RankingImageView() {
   return (
     <div id="ranking-image" className="p-6 bg-slate-900" style={{ width: 1280 }}>
       <div className="bg-slate-800 rounded-lg overflow-hidden">
-        {/* 标题栏 */}
         <div className="px-6 py-3 bg-slate-700/50 border-b border-slate-700">
-          <h2 className="text-lg font-bold text-white">{currentGroup.name} - 排行榜</h2>
+          <h2 className="text-lg font-bold text-white">{formatText(t.rankingImageTitle, { group: currentGroup.name })}</h2>
           <p className="text-xs text-slate-400 mt-1">
-            共 {currentGroup.totalRounds} 轮 · {rankedPlayers.length} 人参赛 · {isSingleElimination ? '单败淘汰 ' : ''}{currentGroup.gameType.toUpperCase()}
+            {formatText(t.rankingImageMeta, {
+              rounds: currentGroup.totalRounds,
+              players: rankedPlayers.length,
+              format: isSingleElimination ? t.singleElimination : t.swiss,
+              gameType: currentGroup.gameType.toUpperCase(),
+            })}
           </p>
         </div>
 
-        {/* 表格 */}
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: colWidths[0] }}>排名</th>
-              <th style={{ ...thStyle, width: colWidths[1] }}>选手名称</th>
+              <th style={{ ...thStyle, width: colWidths[0] }}>{t.rankCol}</th>
+              <th style={{ ...thStyle, width: colWidths[1] }}>{t.playerCol}</th>
               {isSingleElimination ? (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>头衔</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>战绩</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>淘汰轮次</th>
+                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.titleCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.eliminatedRoundCol}</th>
                 </>
               ) : isMultiGame ? (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>战绩</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>对手胜率</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>局胜率</th>
-                  <th style={{ ...thCenter, width: colWidths[5] }}>对手局胜率</th>
-                  <th style={{ ...thCenter, width: colWidths[6] }}>比赛历史</th>
+                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.oppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.gameWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.oppGameWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[6] }}>{t.historyCol}</th>
                 </>
               ) : (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>战绩</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>对手胜率</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>对手对手胜率</th>
-                  <th style={{ ...thCenter, width: colWidths[5] }}>比赛历史</th>
+                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.oppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.oppOppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.historyCol}</th>
                 </>
               )}
             </tr>
@@ -213,7 +142,7 @@ export function RankingImageView() {
                           verticalAlign: 'middle',
                           lineHeight: '14px',
                         }}>
-                          淘汰
+                          {t.eliminatedMarkImage}
                         </span>
                       )}
                       {player.dropped && (
@@ -229,7 +158,7 @@ export function RankingImageView() {
                           verticalAlign: 'middle',
                           lineHeight: '14px',
                         }}>
-                          弃赛
+                          {t.droppedMarkImage}
                         </span>
                       )}
                     </span>
@@ -242,7 +171,7 @@ export function RankingImageView() {
                           fontWeight: 700,
                           color: rank === 1 ? '#facc15' : rank === 2 ? '#cbd5e1' : '#f59e0b',
                         }}>
-                          {getEliminationTitle(rank, currentGroup.totalRounds)}
+                          {getEliminationTitleI18n(rank, currentGroup.totalRounds, language)}
                         </span>
                       </td>
                       <td style={{ ...tdCenter, fontFamily: 'monospace', fontWeight: 700, color: '#fff' }}>
@@ -250,9 +179,9 @@ export function RankingImageView() {
                       </td>
                       <td style={tdCenter}>
                         {getEliminatedRound(player.id, currentGroup.matches) !== null ? (
-                          <span style={{ color: '#cbd5e1' }}>第{getEliminatedRound(player.id, currentGroup.matches)}轮</span>
+                          <span style={{ color: '#cbd5e1' }}>{formatText(t.eliminatedRound, { round: getEliminatedRound(player.id, currentGroup.matches) })}</span>
                         ) : rank === 1 ? (
-                          <span style={{ color: '#facc15' }}>冠军</span>
+                          <span style={{ color: '#facc15' }}>{t.champion}</span>
                         ) : (
                           <span style={{ color: '#64748b' }}>-</span>
                         )}
@@ -270,7 +199,7 @@ export function RankingImageView() {
                         {history.length > 0 ? (
                           <HistoryBadges history={history} />
                         ) : (
-                          <span style={{ fontSize: '12px', color: '#64748b' }}>无结果</span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>{t.noResult}</span>
                         )}
                       </td>
                     </>
@@ -285,7 +214,7 @@ export function RankingImageView() {
                         {history.length > 0 ? (
                           <HistoryBadges history={history} />
                         ) : (
-                          <span style={{ fontSize: '12px', color: '#64748b' }}>无结果</span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>{t.noResult}</span>
                         )}
                       </td>
                     </>
@@ -297,7 +226,6 @@ export function RankingImageView() {
         </table>
       </div>
 
-      {/* 水印 + 图例（同一行：水印靠左，图例居中） */}
       <div style={{
         marginTop: '16px',
         display: 'flex',
@@ -306,7 +234,6 @@ export function RankingImageView() {
         fontSize: '12px',
         color: '#94a3b8',
       }}>
-        {/* 网站标题水印（左对齐，占固定区域，不影响图例居中） */}
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -325,31 +252,116 @@ export function RankingImageView() {
             borderRadius: '50%',
             background: 'rgba(251, 191, 36, 0.7)',
           }} />
-          诗意 · 比赛战绩统计系统
+          {t.appName}
         </span>
-        {/* 图例（中间居中） */}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '24px', margin: '0 auto', flexWrap: 'wrap', justifyContent: 'center' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }}></span>胜
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }}></span>{t.winLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#000', border: '1px solid #475569' }}></span>负
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#000', border: '1px solid #475569' }}></span>{t.lossLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f97316' }}></span>双负
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f97316' }}></span>{t.drawLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b' }}></span>轮空
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b' }}></span>{t.byeLegend}
           </span>
           <span style={{ marginLeft: '12px', color: '#64748b' }}>
             {isSingleElimination
-              ? '排名依据：未被淘汰轮次 → 胜场数 → 败场数 → 姓名'
-              : `排名依据：胜率 → 对手胜率 ${isMultiGame ? '→ 局胜率 → 对手局胜率' : '→ 对手对手胜率'}`}
+              ? t.rankingCriterionElim
+              : isMultiGame
+                ? t.rankingCriterionSwissMulti
+                : t.rankingCriterionSwissBO1}
           </span>
         </span>
-        {/* 等宽占位，保证图例完美居中 */}
         <span style={{ width: '165px', flexShrink: 0 }} />
       </div>
     </div>
+  );
+}
+
+function HistoryBadges({ history }: { history: { result: 'win' | 'loss' | 'draw' | 'bye' }[] }) {
+  const { t } = useLanguagePreference();
+  const [dataUrl, setDataUrl] = useState('');
+  const labels = useMemo(() => ({
+    win: t.winCell,
+    loss: t.lossCell,
+    draw: t.drawCell,
+    bye: t.byeCell,
+  }), [t]);
+
+  useEffect(() => {
+    const size = 20;
+    const gap = 3;
+    const count = history.length;
+    const totalW = count * size + (count - 1) * gap;
+    const canvas = document.createElement('canvas');
+    canvas.width = totalW * 2;
+    canvas.height = size * 2;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(2, 2);
+    ctx.clearRect(0, 0, totalW, size);
+    history.forEach((h, i) => {
+      const x = i * (size + gap);
+      const y = 0;
+      let bg = '#ef4444';
+      let text: string = labels.win;
+      let borderColor: string | null = null;
+      if (h.result === 'win') { bg = '#ef4444'; text = labels.win; }
+      else if (h.result === 'loss') { bg = '#000'; text = labels.loss; borderColor = '#475569'; }
+      else if (h.result === 'draw') { bg = '#f97316'; text = labels.draw; }
+      else { bg = '#f59e0b'; text = labels.bye; }
+      const radius = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + size - radius, y);
+      ctx.quadraticCurveTo(x + size, y, x + size, y + radius);
+      ctx.lineTo(x + size, y + size - radius);
+      ctx.quadraticCurveTo(x + size, y + size, x + size - radius, y + size);
+      ctx.lineTo(x + radius, y + size);
+      ctx.quadraticCurveTo(x, y + size, x, y + size - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fillStyle = bg;
+      ctx.fill();
+      if (borderColor) {
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + size / 2, y + size / 2 + 0.5);
+    });
+    setDataUrl(canvas.toDataURL('image/png'));
+  }, [history, labels]);
+
+  const count = history.length;
+  const totalW = count * 20 + (count - 1) * 3;
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: `${totalW}px`,
+      height: '20px',
+      verticalAlign: 'middle',
+      marginTop: '2px',
+    }}>
+      {dataUrl && (
+        <img
+          src={dataUrl}
+          alt=""
+          style={{
+            display: 'block',
+            width: `${totalW}px`,
+            height: '20px',
+          }}
+        />
+      )}
+    </span>
   );
 }

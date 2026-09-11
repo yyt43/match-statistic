@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useCurrentGroup, useTournamentStore } from '../store/useTournamentStore';
 import { detectTieGroups, getRankedPlayers } from '../utils/swissPairing';
-import { formatLabels, getPlayoffOrder, type ThreePlayerFormats } from '../utils/playoffs';
+import { getPlayoffOrder, type ThreePlayerFormats } from '../utils/playoffs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useLanguagePreference } from '../i18n';
 
 export function PlayoffPanel() {
   const group = useCurrentGroup();
-  const { language } = useLanguagePreference();
+  const { language, t } = useLanguagePreference();
   const { generatePlayoff, resetPlayoffs, setViewRound } = useTournamentStore();
   const [formats, setFormats] = useState<ThreePlayerFormats>({});
   const [error, setError] = useState('');
@@ -27,7 +27,13 @@ export function PlayoffPanel() {
     try {
       const selected = Object.fromEntries(ties.filter(t => t.length === 3).map(t => [t[0].id, formats[t[0].id] ?? defaultFormat(t[0].id)]));
       generatePlayoff(selected);
-    } catch (e) { setError(e instanceof Error ? e.message : '生成加赛失败'); }
+    } catch { setError(t.playoffGenerateFailed); }
+  };
+  const formatLabel = (format: 'two' | 'three_one' | 'three_two' | 'four') => {
+    if (format === 'two') return t.playoffTwo;
+    if (format === 'three_one') return t.playoffThreeOne;
+    if (format === 'three_two') return t.playoffThreeTwo;
+    return t.playoffFour;
   };
   return <div className="mt-3 text-left border-t border-slate-700/50 pt-3 space-y-3" aria-label={isEnglish ? 'Playoff management' : '加赛管理'}>
     <p className="text-sm font-semibold text-amber-300">{isEnglish ? 'Playoff management' : '加赛管理'} · {group.gameType.toUpperCase()}</p>
@@ -49,7 +55,7 @@ export function PlayoffPanel() {
       const order = getPlayoffOrder(b, group.matches);
       const stage2 = group.matches.some(m => m.playoffBracketId === b.id && m.playoffStage === 2);
       return <div key={b.id} className="text-xs space-y-1.5">
-        <p className="text-slate-200">{isEnglish ? `Ranks ${b.startRank}–${b.startRank + b.playerIds.length - 1} · ${formatLabels[b.format]}` : `第 ${b.startRank}—${b.startRank + b.playerIds.length - 1} 名 · ${formatLabels[b.format]}`}</p>
+        <p className="text-slate-200">{isEnglish ? `Ranks ${b.startRank}–${b.startRank + b.playerIds.length - 1} · ${formatLabel(b.format)}` : `第 ${b.startRank}—${b.startRank + b.playerIds.length - 1} 名 · ${formatLabel(b.format)}`}</p>
         <p className="text-slate-400">{b.playerIds.map(name).join('、')}</p>
         {b.waitingPlayerId && !stage2 && !order && <p className="text-amber-200">{isEnglish ? `${name(b.waitingPlayerId)} waits for the second stage (no bye win counted)` : `${name(b.waitingPlayerId)} 等候第二场（不记轮空胜）`}</p>}
         {order ? <p className="text-emerald-300">{isEnglish ? `Decided: ${order.map((id, i) => `Rank ${b.startRank + i} ${name(id)}`).join(' • ')}` : `已决出：${order.map((id, i) => `第${b.startRank + i}名 ${name(id)}`).join('；')}`}</p>

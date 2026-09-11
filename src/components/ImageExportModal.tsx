@@ -6,6 +6,7 @@ import { generateImage } from '../utils/imageExport';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import type { TournamentGroup } from '../types';
+import { useLanguagePreference, formatText } from '../i18n';
 
 type ExportType = 'ranking' | 'match';
 
@@ -23,8 +24,8 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   const [generatingGroupIdx, setGeneratingGroupIdx] = useState(0);
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
+  const { t } = useLanguagePreference();
 
-  // 图片生成中禁用 ESC 关闭，避免中断流程
   useEscapeClose(isOpen && !isGenerating, onClose);
 
   useEffect(() => {
@@ -37,14 +38,11 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
 
   if (!isOpen) return null;
 
-  // 所有有对阵数据的小组（用于"导出全部"）
   const availableGroups = competition.groups.filter(g => g.currentRound > 0);
-  // 所有小组（用于预览切换）
   const allGroups = competition.groups;
   const hasMultipleGroups = allGroups.length > 1;
   const hasAvailableGroups = availableGroups.length > 1;
 
-  // 判断指定小组本轮是否全部完赛（无 pending 对局）
   const isGroupRoundComplete = (g: TournamentGroup): boolean => {
     if (g.currentRound === 0) return false;
     const ms = g.matches.filter(m => m.round === g.currentRound);
@@ -52,25 +50,20 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   };
   const currentGroupRoundComplete = isGroupRoundComplete(currentGroup);
   const allAvailableGroupsRoundComplete = availableGroups.every(isGroupRoundComplete);
-  // 排行榜导出条件：单小组需本轮完赛；全部小组需每个有进度的小组本轮都完赛
   const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : currentGroupRoundComplete;
   const rankingBlockedReason = !canExportRanking
-    ? (exportAllGroups
-        ? '部分小组本轮对局尚未全部结束，暂时无法导出"所有小组排行榜"，请等待所有小组本轮完赛后再导出'
-        : '本小组本轮对局尚未全部结束，暂时无法导出排行榜，请等待本轮完赛后再导出')
+    ? (exportAllGroups ? t.blockedReasonAllImage : t.blockedReasonSingleImage)
     : '';
 
   const groupsToExport: TournamentGroup[] = exportAllGroups
     ? availableGroups
     : [currentGroup];
 
-  // 当前预览小组在 allGroups 中的索引
   const currentPreviewIdx = allGroups.findIndex(g => g === currentGroup);
 
   const handlePreviewGroup = (idx: number) => {
     const targetGroup = allGroups[idx];
     if (!targetGroup) return;
-    // 切换到具体小组时自动退出"全部"模式
     if (exportAllGroups) setExportAllGroups(false);
     useTournamentStore.getState().setCurrentGroup(idx);
   };
@@ -79,27 +72,20 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
     setIsGenerating(true);
     try {
       if (exportAllGroups) {
-        // 逐个小组生成图片
         for (let i = 0; i < groupsToExport.length; i++) {
           setGeneratingGroupIdx(i);
-          // 切换到对应小组
           const groupIdx = competition.groups.indexOf(groupsToExport[i]);
           useTournamentStore.getState().setCurrentGroup(groupIdx);
-          // 等待渲染
           await new Promise(resolve => setTimeout(resolve, 300));
           const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
           const groupViewRound = useTournamentStore.getState().viewRound;
-          const fileName = activeType === 'ranking'
-            ? `${groupsToExport[i].name}-排行榜`
-            : `${groupsToExport[i].name}-第${groupViewRound}轮对阵表`;
-          await generateImage(elementId, fileName);
+          const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: groupViewRound });
+          await generateImage(elementId, `${groupsToExport[i].name}-${suffix}`);
         }
       } else {
         const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
-        const fileName = activeType === 'ranking'
-          ? `${currentGroup.name}-排行榜`
-          : `${currentGroup.name}-第${viewRound}轮对阵表`;
-        await generateImage(elementId, fileName);
+        const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: viewRound });
+        await generateImage(elementId, `${currentGroup.name}-${suffix}`);
       }
     } catch (error) {
       console.error('生成图片失败:', error);
@@ -114,7 +100,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Camera className="w-5 h-5 text-gold-400" />
-            {exportAllGroups ? '导出所有小组图片' : '导出图片'}
+            {exportAllGroups ? t.imageExportAllTitle : t.imageExportTitle}
           </h3>
           <button
             onClick={onClose}
@@ -135,7 +121,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
               }`}
             >
               <Trophy className="w-4 h-4" />
-              排行榜
+              {t.ranking}
             </button>
             <button
               onClick={() => setActiveType('match')}
@@ -146,7 +132,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
               }`}
             >
               <Swords className="w-4 h-4" />
-              对阵表
+              {t.matchTable}
             </button>
           </div>
 
@@ -163,7 +149,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
                       : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                   }`}
                 >
-                  全部小组
+                  {t.allGroups}
                 </button>
                 {allGroups.map((group, idx) => (
                   <button
@@ -196,9 +182,9 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
-                    第{round}轮
+                    {formatText(t.roundN, { round })}
                     {round === currentGroup.currentRound && (
-                      <span className="ml-1 text-[10px] text-emerald-400">当前</span>
+                      <span className="ml-1 text-[10px] text-emerald-400">{t.current}</span>
                     )}
                   </button>
                 ))}
@@ -219,12 +205,15 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           {exportAllGroups ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="w-12 h-12 text-gold-400/50 mb-4" />
-              <p className="text-slate-300 font-medium mb-2">将导出全部 {availableGroups.length} 个小组的{activeType === 'ranking' ? '排行榜' : '对阵表'}图片</p>
+              <p className="text-slate-300 font-medium mb-2">
+                {activeType === 'ranking'
+                  ? formatText(t.exportAllGroupsRankingInfo, { count: availableGroups.length })
+                  : formatText(t.exportAllGroupsMatchInfo, { count: availableGroups.length })}
+              </p>
               <div className="max-w-md space-y-1.5 text-slate-500 text-sm">
-                <p>· 点击"下载"按钮后，系统将逐个切换小组并生成图片</p>
-                <p>· 每张图片会以"小组名-{activeType === 'ranking' ? '排行榜' : '第X轮对阵表'}"命名并保存</p>
-                {activeType === 'match' && <p>· 对阵表将导出各小组当前轮次的比赛</p>}
-                <p>· 共 {availableGroups.length} 个小组，请耐心等待生成完成</p>
+                <p>· {t.exportAllGroupsTip1}</p>
+                {activeType === 'match' && <p>· {t.exportAllGroupsTip3Match}</p>}
+                <p>· {formatText(t.exportAllGroupsTip4, { count: availableGroups.length })}</p>
               </div>
             </div>
           ) : (
@@ -239,7 +228,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
-            取消
+            {t.cancel}
           </button>
           <button
             onClick={handleDownload}
@@ -248,12 +237,12 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           >
             <Download className="w-4 h-4" />
             {isGenerating
-              ? `生成中... (${generatingGroupIdx + 1}/${groupsToExport.length})`
+              ? formatText(t.generating, { current: generatingGroupIdx + 1, total: groupsToExport.length })
               : (activeType === 'ranking' && !canExportRanking)
-                ? '本轮未完赛，无法导出'
+                ? t.roundNotFinished
                 : exportAllGroups
-                ? `下载全部小组图片 (${groupsToExport.length}个)`
-                : '下载图片'}
+                ? formatText(t.downloadAllImages, { count: groupsToExport.length })
+                : t.downloadImage}
           </button>
         </div>
       </div>

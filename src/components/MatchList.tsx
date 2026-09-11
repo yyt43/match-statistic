@@ -116,8 +116,16 @@ export function MatchList({ testMode = false }: MatchListProps) {
   // 赛前弃赛时的弃赛方文本（在卡片中部展示）
   const getPreDropNote = (match: Match): string | null => {
     if (!match.preDrop) return null;
-    if (match.result === 'player1') return `${getPlayerName(match.player2Id) || '右侧'} 赛前弃赛 · ${getPlayerName(match.player1Id) || '左侧'}直接获胜`;
-    if (match.result === 'player2') return `${getPlayerName(match.player1Id) || '左侧'} 赛前弃赛 · ${getPlayerName(match.player2Id) || '右侧'}直接获胜`;
+    if (match.result === 'player1') {
+      return isEnglish
+        ? `${getPlayerName(match.player2Id) || 'Right side'} pre-dropped · ${getPlayerName(match.player1Id) || 'Left side'} wins`
+        : `${getPlayerName(match.player2Id) || '右侧'} 赛前弃赛 · ${getPlayerName(match.player1Id) || '左侧'}直接获胜`;
+    }
+    if (match.result === 'player2') {
+      return isEnglish
+        ? `${getPlayerName(match.player1Id) || 'Left side'} pre-dropped · ${getPlayerName(match.player2Id) || 'Right side'} wins`
+        : `${getPlayerName(match.player1Id) || '左侧'} 赛前弃赛 · ${getPlayerName(match.player2Id) || '右侧'}直接获胜`;
+    }
     return null;
   };
 
@@ -285,7 +293,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
                   if (isRandomGenerating) return;
                   setConfirmState({
                     open: true,
-                    title: '确认随机生成',
+                    title: isEnglish ? 'Confirm random generation' : '确认随机生成',
                     message: confirmText,
                     onConfirm: () => randomGenerateAllGroups(),
                   });
@@ -500,7 +508,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
         onClose={() => setConfirmState(s => ({ ...s, open: false }))}
         title={confirmState.title}
         message={confirmState.message}
-        confirmText="确认"
+        confirmText={isEnglish ? 'Confirm' : '确认'}
         onConfirm={() => {
           confirmState.onConfirm();
           setConfirmState(s => ({ ...s, open: false }));
@@ -815,7 +823,7 @@ function RoundEditor({ matches, players, onSave, onCancel, isEnglish }: {
                 </div>
                 {isBye ? (
                   <div className="flex-1 rounded-md p-2.5 font-bold text-center bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-not-allowed">
-                    <span className="truncate text-sm block">轮空</span>
+                    <span className="truncate text-sm block">{isEnglish ? 'Bye' : '轮空'}</span>
                   </div>
                 ) : (
                   <button
@@ -851,7 +859,7 @@ function RoundEditor({ matches, players, onSave, onCancel, isEnglish }: {
           onClick={onCancel}
           className="flex-1 py-2 rounded-lg bg-slate-700/40 text-slate-300 hover:bg-slate-700/60 transition-colors text-sm"
         >
-          取消
+          {isEnglish ? 'Cancel' : '取消'}
         </button>
         <button
           onClick={handleSave}

@@ -1,6 +1,7 @@
 import { X, AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
+import { useLanguagePreference } from '../i18n';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -13,8 +14,9 @@ interface ConfirmDialogProps {
   children?: ReactNode;
 }
 
-export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, confirmText = 'Confirm', cancelText = 'Cancel', children }: ConfirmDialogProps) {
+export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, confirmText, cancelText, children }: ConfirmDialogProps) {
   useEscapeClose(isOpen, onClose);
+  const { t } = useLanguagePreference();
   if (!isOpen) return null;
 
   return (
@@ -45,7 +47,7 @@ export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, conf
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors text-sm"
           >
-            {cancelText}
+            {cancelText ?? t.cancel}
           </button>
           <button
             onClick={() => {
@@ -54,7 +56,7 @@ export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, conf
             }}
             className="px-4 py-2 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 border border-gold-500/30 transition-colors text-sm font-medium"
           >
-            {confirmText}
+            {confirmText ?? t.confirm}
           </button>
         </div>
       </div>

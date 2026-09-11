@@ -8,7 +8,7 @@ import { StorageBanner } from '../components/StorageBanner';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages } from 'lucide-react';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference, formatText } from '../i18n';
 
 const ImageExportModal = lazy(() => import('../components/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
 const ExcelExportModal = lazy(() => import('../components/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
@@ -163,8 +163,8 @@ export default function Home() {
       </main>
 
       <footer className="py-4 text-center text-xs text-slate-600 space-y-0.5">
-        <div>{language === 'en' ? 'Poetic Tournament Results System' : '诗意 · 比赛战绩统计系统'}</div>
-        <div>{language === 'en' ? '© 2026 ShiyiPai. All rights reserved.' : '© 2026 ShiyiPai. 保留所有权利。'}</div>
+        <div>{t.appName}</div>
+        <div>{t.footerCopyright}</div>
       </footer>
 
       <Suspense fallback={null}>
@@ -185,11 +185,11 @@ export default function Home() {
       <ConfirmDialog
         isOpen={showConfirm}
         onClose={() => setShowConfirm(false)}
-        title={confirmType === 'single' ? (language === 'en' ? 'Confirm next round pairings' : '确认生成下一轮对阵') : (language === 'en' ? 'Confirm all groups start next round' : '确认全部小组开始下一轮')}
+        title={confirmType === 'single' ? t.confirmNextRoundTitleSingle : t.confirmNextRoundTitleAll}
         message={
           confirmType === 'single'
-            ? (language === 'en' ? `Current group: ${currentGroup.name}. The next round pairings will be generated.` : `当前小组：${currentGroup.name}，即将生成第 ${currentGroup.currentRound + 1} 轮对阵。`)
-            : (language === 'en' ? 'All groups that have finished the current round will proceed to the next round.' : '即将为所有已完成当前轮的小组生成下一轮对阵。')
+            ? formatText(t.confirmNextRoundMsgSingle, { group: currentGroup.name, round: currentGroup.currentRound + 1 })
+            : t.confirmNextRoundMsgAll
         }
         onConfirm={() => {
           setShowConfirm(false);
@@ -216,7 +216,7 @@ export default function Home() {
       {showUndoToast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
           <Undo2 className="w-4 h-4" />
-          {language === 'en' ? `Undid round ${currentGroup.currentRound + 1}` : `已撤回第 ${currentGroup.currentRound + 1} 轮`}
+          {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
         </div>
       )}
     </div>
@@ -225,11 +225,11 @@ export default function Home() {
 
 function GroupTabs() {
   const { competition, setCurrentGroup } = useTournamentStore();
-  const { language } = useLanguagePreference();
+  const { t } = useLanguagePreference();
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2">
-      <span className="text-xs text-slate-500 mr-1">{language === 'en' ? 'Group switch:' : '小组切换：'}</span>
+      <span className="text-xs text-slate-500 mr-1">{t.groupSwitchLabel}</span>
       {competition.groups.map((group, index) => {
         const isActive = index === competition.currentGroupIndex;
         return (
@@ -247,7 +247,7 @@ function GroupTabs() {
             {group.name}
             {group.status === 'in_progress' && (
               <span className="ml-1 text-xs text-slate-500">
-                {language === 'en' ? `R${group.currentRound}/${group.totalRounds}` : `${group.currentRound}/${group.totalRounds}轮`}
+                {formatText(t.groupRoundStatus, { current: group.currentRound, total: group.totalRounds })}
               </span>
             )}
             {group.status === 'completed' && (
@@ -263,6 +263,7 @@ function GroupTabs() {
 function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
   const { competition } = useTournamentStore();
   const currentGroup = useCurrentGroup();
+  const { t } = useLanguagePreference();
 
   const groupsToShow = confirmType === 'single' ? [currentGroup] : competition.groups.filter(g => {
     if (g.status !== 'in_progress') return false;
@@ -291,7 +292,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
             <div key={group.id} className="space-y-2">
               {groupsToShow.length > 1 && (
                 <div className="text-xs font-medium text-slate-300 sticky top-0 bg-slate-800/90 backdrop-blur-sm py-1 -my-1 rounded z-10">
-                  {group.name} · 第{group.currentRound}轮
+                  {formatText(t.roundSummaryGroup, { group: group.name, round: group.currentRound })}
                 </div>
               )}
 
@@ -299,12 +300,12 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
                 <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Scale className="w-4 h-4 text-orange-400 shrink-0" />
-                    <span className="text-xs font-medium text-orange-300">双负比赛：{drawMatches.length} 场</span>
+                    <span className="text-xs font-medium text-orange-300">{formatText(t.drawMatchesCount, { count: drawMatches.length })}</span>
                   </div>
                   <div className="text-xs text-orange-400/80 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
                     {drawMatches.map(m => (
                       <div key={m.id}>
-                        {playerMap.get(m.player1Id) || '未知'} vs {playerMap.get(m.player2Id) || '未知'}
+                        {playerMap.get(m.player1Id) || t.unknown} vs {playerMap.get(m.player2Id) || t.unknown}
                       </div>
                     ))}
                   </div>
@@ -315,12 +316,12 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
                 <div className="bg-slate-600/20 border border-slate-600/30 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1.5">
                     <AlertTriangle className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="text-xs font-medium text-slate-300">轮空：{byeMatches.length} 人</span>
+                    <span className="text-xs font-medium text-slate-300">{formatText(t.byeCount, { count: byeMatches.length })}</span>
                   </div>
                   <div className="text-xs text-slate-400 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
                     {byeMatches.map(m => (
                       <div key={m.id}>
-                        {playerMap.get(m.player1Id) || '未知'}
+                        {playerMap.get(m.player1Id) || t.unknown}
                       </div>
                     ))}
                   </div>
@@ -331,7 +332,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1.5">
                     <UserX className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span className="text-xs font-medium text-rose-300">弃赛选手：{droppedPlayers.length} 人</span>
+                    <span className="text-xs font-medium text-rose-300">{formatText(t.droppedPlayersCount, { count: droppedPlayers.length })}</span>
                   </div>
                   <div className="text-xs text-rose-400/80 space-y-0.5 pl-6 max-h-28 overflow-y-auto">
                     {droppedPlayers.map(p => (
@@ -348,7 +349,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-medium text-emerald-300">本轮无双负、无轮空、无弃赛情况</span>
+              <span className="text-xs font-medium text-emerald-300">{t.cleanRound}</span>
             </div>
           </div>
         )}
@@ -365,6 +366,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
 function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
   const currentGroup = useCurrentGroup();
   const { competition } = useTournamentStore();
+  const { t } = useLanguagePreference();
 
   // 选择要预览的小组：单小组模式预览当前小组；全部小组模式找第一个待生成下一轮的小组作为样例
   const previewGroup = useMemo(() => {
@@ -403,7 +405,7 @@ function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
   if (previewMatches.length === 0) return null;
 
   const playerMap = new Map(previewGroup.players.map(p => [p.id, p]));
-  const playerName = (id: string) => id === 'bye' ? '轮空' : (playerMap.get(id)?.name ?? '未知');
+  const playerName = (id: string) => id === 'bye' ? t.bye : (playerMap.get(id)?.name ?? t.unknown);
   const byeCount = previewMatches.filter(m => m.isBye).length;
   const nextRound = previewGroup.currentRound + 1;
 
@@ -420,12 +422,12 @@ function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
         <div className="flex items-center gap-2">
           <Swords className="w-3.5 h-3.5 text-gold-400" />
           <span className="text-xs font-medium text-slate-200">
-            第 {nextRound} 轮配对预览
-            {confirmType === 'all' && <span className="ml-1 text-slate-500">（样例：{previewGroup.name}）</span>}
+            {formatText(t.pairingPreviewTitle, { round: nextRound })}
+            {confirmType === 'all' && <span className="ml-1 text-slate-500">{formatText(t.pairingPreviewSample, { group: previewGroup.name })}</span>}
           </span>
         </div>
         <span className="text-[10px] text-slate-500">
-          共 {previewMatches.length} 场{byeCount > 0 && ` · ${byeCount} 轮空`}
+          {formatText(t.pairingPreviewMatchesCount, { count: previewMatches.length, byeCount })}
         </span>
       </div>
       <div className="max-h-48 overflow-y-auto p-2 space-y-1 bg-slate-900/40">
@@ -448,7 +450,7 @@ function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
         ))}
       </div>
       <div className="px-3 py-1.5 text-[10px] text-slate-500 bg-slate-900/60 border-t border-slate-700/40">
-        注：实际生成时配对可能因随机扰动略有差异（仅第 1 轮随机）；后续轮次基于战绩与避免重复对手原则生成。
+        {t.pairingPreviewNote}
       </div>
     </div>
   );

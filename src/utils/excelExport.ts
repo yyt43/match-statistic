@@ -1,6 +1,9 @@
 import type { Player, Match, GameType, PairingType, TournamentGroup } from '../types';
-import { getEliminationTitle, getEliminatedRound, formatPlayerMatchHistoryText } from './ranking';
+import { getEliminationTitleI18n, getEliminatedRound } from './ranking';
 import { sortPlayers } from './swissPairing';
+import { translations, formatText, type AppLanguage } from '../i18n';
+
+type TranslationTable = Record<keyof typeof translations['zh'], string>;
 
 /** 动态加载 xlsx 库（仅在导出文件时按需加载，减小初始 bundle 体积） */
 async function loadXLSX(): Promise<typeof import('xlsx')> {
@@ -11,10 +14,10 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-function getPlayerName(players: Player[], playerId: string): string {
+function getPlayerName(players: Player[], playerId: string, t: TranslationTable): string {
   if (playerId === 'bye') return '-';
   const player = players.find(p => p.id === playerId);
-  return player ? player.name : '未知选手';
+  return player ? player.name : t.unknownPlayer;
 }
 
 function getMatchScore(match: Match): string {
@@ -29,48 +32,68 @@ function getMatchScore(match: Match): string {
   return '';
 }
 
-function getMatchResultText(match: Match): string {
-  if (match.isBye) return '轮空';
-  if (match.result === 'pending') return '待定';
-  if (match.result === 'draw') return '双负';
-  if (match.result === 'player1') return '选手1胜';
-  if (match.result === 'player2') return '选手2胜';
+function getMatchResultText(match: Match, t: TranslationTable): string {
+  if (match.isBye) return t.byeResult;
+  if (match.result === 'pending') return t.pendingResult;
+  if (match.result === 'draw') return t.drawResult;
+  if (match.result === 'player1') return t.player1Win;
+  if (match.result === 'player2') return t.player2Win;
   return '';
 }
 
+function formatPlayerMatchHistoryTextI18n(player: Player, matches: Match[], t: TranslationTable): string {
+  const playerMatches = matches
+    .filter(m => m.player1Id === player.id || m.player2Id === player.id)
+    .sort((a, b) => a.round - b.round);
+  if (playerMatches.length === 0) return '-';
+  return playerMatches
+    .map(m => {
+      if (m.isBye) return t.byeResult;
+      if (m.result === 'pending') return t.pendingResult;
+      if (m.result === 'draw') return t.drawResult;
+      if (m.result === 'player1') return m.player1Id === player.id ? 'W' : 'L';
+      if (m.result === 'player2') return m.player2Id === player.id ? 'W' : 'L';
+      return '';
+    })
+    .join('-');
+}
+
 /** 生成排行榜表格数据（表头+行），供预览和导出共用 */
-export function getRankingTableData(group: TournamentGroup): { headers: string[]; rows: (string | number)[][] } {
+export function getRankingTableData(group: TournamentGroup, language: AppLanguage = 'zh'): { headers: string[]; rows: (string | number)[][] } {
+  const t = translations[language];
   const sortedPlayers = sortPlayers(group.players, group.gameType, group.pairingType);
   const isMultiGame = group.gameType !== 'bo1';
   const isSingleElimination = group.pairingType === 'single_elimination';
 
   let headers: string[];
   if (isSingleElimination) {
-    headers = ['排名', '选手名称', '头衔', '战绩(W-L)', '淘汰轮次'];
+    headers = [t.rankCol, t.playerCol, t.titleCol, `${t.recordCol}(W-L)`, t.eliminatedRoundCol];
   } else {
-    headers = ['排名', '选手名称', '战绩(W-L)', '胜率', '对手胜率'];
+    headers = [t.rankCol, t.playerCol, `${t.recordCol}(W-L)`, t.winRateCol, t.oppWinRateCol];
     if (isMultiGame) {
-      headers.push('局胜率', '对手局胜率');
+      headers.push(t.gameWinRateCol, t.oppGameWinRateCol);
     } else {
-      headers.push('对手对手胜率');
+      headers.push(t.oppOppWinRateCol);
     }
-    headers.push('比赛历史');
+    headers.push(t.historyCol);
   }
 
   const rows: (string | number)[][] = sortedPlayers.map((player, index) => {
     const isCompleted = group.status === 'completed';
     const isSingleElim = group.pairingType === 'single_elimination';
     const displayName = player.dropped
-      ? `${player.name}（弃赛）`
+      ? `${player.name}${t.dropppedMark}`
       : (player.eliminated && !(isCompleted && isSingleElim))
-        ? `${player.name}（淘汰）`
+        ? `${player.name}${t.eliminatedMark}`
         : player.name;
     const rank = index + 1;
 
     if (isSingleElimination) {
       const eliminatedRound = getEliminatedRound(player, group.matches);
-      const eliminatedText = eliminatedRound !== null ? `第${eliminatedRound}轮` : rank === 1 ? '冠军' : '-';
-      return [rank, displayName, getEliminationTitle(rank, group.totalRounds), `${player.wins}-${player.losses}`, eliminatedText];
+      const eliminatedText = eliminatedRound !== null
+        ? formatText(t.eliminatedRound, { round: eliminatedRound })
+        : rank === 1 ? t.champion : '-';
+      return [rank, displayName, getEliminationTitleI18n(rank, group.totalRounds, language), `${player.wins}-${player.losses}`, eliminatedText];
     } else {
       const row: (string | number)[] = [
         rank,
@@ -85,7 +108,7 @@ export function getRankingTableData(group: TournamentGroup): { headers: string[]
       } else {
         row.push(formatPercent(player.opponentOpponentWinRate));
       }
-      row.push(formatPlayerMatchHistoryText(player, group.matches));
+      row.push(formatPlayerMatchHistoryTextI18n(player, group.matches, t));
       return row;
     }
   });
@@ -94,7 +117,8 @@ export function getRankingTableData(group: TournamentGroup): { headers: string[]
 }
 
 /** 生成某轮对阵表数据，供预览和导出共用 */
-export function getMatchTableData(group: TournamentGroup, round: number): { headers: string[]; rows: (string | number)[][] } {
+export function getMatchTableData(group: TournamentGroup, round: number, language: AppLanguage = 'zh'): { headers: string[]; rows: (string | number)[][] } {
+  const t = translations[language];
   const roundMatches = group.matches
     .filter(m => m.round === round)
     .sort((a, b) => {
@@ -103,13 +127,13 @@ export function getMatchTableData(group: TournamentGroup, round: number): { head
       return 0;
     });
 
-  const headers = ['场次', '选手1', '比分', '选手2', '结果'];
+  const headers = [t.matchNoCol, t.player1Col, t.scoreCol, t.player2Col, t.resultCol];
   const rows: (string | number)[][] = roundMatches.map((match, index) => [
     index + 1,
-    getPlayerName(group.players, match.player1Id),
+    getPlayerName(group.players, match.player1Id, t),
     getMatchScore(match),
-    match.isBye ? '-' : getPlayerName(group.players, match.player2Id),
-    getMatchResultText(match),
+    match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
+    getMatchResultText(match, t),
   ]);
 
   return { headers, rows };
@@ -122,21 +146,22 @@ export async function exportRankingToExcel(
   gameType: GameType,
   matches?: Match[],
   pairingType: PairingType = 'swiss',
-  totalRounds?: number
+  totalRounds?: number,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
-  // 复用 getRankingTableData，通过构建一个临时 group
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType, pairingType,
     totalRounds: totalRounds || 5, currentRound: 0, matches: matches || [],
     status: 'setup', createdAt: '',
   };
-  const { headers, rows } = getRankingTableData(group);
+  const { headers, rows } = getRankingTableData(group, language);
+  const t = translations[language];
   const data: (string | number)[][] = [headers, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '排行榜');
-  XLSX.writeFile(wb, `${competitionName}-${groupName}-排行榜.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, t.ranking);
+  XLSX.writeFile(wb, `${competitionName}-${groupName}-${t.ranking}.xlsx`);
 }
 
 export async function exportMatchesToExcel(
@@ -144,19 +169,21 @@ export async function exportMatchesToExcel(
   players: Player[],
   competitionName: string,
   groupName: string,
-  round: number
+  round: number,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
     totalRounds: round, currentRound: round, matches, status: 'in_progress', createdAt: '',
   };
-  const { headers, rows } = getMatchTableData(group, round);
+  const { headers, rows } = getMatchTableData(group, round, language);
+  const t = translations[language];
   const data: (string | number)[][] = [headers, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, `第${round}轮`);
-  XLSX.writeFile(wb, `${competitionName}-${groupName}-第${round}轮对阵表.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, formatText(t.roundN, { round }));
+  XLSX.writeFile(wb, `${competitionName}-${groupName}-${formatText(t.roundN, { round })} ${t.matchTable}.xlsx`);
 }
 
 export async function exportAllRoundsToExcel(
@@ -164,109 +191,107 @@ export async function exportAllRoundsToExcel(
   players: Player[],
   competitionName: string,
   groupName: string,
-  totalRounds: number
+  totalRounds: number,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
     totalRounds, currentRound: totalRounds, matches, status: 'in_progress', createdAt: '',
   };
+  const t = translations[language];
   const wb = XLSX.utils.book_new();
   for (let round = 1; round <= totalRounds; round++) {
-    const { headers, rows } = getMatchTableData(group, round);
+    const { headers, rows } = getMatchTableData(group, round, language);
     if (rows.length === 0) continue;
     const data: (string | number)[][] = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, `第${round}轮`);
+    XLSX.utils.book_append_sheet(wb, ws, formatText(t.roundN, { round }));
   }
-  XLSX.writeFile(wb, `${competitionName}-${groupName}-全部对阵表.xlsx`);
+  XLSX.writeFile(wb, `${competitionName}-${groupName}-${t.matchTable}.xlsx`);
 }
 
 /** 导出单小组总表（排行榜+全部对阵） */
 export async function exportGroupSummaryToExcel(
   group: TournamentGroup,
-  competitionName: string
+  competitionName: string,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
+  const t = translations[language];
   const wb = XLSX.utils.book_new();
-
-  // 排行榜
-  const { headers, rows } = getRankingTableData(group);
+  const { headers, rows } = getRankingTableData(group, language);
   const rankData: (string | number)[][] = [headers, ...rows];
   const rankWs = XLSX.utils.aoa_to_sheet(rankData);
-  XLSX.utils.book_append_sheet(wb, rankWs, '排行榜');
-
-  // 各轮对阵
+  XLSX.utils.book_append_sheet(wb, rankWs, t.ranking);
   for (let round = 1; round <= group.totalRounds; round++) {
-    const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round);
+    const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round, language);
     if (mRows.length === 0) continue;
     const mData: (string | number)[][] = [mHeaders, ...mRows];
     const matchWs = XLSX.utils.aoa_to_sheet(mData);
-    XLSX.utils.book_append_sheet(wb, matchWs, `第${round}轮`);
+    XLSX.utils.book_append_sheet(wb, matchWs, formatText(t.roundN, { round }));
   }
-
-  XLSX.writeFile(wb, `${competitionName}-${group.name}-总表.xlsx`);
+  XLSX.writeFile(wb, `${competitionName}-${group.name}-${t.summary}.xlsx`);
 }
 
 export async function exportAllGroupsToExcel(
   groups: TournamentGroup[],
-  competitionName: string
+  competitionName: string,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
+  const t = translations[language];
   const wb = XLSX.utils.book_new();
-
   groups.forEach(group => {
-    const { headers, rows } = getRankingTableData(group);
+    const { headers, rows } = getRankingTableData(group, language);
     const data: (string | number)[][] = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-排行榜`);
-
+    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-${t.ranking}`);
     for (let round = 1; round <= group.totalRounds; round++) {
-      const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round);
+      const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round, language);
       if (mRows.length === 0) continue;
       const mData: (string | number)[][] = [mHeaders, ...mRows];
       const matchWs = XLSX.utils.aoa_to_sheet(mData);
-      XLSX.utils.book_append_sheet(wb, matchWs, `${group.name}-第${round}轮`);
+      XLSX.utils.book_append_sheet(wb, matchWs, `${group.name}-${formatText(t.roundN, { round })}`);
     }
   });
-
-  XLSX.writeFile(wb, `${competitionName}-全部小组比赛结果.xlsx`);
+  XLSX.writeFile(wb, `${competitionName}-${t.summary}.xlsx`);
 }
 
 export async function exportAllGroupsRankingToExcel(
   groups: TournamentGroup[],
-  competitionName: string
+  competitionName: string,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
+  const t = translations[language];
   const wb = XLSX.utils.book_new();
-
   groups.forEach(group => {
     if (group.currentRound === 0) return;
-    const { headers, rows } = getRankingTableData(group);
+    const { headers, rows } = getRankingTableData(group, language);
     const data: (string | number)[][] = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-排行榜`);
+    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-${t.ranking}`);
   });
-
-  XLSX.writeFile(wb, `${competitionName}-所有小组排行榜.xlsx`);
+  XLSX.writeFile(wb, `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`);
 }
 
 /** 导出所有小组本轮对阵表 */
 export async function exportAllGroupsCurrentRoundMatchesToExcel(
   groups: TournamentGroup[],
-  competitionName: string
+  competitionName: string,
+  language: AppLanguage = 'zh'
 ): Promise<void> {
   const XLSX = await loadXLSX();
+  const t = translations[language];
   const wb = XLSX.utils.book_new();
-
   groups.forEach(group => {
     if (group.currentRound === 0) return;
-    const { headers, rows } = getMatchTableData(group, group.currentRound);
+    const { headers, rows } = getMatchTableData(group, group.currentRound, language);
     if (rows.length === 0) return;
     const data: (string | number)[][] = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-第${group.currentRound}轮`);
+    XLSX.utils.book_append_sheet(wb, ws, `${group.name}-${formatText(t.roundN, { round: group.currentRound })}`);
   });
-
-  XLSX.writeFile(wb, `${competitionName}-所有小组本轮对阵表.xlsx`);
+  XLSX.writeFile(wb, `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`);
 }

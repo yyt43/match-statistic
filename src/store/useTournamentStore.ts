@@ -1,10 +1,10 @@
 import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFormats } from '../utils/playoffs';
 import { create } from 'zustand';
-import type { TournamentCompetition, TournamentGroup, Player, Match, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
+import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveCompetition, loadCompetition } from '../utils/storage';
 import { saveSnapshot, getSnapshot } from '../utils/snapshot';
-import { buildRankedGroup, evaluateGroupStatus, isRoundComplete, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
+import { evaluateGroupStatus, isRoundComplete, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 import { createNewCompetition, createNewGroup, generateId } from './tournamentFactory';
 import { updateCurrentGroup } from './competitionMutators';
@@ -381,8 +381,6 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
   updatePlayerName: (playerId: string, name: string) => {
     const { competition } = get();
-    const idx = competition.currentGroupIndex;
-    const group = competition.groups[idx];
 
     const updated = updateCurrentGroup(competition, group => ({
       ...group,

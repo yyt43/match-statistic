@@ -20,7 +20,7 @@ export function isRoundComplete(group: TournamentGroup, round: number = group.cu
   return matches.length > 0 && matches.every(match => match.result !== 'pending');
 }
 
-export function evaluateGroupStatus(group: TournamentGroup, matches: typeof group.matches = group.matches): TournamentStatus {
+export function evaluateGroupStatus(group: TournamentGroup): TournamentStatus {
   const hasCompletedRound = isRoundComplete(group, group.currentRound);
   const isLastRound = group.currentRound >= group.totalRounds;
   return hasCompletedRound && isLastRound ? 'completed' : group.status;

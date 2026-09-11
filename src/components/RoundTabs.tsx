@@ -1,9 +1,11 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useLanguagePreference } from '../i18n';
 
 export function RoundTabs() {
   const currentGroup = useCurrentGroup();
   const { viewRound, setViewRound } = useTournamentStore();
+  const { t } = useLanguagePreference();
   
   const rounds = [];
   for (let i = 1; i <= currentGroup.currentRound; i++) {
@@ -68,7 +70,7 @@ export function RoundTabs() {
               }
             `}
           >
-            加赛
+            {t.playoff}
           </button>
         )}
       </div>
