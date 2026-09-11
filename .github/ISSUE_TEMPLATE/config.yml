@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 在线体验
+    url: https://yyt43.github.io/match-statistic/
+    about: 在实际页面上确认问题或体验最新版本
+  - name: GitHub Discussions
+    url: https://github.com/yyt43/match-statistic/discussions
+    about: 适合开放式讨论、规则交流和使用经验分享

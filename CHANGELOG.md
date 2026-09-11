@@ -1,5 +1,13 @@
 # 更新日志 CHANGELOG
 
+## [Unreleased]
+
+### 优化
+
+- 接入 Workbox Service Worker，预缓存应用外壳、图标、样式和按需资源，支持离线打开与自动更新。
+- 新增 GitHub Bug、功能建议、规则讨论 Issue Forms，以及 PR 检查模板。
+- 新增 Bundle 体积预算检查，并在 CI 与部署流程中自动执行。
+
 ## [0.2.3] - 2026-09-11
 
 ### 优化

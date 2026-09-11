@@ -1,0 +1,36 @@
+name: 功能建议
+description: 提议新的赛制、统计指标、导入导出或使用体验
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景
+      description: 请描述当前遇到的问题，而不是只给出功能名称。
+      placeholder: 例如：多人团体赛需要记录队伍归属，目前只能记录个人名称。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 描述期望功能、输入和输出。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 当前是否有临时处理方式，或是否存在其他可选方案？
+    validations:
+      required: false
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      options:
+        - 影响正式比赛使用
+        - 明显提升效率
+        - 锦上添花
+    validations:
+      required: true
