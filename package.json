@@ -34,6 +34,7 @@
     "check": "tsc -b --noEmit",
     "deploy": "npm run build && gh-pages -d dist",
     "generate:icons": "node scripts/generate-icons.mjs",
+    "generate:readme": "node scripts/generate-readme-assets.mjs",
     "smoke": "node scripts/browser-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

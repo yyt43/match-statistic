@@ -8,9 +8,19 @@ Current version: v0.2.3
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
 [![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
 
+![Project preview](./docs/social-preview.png)
+
 A lightweight tournament management and result tracking tool for small card-game and competitive events. It helps with registration, grouping, round planning, match tracking, and leaderboard maintenance. It supports multiple groups, Swiss / single-elimination formats, BO1 / BO3 / BO5 / BO7 settings, and Excel / image / JSON exports.
 
 This project is suited for tournament management, club events, team activities, and card-game competitions. Built with modern React + TypeScript, it can be directly deployed to GitHub Pages and is easy to customize or extend.
+
+## Interface Preview
+
+![Desktop interface](./docs/screenshots/main-desktop.png)
+
+<p align="center">
+  <img src="./docs/screenshots/main-mobile.png" width="320" alt="Mobile interface" />
+</p>
 
 ## Key Highlights
 

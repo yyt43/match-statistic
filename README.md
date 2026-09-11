@@ -8,9 +8,19 @@
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
 [![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
 
+![项目预览](./docs/social-preview.png)
+
 一个适合小型牌类 / 竞技类赛事的轻量战绩统计与配对工具，帮助你快速完成报名、分组、轮次安排、战绩复盘和排行榜维护。支持多小组并行运行、瑞士轮 / 单败淘汰两种赛制、BO1 / BO3 / BO5 / BO7 局数配置，以及 Excel / 图片 / JSON 多格式导出。
 
 本项目适合比赛管理、俱乐部赛事、团队活动和牌类比赛的日常记录。它使用现代 React + TypeScript 架构，前端可直接部署到 GitHub Pages，便于现场或线上使用，也方便二次定制与扩展。
+
+## 界面预览
+
+![桌面端界面](./docs/screenshots/main-desktop.png)
+
+<p align="center">
+  <img src="./docs/screenshots/main-mobile.png" width="320" alt="移动端界面" />
+</p>
 
 ## 项目亮点
 
