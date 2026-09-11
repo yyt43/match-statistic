@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { X, Users, Search, Copy, Check, AlertCircle } from 'lucide-react';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
 
 interface PlayerPreviewModalProps {
   isOpen: boolean;

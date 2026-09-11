@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react';
-import { getStoredLanguage, translations } from '../i18n';
+import { getStoredLanguage, translations } from '../i18nData';
 
 interface ErrorBoundaryProps {
   children: ReactNode;

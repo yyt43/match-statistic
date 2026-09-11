@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { subscribeStorageStatus, getStorageStatus, type StorageNotice, type StorageStatus } from '../utils/storageStatus';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 /**
  * 顶部存储状态横幅：仅在有警告/错误时显示。

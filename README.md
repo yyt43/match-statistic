@@ -55,7 +55,7 @@
 - 先在 Issues 中确认需求或复现步骤，避免重复开发
 - 使用 `main` 作为稳定基线，新功能请从 `feature/*` 或 `fix/*` 分支切出
 - 遵循现有代码结构和测试规范，必要时补充回归测试
-- 提交 PR 前请运行：`npm run check`、`npm test -- --run`、`npm run build`
+- 提交 PR 前请运行：`npm run check`、`npm test -- --run`、`npm run smoke`、`npm run build`
 - 若涉及 Excel 导入、赛制规则、排名逻辑，请同步更新文档和测试案例
 
 对于大多数改动，保持简洁、明确、可验证的提交说明会更有利于协作。
@@ -181,6 +181,9 @@ npm run check
 
 # 运行测试
 npm test
+
+# 浏览器冒烟测试（需要本机 Chrome 或 Edge）
+npm run smoke
 
 # 构建生产版
 npm run build

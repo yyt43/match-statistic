@@ -1,6 +1,7 @@
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import type { Match } from '../types';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 export function MatchImageView() {
   const currentGroup = useCurrentGroup();

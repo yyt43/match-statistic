@@ -1,9 +1,10 @@
 import { PlayoffPanel } from './PlayoffPanel';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy,
-  Edit2, UserX, UserCheck, Trash2, Upload, FileText,
+  Edit2, Trash2, Upload, FileText,
   Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../store/useTournamentStore';
@@ -13,7 +14,7 @@ import { getSingleEliminationRounds, createPlayersFromNames } from '../utils/swi
 import { getWorkbookImportColumnChoices, parsePlayerGroupsFromExcel, parsePlayerNamesFromText, summarizePlayerNameInput } from '../utils/playerImport';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BackupManager } from './BackupManager';
-import { collectPreDroppedPlayerIds } from '../store/competitionState';
+import { DropoutManager } from './DropoutManager';
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -35,7 +36,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     resetCompetition,
     updateCompetitionName,
     updatePlayerName,
-    togglePlayerDropped,
     removePlayer,
     setPlayerCount,
     setTotalRounds,
@@ -62,7 +62,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showPlayerManager, setShowPlayerManager] = useState(false);
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [showFormatManager, setShowFormatManager] = useState(false);
-  const [showDropManager, setShowDropManager] = useState(false);
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [batchNames, setBatchNames] = useState('');
   const [showBatchSettings, setShowBatchSettings] = useState(false);
@@ -1234,110 +1233,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          {/* 弃赛管理 */}
-          {isInProgress && (
-            <div className="space-y-2">
-              <button
-                onClick={() => setShowDropManager(!showDropManager)}
-                className="w-full flex items-center justify-between text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <UserX className="w-3.5 h-3.5" />
-                  {isEnglish ? 'Dropout management' : '弃赛管理'}
-                  <span className="text-slate-500">
-                    ({currentGroup.players.filter(p => p.dropped).length}{isEnglish ? ' players dropped' : '人已退赛'})
-                  </span>
-                </span>
-                {showDropManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-
-              {showDropManager && (
-                <div className="mt-3 space-y-2">
-                  {(() => {
-                    const preDroppedIds = collectPreDroppedPlayerIds(currentGroup.matches);
-                    return (
-                      <>
-                        <div className="max-h-28 overflow-y-auto space-y-1">
-                          {currentGroup.players.filter(p => !p.dropped && !p.eliminated).map(player => {
-                            const isPreDropped = preDroppedIds.has(player.id);
-                            return (
-                              <div key={player.id} className="flex items-center justify-between gap-2 px-2.5 py-1 bg-slate-800/30 rounded-md">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <span className="text-xs text-slate-300 truncate">{player.name}</span>
-                                  {isPreDropped && (
-                                    <span className="shrink-0 text-[8px] text-rose-300 bg-rose-500/10 border border-rose-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap" title={t.preDropTitle}>
-                                      {t.preDropTag}
-                                    </span>
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => togglePlayerDropped(player.id)}
-                                  className={
-                                    'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0 ' +
-                                    (isPreDropped
-                                      ? 'text-slate-400 hover:bg-amber-500/10 hover:text-amber-400/80 border border-amber-500/20 bg-amber-500/5'
-                                      : 'text-rose-400 hover:bg-rose-500/10')
-                                  }
-                                  title={
-                                    isPreDropped
-                                      ? t.confirmDropTitle
-                                      : t.postDropTitle
-                                  }
-                                >
-                                  <UserX className="w-2.5 h-2.5" />
-                                  {isPreDropped ? t.confirmDropTag : t.postDropTag}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {currentGroup.players.some(p => p.eliminated) && (
-                          <div className="space-y-1">
-                            <h4 className="text-[10px] text-slate-500">{t.eliminatedSection}</h4>
-                            <div className="max-h-16 overflow-y-auto space-y-1">
-                              {currentGroup.players.filter(p => p.eliminated).map(player => (
-                                <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-slate-700/20 rounded-md">
-                                  <span className="text-xs text-slate-500">{player.name}</span>
-                                  <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded bg-slate-600/20 border border-slate-500/20">
-                                    {t.eliminatedMarkSimple}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {currentGroup.players.some(p => p.dropped) && (
-                          <div className="space-y-1">
-                            <h4 className="text-[10px] text-slate-500">{t.droppedSection}</h4>
-                            <div className="max-h-16 overflow-y-auto space-y-1">
-                              {currentGroup.players.filter(p => p.dropped).map(player => (
-                                <div key={player.id} className="flex items-center justify-between px-2.5 py-1 bg-rose-500/5 rounded-md">
-                                  <span className="text-xs text-rose-400/70 line-through">{player.name}</span>
-                                  <button
-                                    onClick={() => togglePlayerDropped(player.id)}
-                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                    title={t.restoreTitle}
-                                  >
-                                    <UserCheck className="w-2.5 h-2.5" />
-                                    {t.restore}
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="text-[9px] leading-relaxed text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded px-2 py-1.5 space-y-1">
-                          <p>{t.preDropExplanation}</p>
-                          <p>{t.postDropExplanation}</p>
-                          <p>{t.dropBothExplanation}</p>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
+          <DropoutManager />
 
           {isCompleted && (
             <div className="text-center py-3">

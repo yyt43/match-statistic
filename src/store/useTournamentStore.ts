@@ -19,7 +19,7 @@ interface CompetitionState {
 
   // 赛事级别操作
   initCompetition: (name: string, groupCount?: number, playerCountPerGroup?: number, roundsPerGroup?: number, gameType?: GameType, pairingType?: PairingType) => void;
-  loadSavedCompetition: () => boolean;
+  loadSavedCompetition: () => Promise<boolean>;
   importCompetition: (competition: TournamentCompetition) => void;
   updateCompetitionName: (name: string) => void;
   setCurrentGroup: (index: number) => void;
@@ -55,8 +55,8 @@ interface CompetitionState {
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => void;
   batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string }[]) => void;
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
-  restoreFromSnapshot: (snapshotId: string) => boolean;
-  createSnapshot: (label?: string) => void;
+  restoreFromSnapshot: (snapshotId: string) => Promise<boolean>;
+  createSnapshot: (label?: string) => Promise<void>;
 
   /** 生成加赛：检测当前小组排名中是否存在平分选手，若有则生成加赛对阵 */
   generatePlayoff: (formats?: ThreePlayerFormats) => void;
@@ -105,8 +105,8 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(competition);
   },
 
-  loadSavedCompetition: () => {
-    const rawSaved = loadCompetition();
+  loadSavedCompetition: async () => {
+    const rawSaved = await loadCompetition();
     const saved = rawSaved ? normalizeCompetitionGroups(rawSaved) : null;
     if (saved) {
       set({
@@ -812,7 +812,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     if (hasCompletedCurrentRound) {
       try {
-        saveSnapshot(updated, `${group.name}·第${group.currentRound}轮完赛`);
+        void saveSnapshot(updated, `${group.name}·第${group.currentRound}轮完赛`);
       } catch { /* 快照失败不影响主流程 */ }
     }
   },
@@ -990,17 +990,17 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(updated);
   },
 
-  createSnapshot: (label?: string) => {
+  createSnapshot: async (label?: string) => {
     const { competition } = get();
     const currentGroup = competition.groups[competition.currentGroupIndex];
     const defaultLabel = currentGroup
       ? `${currentGroup.name}·第${currentGroup.currentRound}轮`
       : '手动备份';
-    saveSnapshot(competition, label || defaultLabel);
+    await saveSnapshot(competition, label || defaultLabel);
   },
 
-  restoreFromSnapshot: (snapshotId: string) => {
-    const snapshot = getSnapshot(snapshotId);
+  restoreFromSnapshot: async (snapshotId: string) => {
+    const snapshot = await getSnapshot(snapshotId);
     if (!snapshot) return false;
     const restored = snapshot.data;
     // 快照压缩时将胜率字段置 0，恢复后需要为每个小组重算胜率与排名

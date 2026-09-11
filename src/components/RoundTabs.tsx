@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
 
 export function RoundTabs() {
   const currentGroup = useCurrentGroup();

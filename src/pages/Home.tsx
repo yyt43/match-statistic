@@ -5,10 +5,12 @@ import { MatchList } from '../components/MatchList';
 import { ControlPanel } from '../components/ControlPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StorageBanner } from '../components/StorageBanner';
+import { GroupTabs } from '../components/GroupTabs';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages } from 'lucide-react';
-import { useLanguagePreference, formatText } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import { formatText } from '../i18nData';
 
 const ImageExportModal = lazy(() => import('../components/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
 const ExcelExportModal = lazy(() => import('../components/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
@@ -32,7 +34,7 @@ export default function Home() {
   const [showUndoToast, setShowUndoToast] = useState(false);
 
   useEffect(() => {
-    loadSavedCompetition();
+    void loadSavedCompetition();
   }, [loadSavedCompetition]);
 
   // Ctrl+Z / Cmd+Z 撤回上一轮：仅在比赛进行中、无弹窗、未在输入框中聚焦时触发
@@ -219,43 +221,6 @@ export default function Home() {
           {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
         </div>
       )}
-    </div>
-  );
-}
-
-function GroupTabs() {
-  const { competition, setCurrentGroup } = useTournamentStore();
-  const { t } = useLanguagePreference();
-
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-2">
-      <span className="text-xs text-slate-500 mr-1">{t.groupSwitchLabel}</span>
-      {competition.groups.map((group, index) => {
-        const isActive = index === competition.currentGroupIndex;
-        return (
-          <button
-            key={group.id}
-            onClick={() => setCurrentGroup(index)}
-            className={`
-              px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-              ${isActive
-                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/50'
-                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600 hover:text-slate-300'
-              }
-            `}
-          >
-            {group.name}
-            {group.status === 'in_progress' && (
-              <span className="ml-1 text-xs text-slate-500">
-                {formatText(t.groupRoundStatus, { current: group.currentRound, total: group.totalRounds })}
-              </span>
-            )}
-            {group.status === 'completed' && (
-              <span className="ml-1 text-xs text-emerald-400">✓</span>
-            )}
-          </button>
-        );
-      })}
     </div>
   );
 }

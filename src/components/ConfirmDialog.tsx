@@ -1,7 +1,7 @@
 import { X, AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
 
 interface ConfirmDialogProps {
   isOpen: boolean;

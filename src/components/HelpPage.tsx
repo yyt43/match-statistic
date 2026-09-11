@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { useLanguagePreference, type AppLanguage } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
+import type { AppLanguage } from '../i18nData';
 
 interface HelpPageProps {
   isOpen: boolean;
@@ -134,8 +135,8 @@ const content: Record<AppLanguage, HelpCopy> = {
     ],
     storage: '数据存储',
     storageItems: [
-      '数据保存在当前浏览器的 localStorage 中。',
-      '每次保存同时写入主键和备份键，主键损坏时可自动恢复。',
+      '赛事数据优先保存在浏览器 IndexedDB 中，容量不足时兼容 localStorage 回退。',
+      '主数据和备份数据会分别保存，主数据损坏时可自动恢复。',
       '快照保存在浏览器内，清除浏览器数据会一并删除。',
       '跨设备迁移或长期保存请导出 JSON 文件。',
     ],
@@ -217,8 +218,8 @@ const content: Record<AppLanguage, HelpCopy> = {
     ],
     storage: 'Data storage',
     storageItems: [
-      'Tournament data is stored in the current browser localStorage.',
-      'Each save writes both a primary key and a backup key for automatic recovery.',
+      'Tournament data is stored primarily in browser IndexedDB, with localStorage retained as a compatibility fallback.',
+      'Primary and backup records are stored separately for automatic recovery.',
       'Snapshots remain in the browser and are removed when browser data is cleared.',
       'Use JSON export for long-term backup or moving to another device.',
     ],

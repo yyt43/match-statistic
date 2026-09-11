@@ -55,7 +55,7 @@ We welcome contributions and improvements. Before opening a PR, please check the
 - Confirm the need or reproduction in Issues to avoid duplicate work
 - Use `main` as the stable baseline; create `feature/*` or `fix/*` branches for new work
 - Follow the existing code structure and testing conventions; add regression tests when needed
-- Before submitting, run: `npm run check`, `npm test -- --run`, and `npm run build`
+- Before submitting, run: `npm run check`, `npm test -- --run`, `npm run smoke`, and `npm run build`
 - If the change affects Excel import, tournament rules, or ranking logic, update docs and tests together
 
 For most changes, a concise and verifiable commit message is preferred.
@@ -154,6 +154,9 @@ npm run check
 
 # run tests
 npm test
+
+# browser smoke test (requires local Chrome or Edge)
+npm run smoke
 
 # production build
 npm run build

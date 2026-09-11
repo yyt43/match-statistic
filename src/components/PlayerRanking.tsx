@@ -1,7 +1,7 @@
 import { Trophy, Medal, Award, BarChart2 } from 'lucide-react';
 import { useCurrentGroup } from '../store/useTournamentStore';
 import { useMemo } from 'react';
-import { useLanguagePreference } from '../i18n';
+import { useLanguagePreference } from '../i18nContext';
 import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../utils/ranking';
 import { getRankedPlayers, detectTieGroups } from '../utils/swissPairing';
 
