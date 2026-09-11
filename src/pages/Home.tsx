@@ -6,6 +6,7 @@ import { ControlPanel } from '../components/competition/ControlPanel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { GroupTabs } from '../components/competition/GroupTabs';
+import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
@@ -22,7 +23,13 @@ export default function Home() {
   const { loadSavedCompetition, undoLastRound } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
-  const { lastSavedAt, syncedFromOtherTab, conflictDetected } = useStorageSync();
+  const {
+    lastSavedAt,
+    syncedFromOtherTab,
+    conflict,
+    loadOtherTabVersion,
+    keepLocalVersion,
+  } = useStorageSync();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
   const [exportAllGroups, setExportAllGroups] = useState(false);
@@ -71,6 +78,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col relative">
       {/* Storage status banner */}
       <StorageBanner />
+      <AppUpdatePrompt />
 
       <button
         onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}
@@ -231,10 +239,28 @@ export default function Home() {
         </div>
       )}
 
-      {conflictDetected && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-200 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
-          <AlertTriangle className="w-4 h-4" />
-          {t.conflictFromOtherTab}
+      {conflict && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,560px)] rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-100 text-sm backdrop-blur-sm shadow-lg p-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p>{t.conflictChoice}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={keepLocalVersion}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-100 text-xs"
+                >
+                  {t.keepMyVersion}
+                </button>
+                <button
+                  onClick={() => void loadOtherTabVersion()}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs"
+                >
+                  {t.useOtherVersion}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
