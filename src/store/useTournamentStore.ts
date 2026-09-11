@@ -2,16 +2,18 @@ import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFo
 import { create } from 'zustand';
 import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
 import { calculateAllWinRates, getRankedPlayers, createPlayersFromNames, getSingleEliminationRounds, generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { saveCompetition, loadCompetition } from '../utils/storage';
-import { saveSnapshot, getSnapshot } from '../utils/snapshot';
-import { evaluateGroupStatus, isRoundComplete, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound, updateGroupAtIndex } from './competitionState';
+import { saveCompetition } from '../utils/storage';
+import { saveSnapshot } from '../utils/snapshot';
+import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 import { createNewCompetition, createNewGroup, generateId } from './tournamentFactory';
 import { updateCurrentGroup } from './competitionMutators';
 import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
+import { createCompetitionActions } from './competitionActions';
+import { createSnapshotActions } from './snapshotActions';
 
-interface CompetitionState {
+export interface CompetitionState {
   competition: TournamentCompetition;
   viewRound: number;
   isRandomGenerating: boolean;
@@ -91,41 +93,8 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
   viewRound: 0,
   isRandomGenerating: false,
   randomGenerateProgress: { total: 0, current: 0 },
-
-  initCompetition: (name: string, groupCount?: number, playerCountPerGroup?: number, roundsPerGroup?: number, gameType?: GameType, pairingType?: PairingType) => {
-    const competition = createNewCompetition(
-      name,
-      groupCount || 1,
-      playerCountPerGroup || 32,
-      roundsPerGroup || 5,
-      gameType || 'bo1',
-      pairingType || 'swiss'
-    );
-    set({ competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
-    saveCompetition(competition);
-  },
-
-  loadSavedCompetition: async () => {
-    const rawSaved = await loadCompetition();
-    const saved = rawSaved ? normalizeCompetitionGroups(rawSaved) : null;
-    if (saved) {
-      set({
-        competition: saved,
-        viewRound: resolveViewRound(saved),
-        isRandomGenerating: false,
-        randomGenerateProgress: { total: 0, current: 0 },
-      });
-      return true;
-    }
-    return false;
-  },
-
-  importCompetition: (competition: TournamentCompetition) => {
-    const normalized = normalizeCompetitionGroups(competition);
-    const viewRound = resolveViewRound(normalized);
-    set({ competition: normalized, viewRound, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
-    saveCompetition(normalized);
-  },
+  ...createCompetitionActions(set),
+  ...createSnapshotActions(set, get),
 
   updateCompetitionName: (name: string) => {
     const { competition } = get();
@@ -990,36 +959,6 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(updated);
   },
 
-  createSnapshot: async (label?: string) => {
-    const { competition } = get();
-    const currentGroup = competition.groups[competition.currentGroupIndex];
-    const defaultLabel = currentGroup
-      ? `${currentGroup.name}·第${currentGroup.currentRound}轮`
-      : '手动备份';
-    await saveSnapshot(competition, label || defaultLabel);
-  },
-
-  restoreFromSnapshot: async (snapshotId: string) => {
-    const snapshot = await getSnapshot(snapshotId);
-    if (!snapshot) return false;
-    const restored = snapshot.data;
-    // 快照压缩时将胜率字段置 0，恢复后需要为每个小组重算胜率与排名
-    const recalcGroups = restored.groups.map(g => {
-      const updatedPlayers = calculateAllWinRates(g.players, g.matches, g.gameType);
-      const rankedPlayers = getRankedPlayers(updatedPlayers, g.gameType, g.pairingType);
-      // 恢复时 previousRank 设为当前 rank（避免显示异常升降箭头）
-      const finalPlayers = rankedPlayers.map((p, i) => ({ ...p, previousRank: i + 1 }));
-      return { ...g, players: finalPlayers };
-    });
-    const finalCompetition = { ...restored, groups: recalcGroups };
-    const viewRound = finalCompetition.groups[finalCompetition.currentGroupIndex]?.currentRound > 0
-      ? finalCompetition.groups[finalCompetition.currentGroupIndex].currentRound
-      : 0;
-    set({ competition: finalCompetition, viewRound, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
-    saveCompetition(finalCompetition);
-    return true;
-  },
-
   randomGenerateAllGroups: async () => {
     if (get().isRandomGenerating) return;
     const { competition } = get();
@@ -1162,9 +1101,4 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     saveCompetition(updated);
   },
 
-  resetCompetition: () => {
-    const competition = createNewCompetition('新建赛事');
-    set({ competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
-    saveCompetition(competition);
-  },
 }));

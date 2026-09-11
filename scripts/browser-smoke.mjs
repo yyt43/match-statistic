@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { chromium } from 'playwright-core';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4173;
@@ -26,33 +27,74 @@ const server = spawn(process.execPath, [
   stdio: 'ignore',
 });
 
+let browser;
 try {
   await waitFor(
     () => fetch(appUrl, { signal: AbortSignal.timeout(1000) }),
     15000
   );
 
-  const result = await runBrowser([
-    '--headless=new',
-    '--disable-gpu',
-    '--disable-gpu-compositing',
-    '--disable-software-rasterizer',
-    '--no-sandbox',
-    '--disable-dev-shm-usage',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--virtual-time-budget=5000',
-    '--dump-dom',
-    `--user-data-dir=${browserDataDir}`,
-    appUrl,
-  ]);
+  browser = await chromium.launch({
+    executablePath: browserPath,
+    headless: true,
+    args: [
+      '--disable-gpu',
+      '--disable-gpu-compositing',
+      '--disable-software-rasterizer',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+    ],
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
-  if (result.code !== 0 || !result.stdout.includes('诗意 · 比赛战绩统计系统')) {
-    throw new Error(`Browser render check failed.\n${result.stderr || result.stdout}`);
+  await page.goto(appUrl, { waitUntil: 'networkidle' });
+  await page.getByTitle('Switch to English').click();
+  await page.waitForTimeout(300);
+  const switchedTitle = await page.locator('h1').first().textContent();
+  if (!switchedTitle?.includes('Poetic')) {
+    throw new Error(`Language switch failed; current title: ${switchedTitle ?? '<empty>'}`);
+  }
+  await waitForText(page, 'Poetic · Tournament Results System');
+
+  await page.getByRole('button', { name: /Player management/ }).click();
+  await page.getByRole('button', { name: 'Bulk import' }).click();
+  await page.locator('textarea').fill('Alice\nBob\nCharlie\nDiana');
+  await page.getByRole('button', { name: /Import 4 players/ }).click();
+  await waitForText(page, '4 players');
+
+  await page.getByRole('button', { name: /Start this group/ }).click();
+  await waitForText(page, 'Round 1 match list');
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await waitForText(page, 'Round 1 match list');
+
+  const indexedDbReady = await page.evaluate(() => new Promise(resolve => {
+    const request = indexedDB.open('match-statistic-storage');
+    request.onsuccess = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains('key-value')) {
+        resolve(false);
+        return;
+      }
+      const transaction = database.transaction('key-value', 'readonly');
+      const get = transaction.objectStore('key-value').get('swiss_tournament_data');
+      get.onsuccess = () => resolve(Boolean(get.result));
+      get.onerror = () => resolve(false);
+    };
+    request.onerror = () => resolve(false);
+  }));
+
+  if (!indexedDbReady) {
+    throw new Error('IndexedDB did not receive the tournament snapshot.');
   }
 
-  console.log('Browser smoke test passed.');
+  await page.getByTitle('Switch to Chinese').click();
+  await waitForText(page, '诗意 · 比赛战绩统计系统');
+
+  console.log('Browser smoke test passed: create roster, start event, reload persistence, switch language.');
 } finally {
+  await browser?.close();
   server.kill();
   await waitForExit(server);
   try {
@@ -80,16 +122,12 @@ function findBrowser() {
   return candidates.find(existsSync);
 }
 
-function runBrowser(args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(browserPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', chunk => { stdout += chunk; });
-    child.stderr.on('data', chunk => { stderr += chunk; });
-    child.on('error', reject);
-    child.on('close', code => resolve({ code, stdout, stderr }));
-  });
+async function waitForText(page, text) {
+  await page.waitForFunction(
+    value => document.body.textContent?.includes(value),
+    text,
+    { timeout: 10000 }
+  );
 }
 
 async function waitFor(check, timeoutMs) {
