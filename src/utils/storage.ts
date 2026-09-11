@@ -1,6 +1,7 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus, GameType, PairingType, Player, Match } from '../types';
 import { notifyStorageStatus, getStorageStatus, estimateDataSize } from './storageStatus';
 import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
+import { broadcastCompetitionSaved } from './storageSync';
 
 const STORAGE_KEY = 'swiss_tournament_data';
 const BACKUP_KEY = 'swiss_tournament_data_backup';
@@ -260,6 +261,7 @@ export function saveCompetition(competition: TournamentCompetition): void {
     data: dataToSave,
   };
   lastSavedAt = envelope.savedAt;
+  broadcastCompetitionSaved(envelope.savedAt);
 
   let localStorageSaved = false;
   let localError: unknown = null;

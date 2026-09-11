@@ -7,8 +7,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StorageBanner } from '../components/StorageBanner';
 import { GroupTabs } from '../components/GroupTabs';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
+import { useStorageSync } from '../hooks/useStorageSync';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages } from 'lucide-react';
+import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages, RefreshCw } from 'lucide-react';
 import { useLanguagePreference } from '../i18nContext';
 import { formatText } from '../i18nData';
 
@@ -21,6 +22,7 @@ export default function Home() {
   const { loadSavedCompetition, undoLastRound } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
+  const { lastSavedAt, syncedFromOtherTab } = useStorageSync();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportType, setExportType] = useState<'ranking' | 'match'>('ranking');
   const [exportAllGroups, setExportAllGroups] = useState(false);
@@ -101,7 +103,7 @@ export default function Home() {
         <FlaskConical className="w-4 h-4" />
       </button>
 
-      <Header />
+      <Header lastSavedAt={lastSavedAt} />
 
       {/* 小组切换标签 */}
       <div className="px-4 md:px-6 pt-4">
@@ -219,6 +221,13 @@ export default function Home() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
           <Undo2 className="w-4 h-4" />
           {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
+        </div>
+      )}
+
+      {syncedFromOtherTab && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
+          <RefreshCw className="w-4 h-4" />
+          {t.syncedFromOtherTab}
         </div>
       )}
     </div>
