@@ -2,11 +2,22 @@
 
 当前版本：v0.2.0
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
+[![Release](https://img.shields.io/badge/Release-v0.2.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.0)
+
 一个面向小型牌类 / 竞技类赛事的战绩统计与配对系统，适合赛前报名、分组管理、轮次配对和战绩复盘。支持多小组并行、瑞士轮 / 单败淘汰两种赛制、BO1 / BO3 / BO5 / BO7 局数配置、赛前弃赛与赛后弃赛差异化统计，以及 Excel / 图片 / JSON 多格式导出。
 
 这个项目面向公开协作，适合用于比赛管理、俱乐部赛事、团队活动和牌类比赛的日常统计。代码遵循现代 React + TypeScript 架构，前端可直接部署到 GitHub Pages，便于在比赛现场或线上使用。
 
 ## 项目简介
+
+### 许可证
+
+本项目采用 MIT License，适合公开、轻量、可复用的工具型仓库。它允许自由使用、修改、分发与商用，同时保留版权说明，适合你当前的开源发布方案。
+
+- 许可证文件： [LICENSE](LICENSE)
+- 选择理由：适合小型公开工具项目，门槛低、协作友好、便于二次开发和部署
 
 - 项目名称：诗意 · 比赛战绩统计系统
 - 适用场景：牌类活动、桌游联赛、团体赛、内部竞技赛
