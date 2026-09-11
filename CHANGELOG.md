@@ -8,6 +8,7 @@
 - 对 IndexedDB 写操作进行串行化，避免连续快速操作时旧请求覆盖新数据。
 - 新增中英文翻译键、占位符和空值一致性测试。
 - 新增强制迁移与备份恢复测试，覆盖 localStorage 回退、备份修复和旧数据升级。
+- 新增 Excel 导出数据测试，覆盖中英文排行榜表头和对阵表内容。
 - 将自动快照迁移到 IndexedDB，较小数据仍保留 localStorage 兼容副本。
 - 启用 `noUnusedLocals`、`noUnusedParameters` 和 `noFallthroughCasesInSwitch` 类型检查。
 - 启用完整 TypeScript `strict` 模式。
