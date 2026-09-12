@@ -32,6 +32,8 @@ This project is suited for tournament management, club events, team activities, 
 - Operation-level undo / redo: step through the latest 30 tournament changes
 - Single-writer protection: the first tab edits while other tabs become read-only
 - Configurable tiebreak chains: BO1 / multi-game presets plus custom metric ordering
+- Quick score entry: focused current-round scoring with keyboard shortcuts and auto-advance
+- Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups
 - Public hosting: ready for GitHub Pages and similar static deployments
 

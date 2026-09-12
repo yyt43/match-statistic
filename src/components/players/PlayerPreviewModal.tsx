@@ -126,7 +126,7 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
               <div className="font-medium mb-1">{isEnglish ? `Duplicate players detected (${duplicateNames.size})` : `检测到重名选手（共 ${duplicateNames.size} 个）`}</div>
               <div className="text-amber-400/80">
                 {Array.from(duplicateNames).slice(0, 10).join('、')}
-                {duplicateNames.size > 10 && ' 等'}
+                {duplicateNames.size > 10 && (isEnglish ? ' ...' : ' 等')}
               </div>
             </div>
           </div>

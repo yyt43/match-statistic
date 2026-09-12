@@ -133,7 +133,7 @@ export default function Home() {
   };
 
   const loadDemo = () => {
-    initCompetition('示例赛事', 1, 8, 3, 'bo1', 'swiss');
+    initCompetition(t.demoEventName, 1, 8, 3, 'bo1', 'swiss');
     startTournament(3);
     const demoGroup = useTournamentStore.getState().competition.groups[0];
     for (const match of demoGroup.matches.filter(item => item.round === 1 && !item.isBye)) {

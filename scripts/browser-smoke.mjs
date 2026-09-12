@@ -87,6 +87,22 @@ try {
 
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
+  await page.getByRole('button', { name: /^Round 1/ }).waitFor();
+  await waitForText(page, 'W = Win');
+
+  await page.getByRole('button', { name: 'Quick score entry' }).click();
+  await waitForText(page, 'Quick score entry');
+  await page.keyboard.press('1');
+  await waitForText(page, '1 pending');
+  const quickScoreDialog = page.getByRole('dialog').filter({ hasText: 'Quick score entry' });
+  await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'Storage health' }).click();
+  await waitForText(page, 'Storage health');
+  const healthDialog = page.getByRole('dialog').filter({ hasText: 'Storage health' });
+  await healthDialog.getByRole('button', { name: 'Rewrite storage' }).click();
+  await waitForText(page, 'Healthy');
+  await healthDialog.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Export Excel' }).click();
   await page.getByRole('button', { name: 'Match table' }).click();
