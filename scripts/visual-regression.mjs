@@ -19,12 +19,12 @@ const scenes = [
   {
     name: 'help-ranking',
     viewport: { width: 1280, height: 900 },
-    ruleHeadingIndex: 1,
+    scrollToText: '瑞士轮排名规则',
   },
   {
     name: 'help-ranking-mobile',
     viewport: { width: 390, height: 844 },
-    ruleHeadingIndex: 1,
+    scrollToText: '瑞士轮排名规则',
   },
 ];
 const appPort = 4176;
@@ -71,8 +71,8 @@ try {
     await page.getByTitle('帮助与说明').first().click();
     await page.getByText('功能概览').waitFor();
     await page.evaluate(() => document.fonts.ready);
-    if (typeof scene.ruleHeadingIndex === 'number') {
-      await page.locator('section').nth(2).locator('h3').nth(scene.ruleHeadingIndex).scrollIntoViewIfNeeded();
+    if (scene.scrollToText) {
+      await page.getByRole('heading', { name: scene.scrollToText }).scrollIntoViewIfNeeded();
       await page.waitForTimeout(100);
     }
     const baselinePath = join(root, 'visual-baselines', `${scene.name}.png`);

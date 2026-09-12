@@ -53,11 +53,22 @@ interface HelpFaq {
   answer: string;
 }
 
+interface HelpShortcutGroup {
+  title: string;
+  items: Array<{
+    keys: string;
+    description: string;
+  }>;
+}
+
 interface HelpCopy {
   close: string;
   subtitle: string;
   features: string;
   featureItems: HelpFeature[];
+  shortcuts: string;
+  shortcutGroups: HelpShortcutGroup[];
+  shortcutNote: string;
   quickStart: string;
   steps: HelpStep[];
   rules: string;
@@ -103,6 +114,36 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <History className="w-5 h-5" />, title: '快照恢复', description: '保留最近 5 份自动快照，也可手动创建、恢复或删除快照。' },
       { icon: <Keyboard className="w-5 h-5" />, title: '快捷操作', description: '使用 Ctrl/Cmd+Z 撤销上一操作，Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做。' },
     ],
+    shortcuts: '键盘快捷键',
+    shortcutGroups: [
+      {
+        title: '全局操作',
+        items: [
+          { keys: 'Ctrl/Cmd + K', description: '打开命令面板。' },
+          { keys: 'Ctrl/Cmd + Z', description: '撤销上一操作。' },
+          { keys: 'Ctrl/Cmd + Shift + Z', description: '重做上一操作。' },
+          { keys: 'Ctrl + Y / Cmd + Y', description: '重做上一操作。' },
+          { keys: 'Esc', description: '关闭当前弹窗；编辑赛事名、小组名或选手名时取消编辑。' },
+        ],
+      },
+      {
+        title: '快速录分',
+        items: [
+          { keys: '1', description: '判定左侧选手获胜。' },
+          { keys: '2', description: '判定右侧选手获胜。' },
+          { keys: 'D', description: '记录双负。' },
+          { keys: '← / →', description: '切换上一场或下一场比赛。' },
+        ],
+      },
+      {
+        title: '内联编辑',
+        items: [
+          { keys: 'Enter', description: '保存当前赛事名、小组名或选手名编辑。' },
+          { keys: 'Esc', description: '取消当前编辑并恢复原值。' },
+        ],
+      },
+    ],
+    shortcutNote: '当焦点位于输入框、文本区域或可编辑内容中时，Ctrl/Cmd+Z 执行浏览器原生文本撤销，不会触发赛事级撤销。',
     quickStart: '使用说明',
     steps: [
       {
@@ -199,6 +240,36 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <History className="w-5 h-5" />, title: 'Snapshot recovery', description: 'Keep up to five automatic snapshots, or create, restore, and delete snapshots manually.' },
       { icon: <Keyboard className="w-5 h-5" />, title: 'Quick actions', description: 'Undo with Ctrl/Cmd+Z and redo with Ctrl/Cmd+Shift+Z or Ctrl+Y.' },
     ],
+    shortcuts: 'Keyboard shortcuts',
+    shortcutGroups: [
+      {
+        title: 'Global',
+        items: [
+          { keys: 'Ctrl/Cmd + K', description: 'Open the command palette.' },
+          { keys: 'Ctrl/Cmd + Z', description: 'Undo the previous operation.' },
+          { keys: 'Ctrl/Cmd + Shift + Z', description: 'Redo the previous operation.' },
+          { keys: 'Ctrl + Y / Cmd + Y', description: 'Redo the previous operation.' },
+          { keys: 'Esc', description: 'Close the active dialog, or cancel an inline tournament, group, or player name edit.' },
+        ],
+      },
+      {
+        title: 'Quick score entry',
+        items: [
+          { keys: '1', description: 'Mark the left player as the winner.' },
+          { keys: '2', description: 'Mark the right player as the winner.' },
+          { keys: 'D', description: 'Record a double-loss.' },
+          { keys: '← / →', description: 'Switch to the previous or next match.' },
+        ],
+      },
+      {
+        title: 'Inline editing',
+        items: [
+          { keys: 'Enter', description: 'Save the current tournament, group, or player name edit.' },
+          { keys: 'Esc', description: 'Cancel the current edit and restore the previous value.' },
+        ],
+      },
+    ],
+    shortcutNote: 'When focus is inside an input, textarea, or editable field, Ctrl/Cmd+Z performs native text undo instead of tournament undo.',
     quickStart: 'Quick start',
     steps: [
       {
@@ -315,6 +386,41 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <FeatureCard key={feature.title} {...feature} />
             ))}
           </div>
+        </section>
+
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <Keyboard className="w-5 h-5 text-gold-400" />
+            {copy.shortcuts}
+          </h2>
+          <div className="grid grid-cols-1 gap-4">
+            {copy.shortcutGroups.map(group => (
+              <div
+                key={group.title}
+                className="overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/50"
+              >
+                <div className="border-b border-slate-700/50 px-5 py-3 text-sm font-semibold text-white">
+                  {group.title}
+                </div>
+                <div className="divide-y divide-slate-700/40">
+                  {group.items.map(item => (
+                    <div
+                      key={`${group.title}-${item.keys}`}
+                      className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center"
+                    >
+                      <kbd className="inline-flex min-w-[150px] self-start rounded-md border border-slate-600/70 bg-slate-900/80 px-2.5 py-1.5 font-mono text-xs text-gold-300 shadow-sm">
+                        {item.keys}
+                      </kbd>
+                      <span className="text-sm text-slate-300">{item.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-200/80">
+            {copy.shortcutNote}
+          </p>
         </section>
 
         <section className="mb-10">
