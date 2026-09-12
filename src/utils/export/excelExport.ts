@@ -57,7 +57,12 @@ function formatPlayerMatchHistoryTextI18n(player: Player, matches: Match[], t: T
 /** 生成排行榜表格数据（表头+行），供预览和导出共用 */
 export function getRankingTableData(group: TournamentGroup, language: AppLanguage = 'zh'): { headers: string[]; rows: (string | number)[][] } {
   const t = translations[language];
-  const sortedPlayers = sortPlayers(group.players, group.gameType, group.pairingType);
+  const sortedPlayers = sortPlayers(
+    group.players,
+    group.gameType,
+    group.pairingType,
+    group.tiebreakRules
+  );
   const isMultiGame = group.gameType !== 'bo1';
   const isSingleElimination = group.pairingType === 'single_elimination';
 

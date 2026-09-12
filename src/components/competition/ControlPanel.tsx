@@ -16,6 +16,7 @@ import { BackupManager } from '../data/BackupManager';
 import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManager } from '../players/PlayerManager';
+import { TiebreakSettings } from './TiebreakSettings';
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -639,6 +640,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       ))}
                     </div>
                   </div>
+                )}
+
+                {currentGroup.pairingType === 'swiss' && (
+                  <TiebreakSettings
+                    gameType={currentGroup.gameType}
+                    template={currentGroup.tiebreakTemplate}
+                    rules={currentGroup.tiebreakRules}
+                  />
                 )}
 
                 {/* 批量设置所有小组 */}

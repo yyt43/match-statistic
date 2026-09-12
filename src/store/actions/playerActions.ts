@@ -4,7 +4,6 @@ import type { StoreGet, StoreSet } from './actionTypes';
 import { updateCurrentGroup } from '../competitionMutators';
 import { createPlayersFromNames, getSingleEliminationRounds } from '../../utils/swissPairing';
 import { generateId } from '../tournamentFactory';
-import { saveCompetition } from '../../utils/storage/storage';
 import { logAudit } from '../../utils/auditLog';
 
 type PlayerActionKey =
@@ -39,9 +38,8 @@ export function createPlayerActions(
   set: StoreSet,
   get: StoreGet
 ): Pick<CompetitionState, PlayerActionKey> {
-  const persist = (competition: CompetitionState['competition']) => {
-    set({ competition });
-    saveCompetition(competition);
+  const persist = (competition: CompetitionState['competition'], label: string) => {
+    set({ competition }, { label });
   };
 
   return {
@@ -52,7 +50,7 @@ export function createPlayerActions(
       persist(updateCurrentGroup(competition, current => ({
         ...current,
         players: [...current.players, createPlayer(name)],
-      })));
+      })), '添加选手');
     },
 
     addPlayers: (names: string[]) => {
@@ -63,7 +61,7 @@ export function createPlayerActions(
       persist(updateCurrentGroup(competition, current => ({
         ...current,
         players: [...current.players, ...players],
-      })));
+      })), '批量添加选手');
     },
 
     replacePlayers: (names: string[]) => {
@@ -73,7 +71,7 @@ export function createPlayerActions(
       persist(updateCurrentGroup(competition, current => ({
         ...current,
         players: createPlayersFromNames(names.filter(name => name.trim())),
-      })));
+      })), '替换选手名单');
     },
 
     removePlayer: (playerId: string) => {
@@ -83,7 +81,7 @@ export function createPlayerActions(
       persist(updateCurrentGroup(competition, current => ({
         ...current,
         players: current.players.filter(player => player.id !== playerId),
-      })));
+      })), '删除选手');
     },
 
     updatePlayerName: (playerId: string, name: string) => {
@@ -93,7 +91,7 @@ export function createPlayerActions(
         players: group.players.map(player =>
           player.id === playerId ? { ...player, name: name.trim() } : player
         ),
-      })));
+      })), '修改选手名称');
     },
 
     togglePlayerDropped: (playerId: string) => {
@@ -109,7 +107,7 @@ export function createPlayerActions(
           player.id === playerId ? { ...player, dropped: !player.dropped } : player
         ),
       };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, player?.dropped ? '恢复选手' : '选手退赛');
       if (player) {
         void logAudit(
           player.dropped ? 'player-restore' : 'player-drop',
@@ -156,7 +154,7 @@ export function createPlayerActions(
 
       const groups = [...competition.groups];
       groups[index] = { ...group, players, totalRounds, roundGameTypes };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '调整选手人数');
     },
   };
 }

@@ -1,4 +1,4 @@
-import { Trophy, Swords, Medal } from 'lucide-react';
+import { Trophy, Swords, Medal, Redo2, Undo2 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
@@ -6,6 +6,11 @@ import { formatText } from '../../i18n/data';
 export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
   const currentGroup = useCurrentGroup();
   const competition = useTournamentStore(state => state.competition);
+  const canUndo = useTournamentStore(state => state.historyPast.length > 0);
+  const canRedo = useTournamentStore(state => state.historyFuture.length > 0);
+  const isReadOnly = useTournamentStore(state => state.isReadOnly);
+  const undo = useTournamentStore(state => state.undo);
+  const redo = useTournamentStore(state => state.redo);
   const { language, t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
   const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
@@ -73,6 +78,28 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
             </div>
 
             <div className="flex items-center gap-4">
+              <div className="glass-panel flex items-center gap-1 rounded-xl p-1">
+                <button
+                  type="button"
+                  onClick={() => { undo(); }}
+                  disabled={!canUndo || isReadOnly}
+                  className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-700/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  title={t.undoAction}
+                  aria-label={t.undoAction}
+                >
+                  <Undo2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { redo(); }}
+                  disabled={!canRedo || isReadOnly}
+                  className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-700/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  title={t.redoAction}
+                  aria-label={t.redoAction}
+                >
+                  <Redo2 className="h-4 w-4" />
+                </button>
+              </div>
               <div className="glass-panel rounded-xl px-4 py-2.5 text-center">
                 <div className="text-2xl font-bold font-mono text-gold-400">
                   {currentGroup.players.length}

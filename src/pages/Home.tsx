@@ -5,14 +5,16 @@ import { MatchList } from '../components/matches/MatchList';
 import { ControlPanel } from '../components/competition/ControlPanel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
+import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { GroupTabs } from '../components/competition/GroupTabs';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 import { OnboardingModal } from '../components/common/OnboardingModal';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
+import { useWriterLock } from '../hooks/useWriterLock';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Swords, Languages, RefreshCw } from 'lucide-react';
+import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Redo2, Swords, Languages, RefreshCw } from 'lucide-react';
 import { useLanguagePreference } from '../i18n/context';
 import { formatText } from '../i18n/data';
 
@@ -23,13 +25,16 @@ const PlayerPreviewModal = lazy(() => import('../components/players/PlayerPrevie
 const ONBOARDING_KEY = 'tournament-onboarding-v1';
 
 export default function Home() {
+  useWriterLock();
+
   const {
     initCompetition,
     startTournament,
-    undoLastRound,
     updateMatchResult,
     loadSavedCompetition,
   } = useTournamentStore();
+  const undo = useTournamentStore(state => state.undo);
+  const redo = useTournamentStore(state => state.redo);
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
   const {
@@ -49,7 +54,7 @@ export default function Home() {
   const [testMode, setTestMode] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPlayerPreview, setShowPlayerPreview] = useState(false);
-  const [showUndoToast, setShowUndoToast] = useState(false);
+  const [historyToast, setHistoryToast] = useState<{ type: 'undo' | 'redo'; label: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== '1'
   );
@@ -138,38 +143,44 @@ export default function Home() {
     completeOnboarding();
   };
 
-  // Ctrl+Z / Cmd+Z 撤回上一轮：仅在比赛进行中、无弹窗、未在输入框中聚焦时触发
+  // Ctrl+Z / Cmd+Z 撤销上一操作，Ctrl+Shift+Z / Ctrl+Y 重做。
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const isUndo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z');
-      if (!isUndo) return;
+      const key = e.key.toLowerCase();
+      const withModifier = e.ctrlKey || e.metaKey;
+      const isUndo = withModifier && key === 'z' && !e.shiftKey;
+      const isRedo = withModifier && ((key === 'z' && e.shiftKey) || key === 'y');
+      if (!isUndo && !isRedo) return;
 
-      // 任一弹窗打开时禁用，避免误触发
       if (isExportOpen || isExcelOpen || showConfirm || showHelp || showPlayerPreview) return;
 
-      // 在 input/textarea/contenteditable 中编辑文本时让浏览器原生撤销生效
       const target = e.target as HTMLElement | null;
       if (target) {
         const tag = target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
       }
 
-      // 只有进行中且已有轮次可撤回时才拦截
-      if (currentGroup.status !== 'in_progress' || currentGroup.currentRound <= 0) return;
-
+      const state = useTournamentStore.getState();
+      if (state.isReadOnly) return;
+      const label = isRedo
+        ? state.historyFuture[0]?.label
+        : state.historyPast[state.historyPast.length - 1]?.label;
+      if (!label) return;
       e.preventDefault();
-      undoLastRound();
-      setShowUndoToast(true);
-      window.setTimeout(() => setShowUndoToast(false), 1800);
+      const succeeded = isRedo ? redo() : undo();
+      if (!succeeded) return;
+      setHistoryToast({ type: isRedo ? 'redo' : 'undo', label });
+      window.setTimeout(() => setHistoryToast(null), 1800);
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isExportOpen, isExcelOpen, showConfirm, showHelp, showPlayerPreview, currentGroup.status, currentGroup.currentRound, undoLastRound]);
+  }, [isExportOpen, isExcelOpen, showConfirm, showHelp, showPlayerPreview, redo, undo]);
 
   return (
     <div className="min-h-screen flex flex-col relative pb-16 md:pb-0">
       {/* Storage status banner */}
       <StorageBanner />
+      <WriterLockBanner />
       <AppUpdatePrompt />
 
       <button
@@ -378,10 +389,13 @@ export default function Home() {
       </Suspense>
 
       {/* 撤回成功提示 toast */}
-      {showUndoToast && (
+      {historyToast && (
         <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none" role="status" aria-live="polite">
-          <Undo2 className="w-4 h-4" />
-          {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
+          {historyToast.type === 'redo' ? <Redo2 className="w-4 h-4" /> : <Undo2 className="w-4 h-4" />}
+          {formatText(
+            historyToast.type === 'redo' ? t.historyRedoToast : t.historyUndoToast,
+            { label: historyToast.label }
+          )}
         </div>
       )}
 
@@ -554,7 +568,8 @@ function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
         nextRound,
         roundGameType,
         previewGroup.pairingType,
-        previewGroup.matches
+        previewGroup.matches,
+        previewGroup.tiebreakRules
       );
       return matches;
     } catch {

@@ -133,6 +133,12 @@ try {
     throw new Error('IndexedDB did not receive the tournament snapshot.');
   }
 
+  const secondPage = await context.newPage();
+  await secondPage.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
+  await secondPage.goto(appUrl, { waitUntil: 'networkidle' });
+  await waitForText(secondPage, 'This tab is read-only');
+  await secondPage.close();
+
   await page.getByTitle('Switch to Chinese').click();
   await waitForText(page, '诗意 · 比赛战绩统计系统');
 

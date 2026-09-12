@@ -5,8 +5,12 @@ import type {
   TournamentCompetition,
   TournamentGroup,
 } from '../../types';
+import {
+  getDefaultTiebreakTemplate,
+  normalizeTiebreakRules,
+} from '../tiebreak';
 
-export const CURRENT_STORAGE_VERSION = 4;
+export const CURRENT_STORAGE_VERSION = 5;
 
 type Migration = (competition: TournamentCompetition) => TournamentCompetition;
 
@@ -36,6 +40,15 @@ const migrations: Record<number, Migration> = {
         roundGameTypes,
       };
     }),
+  }),
+
+  4: competition => ({
+    ...competition,
+    groups: competition.groups.map(group => ({
+      ...group,
+      tiebreakTemplate: group.tiebreakTemplate ?? getDefaultTiebreakTemplate(group.gameType),
+      tiebreakRules: normalizeTiebreakRules(group.tiebreakRules, group.gameType),
+    })),
   }),
 };
 
@@ -82,6 +95,8 @@ function migrateGroup(group: TournamentGroup): TournamentGroup {
     ...group,
     pairingType,
     gameType,
+    tiebreakTemplate: group.tiebreakTemplate ?? getDefaultTiebreakTemplate(gameType),
+    tiebreakRules: normalizeTiebreakRules(group.tiebreakRules, gameType),
     players,
     matches: Array.isArray(group.matches) ? group.matches : [],
     roundGameTypes: normalizeRoundGameTypes({ ...group, gameType }),

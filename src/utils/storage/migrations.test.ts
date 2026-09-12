@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TournamentCompetition } from '../../types';
+import { createNewCompetition } from '../../store/tournamentFactory';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
 
 function legacyCompetition(): TournamentCompetition {
@@ -45,6 +46,8 @@ describe('storage migrations', () => {
     expect(migrated.groups[0].gameType).toBe('bo1');
     expect(migrated.groups[0].roundGameTypes).toHaveLength(3);
     expect(migrated.groups[0].players[0].downMatchCount).toBe(0);
+    expect(migrated.groups[0].tiebreakTemplate).toBe('standard_bo1');
+    expect(migrated.groups[0].tiebreakRules).toContain('opponentWinRate');
   });
 
   it('normalizes round game type length', () => {
@@ -55,6 +58,22 @@ describe('storage migrations', () => {
 
     const migrated = migrateCompetitionData(competition, 3);
     expect(migrated.groups[0].roundGameTypes).toEqual(['bo1', 'bo3', 'bo3']);
+  });
+
+  it('adds default tiebreak configuration to version 4 data', () => {
+    const competition = createNewCompetition('Version 4', 1, 8, 3, 'bo3');
+    delete competition.groups[0].tiebreakTemplate;
+    delete competition.groups[0].tiebreakRules;
+
+    const migrated = migrateCompetitionData(competition, 4);
+    expect(migrated.groups[0].tiebreakTemplate).toBe('standard_multi');
+    expect(migrated.groups[0].tiebreakRules).toEqual([
+      'opponentWinRate',
+      'gameWinRate',
+      'opponentGameWinRate',
+      'points',
+      'playoffWins',
+    ]);
   });
 
   it('rejects data from a newer unsupported version', () => {

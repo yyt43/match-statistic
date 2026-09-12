@@ -99,7 +99,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <FlaskConical className="w-5 h-5" />, title: '测试模式', description: '可随机生成当前轮或整场赛果，用于演示、调试和导出预览。' },
       { icon: <GripVertical className="w-5 h-5" />, title: '拖拽改序', description: '正常查看对阵时可直接拖动卡片调整显示顺序，并自动保存。' },
       { icon: <History className="w-5 h-5" />, title: '快照恢复', description: '保留最近 5 份自动快照，也可手动创建、恢复或删除快照。' },
-      { icon: <Keyboard className="w-5 h-5" />, title: '快捷操作', description: '使用 Ctrl/Cmd+Z 撤回上一轮，破坏性操作均会二次确认。' },
+      { icon: <Keyboard className="w-5 h-5" />, title: '快捷操作', description: '使用 Ctrl/Cmd+Z 撤销上一操作，Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做。' },
     ],
     quickStart: '使用说明',
     steps: [
@@ -133,8 +133,9 @@ const content: Record<AppLanguage, HelpCopy> = {
     swissRankingRules: '瑞士轮排名规则',
     swissRankingRuleItems: [
       { title: '总体顺序', text: '先比较参赛状态（正常参赛 > 已淘汰 > 已弃赛），再从胜场数和破分指标逐级排序。' },
-      { title: 'BO1 破分链', text: '胜场数 → 对手胜率（SOS）→ 对手的对手胜率（SOSOS）→ 积分 → 加赛胜场/名次 → 姓名。' },
-      { title: 'BO3 / BO5 / BO7 破分链', text: '胜场数 → 对手胜率（SOS）→ 本人局胜率 → 对手局胜率 → 积分 → 加赛胜场/名次 → 姓名。' },
+      { title: '默认 BO1 破分链', text: '胜场数 → 对手胜率（SOS）→ 对手的对手胜率（SOSOS）→ 积分 → 加赛胜场/名次 → 姓名。' },
+      { title: '默认 BO3 / BO5 / BO7 破分链', text: '胜场数 → 对手胜率（SOS）→ 本人局胜率 → 对手局胜率 → 积分 → 加赛胜场/名次 → 姓名。' },
+      { title: '自定义破分链', text: '比赛开始前可在赛制管理中选择 BO1 / 多局预设，或启用自定义模式并调整指标顺序。' },
       { title: '对手胜率（SOS）', text: '按 Σ对手有效胜场 / Σ对手有效总场次聚合计算；赛前弃赛和加赛不进入该网络，轮空按 0 胜 / 1 场计入。' },
       { title: '局胜率（BO3+）', text: '本人局胜率与对手局胜率均按累计胜局 / 累计总局计算，赛前弃赛和加赛不计入。' },
       { title: '完全同分', text: '若常规破分指标全部相同，系统会标记需要加赛；加赛胜场和最终名次只用于区分名次，不改变常规小分。' },
@@ -150,12 +151,13 @@ const content: Record<AppLanguage, HelpCopy> = {
     storageItems: [
       '赛事数据优先保存在浏览器 IndexedDB 中，容量不足时兼容 localStorage 回退。',
       '主数据和备份数据会分别保存，主数据损坏时可自动恢复。',
+      '多个标签页打开时只有一个可编辑，其他标签页自动进入只读状态。',
       '快照保存在浏览器内，清除浏览器数据会一并删除。',
       '跨设备迁移或长期保存请导出 JSON 文件。',
     ],
     faq: '常见问题',
     faqItems: [
-      { question: '如何修改已录入的比赛结果？', answer: '使用撤回上一轮功能回退，再重新录入。单败淘汰会同时恢复被淘汰选手。' },
+      { question: '如何修改已录入的比赛结果？', answer: '可直接修改当前比赛结果，也可以使用 Ctrl/Cmd+Z 撤销上一操作；整轮回退仍可使用“撤回本轮赛果”。' },
       { question: '为什么比赛开始后不能导入？', answer: '为避免覆盖进行中的数据，导入会禁用；请先重置赛事，再导入新的 JSON 文件。' },
       { question: 'Excel 如何识别选手姓名？', answer: '系统会优先识别姓名、Name、Player 等表头，也可在导入前手动指定列。' },
       { question: '快照和 JSON 导出有什么区别？', answer: '快照适合浏览器内快速回滚；JSON 文件适合长期备份和跨设备迁移。' },
@@ -191,7 +193,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <FlaskConical className="w-5 h-5" />, title: 'Test mode', description: 'Generate random current-round or full-event results for demos, debugging, and export previews.' },
       { icon: <GripVertical className="w-5 h-5" />, title: 'Drag to reorder', description: 'Reorder match cards in normal view; the new display order is saved automatically.' },
       { icon: <History className="w-5 h-5" />, title: 'Snapshot recovery', description: 'Keep up to five automatic snapshots, or create, restore, and delete snapshots manually.' },
-      { icon: <Keyboard className="w-5 h-5" />, title: 'Quick actions', description: 'Undo the last round with Ctrl/Cmd+Z; destructive actions require confirmation.' },
+      { icon: <Keyboard className="w-5 h-5" />, title: 'Quick actions', description: 'Undo with Ctrl/Cmd+Z and redo with Ctrl/Cmd+Shift+Z or Ctrl+Y.' },
     ],
     quickStart: 'Quick start',
     steps: [
@@ -225,8 +227,9 @@ const content: Record<AppLanguage, HelpCopy> = {
     swissRankingRules: 'Swiss ranking rules',
     swissRankingRuleItems: [
       { title: 'Overall order', text: 'First compare participation status (active > eliminated > dropped), then sort by wins and the applicable tiebreak chain.' },
-      { title: 'BO1 tiebreak chain', text: 'Wins → opponent win rate (SOS) → opponents-of-opponents win rate (SOSOS) → points → playoff wins/placement → name.' },
-      { title: 'BO3 / BO5 / BO7 tiebreak chain', text: 'Wins → opponent win rate (SOS) → personal game win rate → opponent game win rate → points → playoff wins/placement → name.' },
+      { title: 'Default BO1 tiebreak chain', text: 'Wins → opponent win rate (SOS) → opponents-of-opponents win rate (SOSOS) → points → playoff wins/placement → name.' },
+      { title: 'Default BO3 / BO5 / BO7 tiebreak chain', text: 'Wins → opponent win rate (SOS) → personal game win rate → opponent game win rate → points → playoff wins/placement → name.' },
+      { title: 'Custom tiebreak chain', text: 'Before the event starts, choose a BO1 / multi-game preset or enable custom mode and reorder the metrics.' },
       { title: 'Opponent win rate (SOS)', text: 'Calculated as Σ opponent wins / Σ opponent games. Pre-match drops and playoffs are excluded; a bye contributes 0 wins over 1 game.' },
       { title: 'Game rates (BO3+)', text: 'Personal and opponent game win rates use total games won / total games played. Pre-match drops and playoffs are excluded.' },
       { title: 'Exact ties', text: 'If every regular tiebreak metric is identical, the app marks the players as requiring a playoff. Playoff wins and final placement never change regular tiebreak metrics.' },
@@ -242,12 +245,13 @@ const content: Record<AppLanguage, HelpCopy> = {
     storageItems: [
       'Tournament data is stored primarily in browser IndexedDB, with localStorage retained as a compatibility fallback.',
       'Primary and backup records are stored separately for automatic recovery.',
+      'When multiple tabs are open, one remains editable and the others become read-only.',
       'Snapshots remain in the browser and are removed when browser data is cleared.',
       'Use JSON export for long-term backup or moving to another device.',
     ],
     faq: 'FAQ',
     faqItems: [
-      { question: 'How do I correct an entered result?', answer: 'Undo the previous round, then enter the results again. Elimination status is restored automatically.' },
+      { question: 'How do I correct an entered result?', answer: 'Edit the current match directly, or use Ctrl/Cmd+Z to undo the last operation. “Undo round results” still restores a complete round.' },
       { question: 'Why is import disabled after the tournament starts?', answer: 'This prevents active data from being overwritten. Reset the tournament before importing a new JSON file.' },
       { question: 'How does Excel import detect player names?', answer: 'The app prioritizes headers such as Name, Player, and 姓名, and you can choose the column manually before import.' },
       { question: 'What is the difference between snapshots and JSON export?', answer: 'Snapshots are quick in-browser rollback points. JSON files are portable and better for long-term storage.' },

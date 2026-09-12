@@ -1,8 +1,17 @@
 import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFormats } from '../utils/playoffs';
 import { create } from 'zustand';
-import type { TournamentCompetition, TournamentGroup, Player, MatchResult, TournamentStatus, GameType, PairingType } from '../types';
+import type {
+  TournamentCompetition,
+  TournamentGroup,
+  Player,
+  MatchResult,
+  TournamentStatus,
+  GameType,
+  PairingType,
+  TiebreakRule,
+  TiebreakTemplate,
+} from '../types';
 import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType } from '../utils/swissPairing';
-import { saveCompetition } from '../utils/storage/storage';
 import { saveSnapshot } from '../utils/storage/snapshot';
 import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
@@ -14,12 +23,22 @@ import { createSnapshotActions } from './actions/snapshotActions';
 import { createGroupActions } from './actions/groupActions';
 import { createPlayerActions } from './actions/playerActions';
 import { logAudit } from '../utils/auditLog';
+import {
+  cloneCompetition,
+  createHistoryEntry,
+  createStoreSet,
+  HISTORY_LIMIT,
+  type CompetitionHistoryEntry,
+} from './competitionHistory';
 
 export interface CompetitionState {
   competition: TournamentCompetition;
   viewRound: number;
   isRandomGenerating: boolean;
   randomGenerateProgress: { total: number; current: number };
+  historyPast: CompetitionHistoryEntry[];
+  historyFuture: CompetitionHistoryEntry[];
+  isReadOnly: boolean;
 
   // 赛事级别操作
   initCompetition: (name: string, groupCount?: number, playerCountPerGroup?: number, roundsPerGroup?: number, gameType?: GameType, pairingType?: PairingType) => void;
@@ -45,6 +64,7 @@ export interface CompetitionState {
   setGameType: (gameType: GameType) => void;
   setPairingType: (pairingType: PairingType) => void;
   setRoundGameType: (round: number, gameType: GameType) => void;
+  setTiebreakTemplate: (template: TiebreakTemplate, rules?: TiebreakRule[]) => void;
 
   startTournament: (totalRounds: number) => void;
   startAllGroups: () => void;
@@ -67,6 +87,10 @@ export interface CompetitionState {
   resetPlayoffs: () => void;
 
   setViewRound: (round: number) => void;
+  undo: () => boolean;
+  redo: () => boolean;
+  clearHistory: () => void;
+  setReadOnly: (readOnly: boolean) => void;
   resetCompetition: () => void;
 }
 
@@ -90,40 +114,87 @@ export function useIsCurrentRoundComplete(): boolean {
 
 const initialCompetition = createNewCompetition('新建赛事');
 
-export const useTournamentStore = create<CompetitionState>((set, get) => ({
+export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
+  const set = createStoreSet(rawSet, get);
+
+  return {
   competition: initialCompetition,
   viewRound: 0,
   isRandomGenerating: false,
   randomGenerateProgress: { total: 0, current: 0 },
+  historyPast: [],
+  historyFuture: [],
+  isReadOnly: false,
   ...createCompetitionActions(set),
   ...createSnapshotActions(set, get),
   ...createGroupActions(set, get),
   ...createPlayerActions(set, get),
 
+  undo: () => {
+    const state = get();
+    const previous = state.historyPast[state.historyPast.length - 1];
+    if (!previous || state.isReadOnly) return false;
+
+    const current = createHistoryEntry(state, previous.label);
+    const nextCompetition = cloneCompetition(previous.competition);
+    set({
+      competition: nextCompetition,
+      viewRound: previous.viewRound,
+      historyPast: state.historyPast.slice(0, -1),
+      historyFuture: [current, ...state.historyFuture].slice(0, HISTORY_LIMIT),
+    }, { history: 'skip' });
+    void logAudit('history-undo', `Undo ${previous.label}`, { label: previous.label });
+    return true;
+  },
+
+  redo: () => {
+    const state = get();
+    const next = state.historyFuture[0];
+    if (!next || state.isReadOnly) return false;
+
+    const current = createHistoryEntry(state, next.label);
+    const nextCompetition = cloneCompetition(next.competition);
+    set({
+      competition: nextCompetition,
+      viewRound: next.viewRound,
+      historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
+      historyFuture: state.historyFuture.slice(1),
+    }, { history: 'skip' });
+    void logAudit('history-redo', `Redo ${next.label}`, { label: next.label });
+    return true;
+  },
+
+  clearHistory: () => {
+    set({ historyPast: [], historyFuture: [] }, { history: 'replace' });
+  },
+
+  setReadOnly: (readOnly: boolean) => {
+    set({ isReadOnly: readOnly });
+  },
+
   updateCompetitionName: (name: string) => {
     const { competition } = get();
     const updated = { ...competition, name: name.trim() || '新建赛事' };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '修改赛事名称' });
   },
 
   startTournament: (totalRounds: number) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     let updated = startTournamentForGroup(competition, idx, totalRounds);
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '开始比赛' });
 
     updated = generateNextRoundForCompetition(updated, idx);
-    set({ competition: updated, viewRound: updated.groups[idx].currentRound });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: updated.groups[idx].currentRound },
+      { label: '开始比赛' }
+    );
   },
 
   startAllGroups: () => {
     const { competition } = get();
     let updated = startAllGroupsInCompetition(competition);
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '开始全部小组' });
 
     for (let i = 0; i < updated.groups.length; i++) {
       const g = updated.groups[i];
@@ -133,16 +204,20 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     }
 
     const currentGroup = updated.groups[updated.currentGroupIndex];
-    set({ competition: updated, viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 },
+      { label: '开始全部小组' }
+    );
   },
 
   generateNextRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const updated = generateNextRoundForCompetition(competition, idx);
-    set({ competition: updated, viewRound: updated.groups[idx].currentRound });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: updated.groups[idx].currentRound },
+      { label: '生成下一轮' }
+    );
   },
 
   generateNextRoundForGroup: (groupIdx: number) => {
@@ -154,7 +229,14 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     if (nextRound > group.totalRounds) return;
 
     const roundGameType = getRoundGameType(group, nextRound);
-    const { matches, updatedPlayers: pairedPlayers } = generatePairings(group.players, nextRound, roundGameType, group.pairingType, group.matches);
+    const { matches, updatedPlayers: pairedPlayers } = generatePairings(
+      group.players,
+      nextRound,
+      roundGameType,
+      group.pairingType,
+      group.matches,
+      group.tiebreakRules
+    );
 
     // 使用配对后更新的选手（含上下匹配标记/次数）
     const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
@@ -179,8 +261,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updatedGroups = [...competition.groups];
     updatedGroups[groupIdx] = { ...group, currentRound: nextRound, matches: allMatches, players: updatedPlayers };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '生成小组下一轮' });
   },
 
   generateNextRoundAllGroups: () => {
@@ -204,7 +285,6 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updated = get().competition;
     const currentGroup = updated.groups[updated.currentGroupIndex];
     set({ viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 });
-    saveCompetition(updated);
   },
 
   undoLastRound: () => {
@@ -314,8 +394,10 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       status: currentRound - 1 === 0 ? 'setup' as TournamentStatus : 'in_progress' as TournamentStatus,
     };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated, viewRound: currentRound - 1 });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: currentRound - 1 },
+      { label: `撤回第${currentRound}轮` }
+    );
     void logAudit('round-undo', `Round ${currentRound} undone`, { round: currentRound });
   },
 
@@ -331,7 +413,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     if (match.isPlayoff) {
       const updated = updateGroupAtIndex(competition, idx, currentGroup => recordPlayoffResult(currentGroup, matchId, result, player1Games, player2Games));
-      set({ competition: updated }); saveCompetition(updated);
+      set({ competition: updated }, { label: '修改加赛结果' });
       void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
@@ -357,9 +439,19 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
 
-    const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+    const rankedPlayers = getRankedPlayers(
+      updatedPlayers,
+      group.gameType,
+      group.pairingType,
+      group.tiebreakRules
+    );
     const previousRankMap = new Map(
-      getRankedPlayers(group.players, group.gameType, group.pairingType).map((p, i) => [p.id, i + 1])
+      getRankedPlayers(
+        group.players,
+        group.gameType,
+        group.pairingType,
+        group.tiebreakRules
+      ).map((p, i) => [p.id, i + 1])
     );
     updatedPlayers = rankedPlayers.map(p => ({ ...p, previousRank: previousRankMap.get(p.id) }));
 
@@ -371,8 +463,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '修改比赛结果' });
     void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
 
     const hasCompletedCurrentRound = isRoundComplete({ ...group, matches: updatedMatches, players: updatedPlayers });
@@ -397,8 +488,10 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const idx = competition.currentGroupIndex;
     const group = advancePlayoffs(competition.groups[idx], formats);
     const updated = replaceGroupAtIndex(competition, idx, group);
-    set({ competition: updated, viewRound: group.matches.some(m => m.isPlayoff) ? 0 : group.currentRound });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: group.matches.some(m => m.isPlayoff) ? 0 : group.currentRound },
+      { label: '生成加赛' }
+    );
   },
 
   resetPlayoffs: () => {
@@ -406,8 +499,10 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const idx = competition.currentGroupIndex;
     const group = clearPlayoffs(competition.groups[idx]);
     const updated = replaceGroupAtIndex(competition, idx, group);
-    set({ competition: updated, viewRound: group.currentRound });
-    saveCompetition(updated);
+    set(
+      { competition: updated, viewRound: group.currentRound },
+      { label: '清除加赛' }
+    );
   },
 
   updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
@@ -423,7 +518,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       const groups = [...competition.groups];
       groups[groupIdx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
       const updated = { ...competition, groups };
-      set({ competition: updated }); saveCompetition(updated);
+      set({ competition: updated }, { label: '修改小组比赛结果' });
       void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
@@ -449,9 +544,19 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
 
-    const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+    const rankedPlayers = getRankedPlayers(
+      updatedPlayers,
+      group.gameType,
+      group.pairingType,
+      group.tiebreakRules
+    );
     const previousRankMap = new Map(
-      getRankedPlayers(group.players, group.gameType, group.pairingType).map((p, i) => [p.id, i + 1])
+      getRankedPlayers(
+        group.players,
+        group.gameType,
+        group.pairingType,
+        group.tiebreakRules
+      ).map((p, i) => [p.id, i + 1])
     );
     updatedPlayers = rankedPlayers.map(p => ({ ...p, previousRank: previousRankMap.get(p.id) }));
 
@@ -463,8 +568,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '修改小组比赛结果' });
     void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
   },
 
@@ -485,8 +589,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updatedGroups = [...competition.groups];
     updatedGroups[competition.currentGroupIndex] = { ...group, matches: updatedMatches };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '调整对阵选手' });
   },
 
   batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string; isBye?: boolean }[]) => {
@@ -516,8 +619,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updatedGroups = [...competition.groups];
     updatedGroups[competition.currentGroupIndex] = { ...group, matches: updatedMatches };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '批量调整对阵' });
   },
 
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => {
@@ -559,8 +661,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updatedGroups = [...competition.groups];
     updatedGroups[idx] = { ...group, matches: newMatches };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated });
-    saveCompetition(updated);
+    set({ competition: updated }, { label: '调整对阵顺序' });
   },
 
   randomGenerateAllGroups: async () => {
@@ -639,8 +740,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0,
       isRandomGenerating: false,
       randomGenerateProgress: { total: 0, current: 0 },
-    });
-    saveCompetition(updated);
+    }, { label: '随机生成全部赛果' });
   },
 
   randomGenerateCurrentRoundAllGroups: async () => {
@@ -701,8 +801,8 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       competition: updated,
       isRandomGenerating: false,
       randomGenerateProgress: { total: 0, current: 0 },
-    });
-    saveCompetition(updated);
+    }, { label: '随机生成当前轮赛果' });
   },
 
-}));
+  };
+});

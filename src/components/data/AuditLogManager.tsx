@@ -40,6 +40,10 @@ export function AuditLogManager({ isOpen, onClose }: AuditLogManagerProps) {
         });
       case 'round-undo':
         return formatText(t.auditRoundUndo, { round: String(details.round ?? '') });
+      case 'history-undo':
+        return formatText(t.auditHistoryUndo, { label: String(details.label ?? '') });
+      case 'history-redo':
+        return formatText(t.auditHistoryRedo, { label: String(details.label ?? '') });
       case 'tournament-reset':
         return t.auditTournamentReset;
       case 'tournament-import':

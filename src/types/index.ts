@@ -6,6 +6,16 @@ export type PairingType = 'swiss' | 'single_elimination';
 
 export type GameType = 'bo1' | 'bo3' | 'bo5' | 'bo7';
 
+export type TiebreakRule =
+  | 'opponentWinRate'
+  | 'opponentOpponentWinRate'
+  | 'gameWinRate'
+  | 'opponentGameWinRate'
+  | 'points'
+  | 'playoffWins';
+
+export type TiebreakTemplate = 'standard_bo1' | 'standard_multi' | 'custom';
+
 export interface Player {
   id: string;
   name: string;
@@ -86,6 +96,8 @@ export interface TournamentGroup {
   createdAt: string;
   pairingType: PairingType;
   gameType: GameType;
+  tiebreakTemplate?: TiebreakTemplate;
+  tiebreakRules?: TiebreakRule[];
   /** 单败淘汰每轮独立赛制，下标为 round-1；未设置则回退到 gameType */
   roundGameTypes?: GameType[];
   playoffBrackets?: PlayoffBracket[];
