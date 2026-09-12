@@ -22,9 +22,11 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run check
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:coverage
       - run: npm run build
       - run: npm run check:bundle
+      - run: npm run smoke:offline
+      - run: npm run visual:check
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:

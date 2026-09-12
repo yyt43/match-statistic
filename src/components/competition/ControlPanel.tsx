@@ -601,7 +601,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   <div className="space-y-2">
                     <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
                     <div className="px-3 py-2 bg-slate-800/30 rounded-lg text-sm text-slate-400">
-                      {isEnglish ? `Total ${currentGroup.totalRounds} rounds (auto-calculated from ${currentGroup.players.length} players)` : `共 <span className="font-mono text-gold-400 font-bold">${currentGroup.totalRounds}</span> 轮（根据 ${currentGroup.players.length} 人自动计算）`}
+                      {isEnglish
+                        ? `Total ${currentGroup.totalRounds} rounds (auto-calculated from ${currentGroup.players.length} players)`
+                        : (
+                          <>
+                            共 <span className="font-mono text-gold-400 font-bold">{currentGroup.totalRounds}</span>
+                            {' '}轮（根据 {currentGroup.players.length} 人自动计算）
+                          </>
+                        )}
                     </div>
                   </div>
                 )}
@@ -729,7 +736,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         <div className="space-y-1">
                           <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
                           <div className="px-3 py-2 bg-slate-800/30 rounded text-sm text-slate-400">
-                            {isEnglish ? `Auto-calculated from ${batchPlayerCount} players` : `根据 <span className="font-mono text-gold-400 font-bold">${batchPlayerCount}</span> 人自动计算`}
+                            {isEnglish
+                              ? `Auto-calculated from ${batchPlayerCount} players`
+                              : (
+                                <>
+                                  根据 <span className="font-mono text-gold-400 font-bold">{batchPlayerCount}</span>
+                                  {' '}人自动计算
+                                </>
+                              )}
                           </div>
                         </div>
                       )}

@@ -27,8 +27,9 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run check
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:coverage
       - run: npm run smoke
       - run: npm run build
       - run: npm run check:bundle
       - run: npm run smoke:offline
+      - run: npm run visual:check

@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
+import { findBrowser } from './browserPath.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4173;
@@ -71,32 +72,30 @@ try {
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
 
-  if (!process.env.CI) {
-    await page.getByRole('button', { name: 'Export Excel' }).click();
-    await page.getByRole('button', { name: 'Match table' }).click();
-    const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download Excel' }).click();
-    const download = await downloadPromise;
-    const downloadPath = join(browserDataDir, 'round-export.xlsx');
-    await download.saveAs(downloadPath);
-    if (statSync(downloadPath).size === 0) {
-      throw new Error('Excel export produced an empty file.');
-    }
-    await page.getByRole('button', { name: 'Cancel' }).click();
-
-    await page.getByRole('button', { name: 'Export image' }).click();
-    await page.getByRole('button', { name: 'Match table' }).click();
-    const imageDownloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download image' }).click();
-    const imageDownload = await imageDownloadPromise;
-    const imageDownloadPath = join(browserDataDir, 'ranking-export.png');
-    await imageDownload.saveAs(imageDownloadPath);
-    const pngSignature = readFileSync(imageDownloadPath).subarray(0, 8).toString('hex');
-    if (pngSignature !== '89504e470d0a1a0a') {
-      throw new Error('Image export did not produce a valid PNG file.');
-    }
-    await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Export Excel' }).click();
+  await page.getByRole('button', { name: 'Match table' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download Excel' }).click();
+  const download = await downloadPromise;
+  const downloadPath = join(browserDataDir, 'round-export.xlsx');
+  await download.saveAs(downloadPath);
+  if (statSync(downloadPath).size === 0) {
+    throw new Error('Excel export produced an empty file.');
   }
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await page.getByRole('button', { name: 'Export image' }).click();
+  await page.getByRole('button', { name: 'Match table' }).click();
+  const imageDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download image' }).click();
+  const imageDownload = await imageDownloadPromise;
+  const imageDownloadPath = join(browserDataDir, 'ranking-export.png');
+  await imageDownload.saveAs(imageDownloadPath);
+  const pngSignature = readFileSync(imageDownloadPath).subarray(0, 8).toString('hex');
+  if (pngSignature !== '89504e470d0a1a0a') {
+    throw new Error('Image export did not produce a valid PNG file.');
+  }
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.reload({ waitUntil: 'networkidle' });
   await waitForText(page, 'Round 1 match list');
@@ -134,24 +133,6 @@ try {
   } catch {
     // Browser profiles can remain briefly locked on Windows after process exit.
   }
-}
-
-function findBrowser() {
-  if (process.env.BROWSER_PATH && existsSync(process.env.BROWSER_PATH)) {
-    return process.env.BROWSER_PATH;
-  }
-  const candidates = process.platform === 'win32'
-    ? [
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      ]
-    : [
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-      ];
-  return candidates.find(existsSync);
 }
 
 async function waitForText(page, text) {
