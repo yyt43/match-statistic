@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { getLastSavedAt, saveCompetition } from '../utils/storage/storage';
-import { subscribeCompetitionSaved, TAB_ID } from '../utils/storage/storageSync';
+import { isConcurrentSave, subscribeCompetitionSaved, TAB_ID } from '../utils/storage/storageSync';
+import { logAudit } from '../utils/auditLog';
 
 export function useStorageSync() {
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
@@ -20,7 +21,7 @@ export function useStorageSync() {
     const currentCompetition = useTournamentStore.getState().competition;
     if (event.competitionId !== currentCompetition.id) return;
 
-    if (Date.now() - lastLocalSaveRef.current < 2000) {
+    if (isConcurrentSave(lastLocalSaveRef.current)) {
       setConflict({ savedAt: event.savedAt, competitionId: event.competitionId });
       return;
     }
@@ -38,10 +39,14 @@ export function useStorageSync() {
     conflict,
     loadOtherTabVersion: async () => {
       const loaded = await loadSavedCompetition();
-      if (loaded) setConflict(null);
+      if (loaded) {
+        void logAudit('conflict-resolve', 'Used other tab version', { choice: 'other-tab' });
+        setConflict(null);
+      }
     },
     keepLocalVersion: () => {
       saveCompetition(useTournamentStore.getState().competition);
+      void logAudit('conflict-resolve', 'Kept this tab version', { choice: 'this-tab' });
       setConflict(null);
     },
   };

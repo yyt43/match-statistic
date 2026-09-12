@@ -10,6 +10,8 @@ import {
   summarizePlayerNameInput,
 } from '../../utils/import/playerImport';
 import { createPlayersFromNames } from '../../utils/swissPairing';
+import { downloadErrorReport } from '../../utils/errorReport';
+import { VirtualizedList } from '../common/VirtualizedList';
 
 export function PlayerManager() {
   const currentGroup = useCurrentGroup();
@@ -21,6 +23,7 @@ export function PlayerManager() {
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [batchNames, setBatchNames] = useState('');
   const [playerImportError, setPlayerImportError] = useState<string | null>(null);
+  const [playerImportErrorFile, setPlayerImportErrorFile] = useState('');
   const [excelColumnSelections, setExcelColumnSelections] = useState<Record<string, string>>({});
   const [excelColumnChoices, setExcelColumnChoices] = useState<Array<{ sheetName: string; columns: string[]; detectedColumn: string }>>([]);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -71,6 +74,7 @@ export function PlayerManager() {
     } catch (error) {
       console.error(error);
       setPlayerImportError(error instanceof Error ? error.message : t.excelImportFailed);
+      setPlayerImportErrorFile(selectedFile.name);
     }
   };
 
@@ -143,6 +147,7 @@ export function PlayerManager() {
     } catch (error) {
       console.error(error);
       setPlayerImportError(error instanceof Error ? error.message : t.excelImportFailed);
+      setPlayerImportErrorFile(selectedFile.name);
     }
   };
 
@@ -275,57 +280,75 @@ export function PlayerManager() {
                   )}
                 </div>
               )}
-              {playerImportError && <div className="px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs">{playerImportError}</div>}
+              {playerImportError && (
+                <div className="px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs space-y-2">
+                  <div>{playerImportError}</div>
+                  <button
+                    onClick={() => downloadErrorReport('excel-player-import', playerImportError, {
+                      fileName: playerImportErrorFile,
+                    })}
+                    className="text-[11px] underline hover:text-rose-300"
+                  >
+                    {t.downloadErrorReport}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="max-h-48 overflow-y-auto space-y-1">
-            {currentGroup.players.map((player, index) => (
-              <div key={player.id} className="flex items-center gap-2 px-3 py-2 bg-slate-800/30 rounded-lg group hover:bg-slate-800/50 transition-colors">
-                <span className="text-slate-500 font-mono text-xs w-6">{index + 1}.</span>
-                {editingPlayerId === player.id ? (
-                  <>
-                    <input
-                      type="text"
-                      value={editNameValue}
-                      onChange={event => setEditNameValue(event.target.value)}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter') handleConfirmEditName();
-                        if (event.key === 'Escape') {
-                          setEditingPlayerId(null);
-                          setEditNameValue('');
-                        }
-                      }}
-                      autoFocus
-                      className="flex-1 px-2 py-1 bg-slate-700 border border-gold-500/50 rounded text-sm text-white focus:outline-none"
-                    />
-                    <button onClick={handleConfirmEditName} className="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">
-                      {isEnglish ? 'Confirm' : '确认'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex-1 text-sm text-slate-300 truncate">{player.name}</span>
-                    <button
-                      onClick={() => {
-                        setEditingPlayerId(player.id);
-                        setEditNameValue(player.name);
-                      }}
-                      className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => removePlayer(player.id)}
-                      className="p-1 rounded hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                )}
+          <VirtualizedList
+            items={currentGroup.players}
+            itemHeight={40}
+            getKey={player => player.id}
+            className="max-h-48"
+            renderItem={(player, index) => (
+              <div className="h-full pb-1">
+                <div className="group flex h-full items-center gap-2 rounded-lg bg-slate-800/30 px-3 transition-colors hover:bg-slate-800/50">
+                  <span className="text-slate-500 font-mono text-xs w-6">{index + 1}.</span>
+                  {editingPlayerId === player.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editNameValue}
+                        onChange={event => setEditNameValue(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') handleConfirmEditName();
+                          if (event.key === 'Escape') {
+                            setEditingPlayerId(null);
+                            setEditNameValue('');
+                          }
+                        }}
+                        autoFocus
+                        className="flex-1 px-2 py-1 bg-slate-700 border border-gold-500/50 rounded text-sm text-white focus:outline-none"
+                      />
+                      <button onClick={handleConfirmEditName} className="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">
+                        {isEnglish ? 'Confirm' : '确认'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm text-slate-300 truncate">{player.name}</span>
+                      <button
+                        onClick={() => {
+                          setEditingPlayerId(player.id);
+                          setEditNameValue(player.name);
+                        }}
+                        className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => removePlayer(player.id)}
+                        className="p-1 rounded hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+            )}
+          />
         </div>
       )}
     </div>

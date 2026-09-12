@@ -11,6 +11,14 @@ export interface CompetitionSavedEvent {
   competitionId: string;
 }
 
+export function isConcurrentSave(
+  lastLocalSaveAt: number,
+  receivedAt: number = Date.now(),
+  thresholdMs = 2000
+): boolean {
+  return lastLocalSaveAt > 0 && receivedAt - lastLocalSaveAt < thresholdMs;
+}
+
 export function broadcastCompetitionSaved(savedAt: string, competitionId: string): void {
   if (typeof window === 'undefined') return;
   const event: CompetitionSavedEvent = { sourceId: TAB_ID, savedAt, competitionId };
@@ -36,7 +44,11 @@ export function subscribeCompetitionSaved(
   }
 
   const channel = new BroadcastChannel(CHANNEL_NAME);
-  channel.addEventListener('message', event => listener(event.data as CompetitionSavedEvent));
+  channel.addEventListener('message', event => {
+    const savedEvent = event.data as CompetitionSavedEvent;
+    // The local CustomEvent already handles this tab's own save.
+    if (savedEvent.sourceId !== TAB_ID) listener(savedEvent);
+  });
 
   return () => {
     window.removeEventListener(LOCAL_EVENT, handleLocal);

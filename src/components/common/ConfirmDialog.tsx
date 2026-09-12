@@ -1,7 +1,8 @@
 import { X, AlertTriangle } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useLanguagePreference } from '../../i18n/context';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -17,11 +18,17 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({ isOpen, onClose, title, message, onConfirm, confirmText, cancelText, children }: ConfirmDialogProps) {
   useEscapeClose(isOpen, onClose);
   const { t } = useLanguagePreference();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, dialogRef);
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >

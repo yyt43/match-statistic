@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, History, RotateCcw, Trash2, Plus, Clock } from 'lucide-react';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useTournamentStore } from '../../store/useTournamentStore';
 import { listSnapshots, deleteSnapshot, type Snapshot } from '../../utils/storage/snapshot';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface BackupManagerProps {
   isOpen: boolean;
@@ -19,6 +20,8 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Snapshot | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, dialogRef);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,6 +86,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col relative"
         onClick={e => e.stopPropagation()}
       >

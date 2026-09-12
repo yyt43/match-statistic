@@ -7,6 +7,8 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { GroupTabs } from '../components/competition/GroupTabs';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
+import { OnboardingModal } from '../components/common/OnboardingModal';
+import { CommandPalette } from '../components/common/CommandPalette';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
@@ -18,9 +20,16 @@ const ImageExportModal = lazy(() => import('../components/export/ImageExportModa
 const ExcelExportModal = lazy(() => import('../components/export/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
 const HelpPage = lazy(() => import('../components/help/HelpPage').then(module => ({ default: module.HelpPage })));
 const PlayerPreviewModal = lazy(() => import('../components/players/PlayerPreviewModal').then(module => ({ default: module.PlayerPreviewModal })));
+const ONBOARDING_KEY = 'tournament-onboarding-v1';
 
 export default function Home() {
-  const { loadSavedCompetition, undoLastRound } = useTournamentStore();
+  const {
+    initCompetition,
+    startTournament,
+    undoLastRound,
+    updateMatchResult,
+    loadSavedCompetition,
+  } = useTournamentStore();
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
   const {
@@ -41,10 +50,93 @@ export default function Home() {
   const [showHelp, setShowHelp] = useState(false);
   const [showPlayerPreview, setShowPlayerPreview] = useState(false);
   const [showUndoToast, setShowUndoToast] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => localStorage.getItem(ONBOARDING_KEY) !== '1'
+  );
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   useEffect(() => {
     void loadSavedCompetition();
   }, [loadSavedCompetition]);
+
+  useEffect(() => {
+    const handleCommandShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setShowCommandPalette(true);
+      }
+    };
+    document.addEventListener('keydown', handleCommandShortcut);
+    return () => document.removeEventListener('keydown', handleCommandShortcut);
+  }, []);
+
+  const commandActions = useMemo(() => [
+    {
+      id: 'help',
+      label: t.help,
+      keywords: 'help guide',
+      icon: <HelpCircle className="h-4 w-4" />,
+      run: () => setShowHelp(true),
+    },
+    {
+      id: 'players',
+      label: t.previewPlayers,
+      keywords: 'players preview roster',
+      icon: <Users className="h-4 w-4" />,
+      run: () => setShowPlayerPreview(true),
+    },
+    {
+      id: 'image-export',
+      label: t.exportImage,
+      keywords: 'image png export',
+      icon: <Camera className="h-4 w-4" />,
+      run: () => {
+        setExportType('ranking');
+        setExportAllGroups(false);
+        setIsExportOpen(true);
+      },
+    },
+    {
+      id: 'excel-export',
+      label: t.exportExcel,
+      keywords: 'excel sheet export',
+      icon: <FileSpreadsheet className="h-4 w-4" />,
+      run: () => {
+        setExcelType('ranking');
+        setIsExcelOpen(true);
+      },
+    },
+    {
+      id: 'language',
+      label: t.switchLanguage,
+      keywords: 'language english chinese',
+      icon: <Languages className="h-4 w-4" />,
+      run: () => setLanguage(language === 'en' ? 'zh' : 'en'),
+    },
+    {
+      id: 'onboarding',
+      label: t.viewOnboarding,
+      keywords: 'onboarding guide demo',
+      icon: <HelpCircle className="h-4 w-4" />,
+      run: () => setShowOnboarding(true),
+    },
+  ], [language, setLanguage, t]);
+
+  const completeOnboarding = () => {
+    localStorage.setItem(ONBOARDING_KEY, '1');
+    setShowOnboarding(false);
+  };
+
+  const loadDemo = () => {
+    initCompetition('示例赛事', 1, 8, 3, 'bo1', 'swiss');
+    startTournament(3);
+    const demoGroup = useTournamentStore.getState().competition.groups[0];
+    for (const match of demoGroup.matches.filter(item => item.round === 1 && !item.isBye)) {
+      const player1Wins = Math.random() >= 0.5;
+      updateMatchResult(match.id, player1Wins ? 'player1' : 'player2', player1Wins ? 1 : 0, player1Wins ? 0 : 1);
+    }
+    completeOnboarding();
+  };
 
   // Ctrl+Z / Cmd+Z 撤回上一轮：仅在比赛进行中、无弹窗、未在输入框中聚焦时触发
   useEffect(() => {
@@ -75,7 +167,7 @@ export default function Home() {
   }, [isExportOpen, isExcelOpen, showConfirm, showHelp, showPlayerPreview, currentGroup.status, currentGroup.currentRound, undoLastRound]);
 
   return (
-    <div className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen flex flex-col relative pb-16 md:pb-0">
       {/* Storage status banner */}
       <StorageBanner />
       <AppUpdatePrompt />
@@ -177,6 +269,12 @@ export default function Home() {
       <footer className="py-4 text-center text-xs text-slate-600 space-y-0.5">
         <div>{t.appName}</div>
         <div>{t.footerCopyright}</div>
+        <button
+          onClick={() => setShowOnboarding(true)}
+          className="text-[11px] text-slate-500 underline hover:text-gold-400"
+        >
+          {t.viewOnboarding}
+        </button>
       </footer>
 
       <Suspense fallback={null}>
@@ -193,6 +291,61 @@ export default function Home() {
           initialType={excelType}
         />
       </Suspense>
+
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={completeOnboarding}
+        onLoadDemo={loadDemo}
+      />
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        actions={commandActions}
+      />
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-slate-700/60 bg-slate-900/95 px-2 py-2 backdrop-blur-md md:hidden">
+        <button
+          onClick={() => setShowHelp(true)}
+          className="flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-gold-400"
+          title={t.help}
+        >
+          <HelpCircle className="h-4 w-4" />
+          {t.help}
+        </button>
+        <button
+          onClick={() => setShowPlayerPreview(true)}
+          className="flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-gold-400"
+          title={t.previewPlayers}
+        >
+          <Users className="h-4 w-4" />
+          {t.previewPlayers}
+        </button>
+        <button
+          onClick={() => {
+            setExportType('ranking');
+            setExportAllGroups(false);
+            setIsExportOpen(true);
+          }}
+          disabled={currentGroup.currentRound === 0}
+          className="flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-gold-400 disabled:opacity-40"
+          title={t.exportImage}
+        >
+          <Camera className="h-4 w-4" />
+          {t.exportImage}
+        </button>
+        <button
+          onClick={() => {
+            setExcelType('ranking');
+            setIsExcelOpen(true);
+          }}
+          disabled={currentGroup.currentRound === 0}
+          className="flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-gold-400 disabled:opacity-40"
+          title={t.exportExcel}
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          {t.exportExcel}
+        </button>
+      </nav>
 
       <ConfirmDialog
         isOpen={showConfirm}
@@ -226,21 +379,21 @@ export default function Home() {
 
       {/* 撤回成功提示 toast */}
       {showUndoToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none" role="status" aria-live="polite">
           <Undo2 className="w-4 h-4" />
           {formatText(t.undoToast, { round: currentGroup.currentRound + 1 })}
         </div>
       )}
 
       {syncedFromOtherTab && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 text-sm flex items-center gap-2 backdrop-blur-sm shadow-lg pointer-events-none" role="status" aria-live="polite">
           <RefreshCw className="w-4 h-4" />
           {t.syncedFromOtherTab}
         </div>
       )}
 
       {conflict && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,560px)] rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-100 text-sm backdrop-blur-sm shadow-lg p-4">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,560px)] rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-100 text-sm backdrop-blur-sm shadow-lg p-4" role="alert" aria-live="assertive">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <div className="flex-1">

@@ -39,6 +39,7 @@ try {
 
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
+  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
   await page.goto(appUrl, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /选手管理/ }).click();
   await page.getByRole('button', { name: '批量导入' }).click();

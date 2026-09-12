@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../../utils/ranking';
 import { getRankedPlayers, detectTieGroups } from '../../utils/swissPairing';
+import { VirtualizedList } from '../common/VirtualizedList';
 
 export function PlayerRanking() {
   const currentGroup = useCurrentGroup();
@@ -113,24 +114,26 @@ export function PlayerRanking() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
-        {isSingleElimination ? (
-          /* ============ Single-elimination table layout ============ */
-          <div>
-            <div className="grid grid-cols-12 gap-1.5 px-2 py-1.5 text-[10px] font-medium text-slate-500 border-b border-slate-700/40">
-              <div className="col-span-1">#</div>
-              <div className="col-span-5">{isEnglish ? 'Player' : '选手'}</div>
-              <div className="col-span-2 text-center">{isEnglish ? 'Title' : '头衔'}</div>
-              <div className="col-span-2 text-center">{isEnglish ? 'Record' : '战绩'}</div>
-              <div className="col-span-2 text-center">{isEnglish ? 'Elim. round' : '淘汰轮'}</div>
-            </div>
-            <div className="space-y-0.5 mt-1">
-              {rankedPlayers.map((player, index) => {
-                const rank = index + 1;
-                return (
+      {isSingleElimination ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="grid grid-cols-12 gap-1.5 border-b border-slate-700/40 px-2 py-1.5 text-[10px] font-medium text-slate-500">
+            <div className="col-span-1">#</div>
+            <div className="col-span-5">{isEnglish ? 'Player' : '选手'}</div>
+            <div className="col-span-2 text-center">{isEnglish ? 'Title' : '头衔'}</div>
+            <div className="col-span-2 text-center">{isEnglish ? 'Record' : '战绩'}</div>
+            <div className="col-span-2 text-center">{isEnglish ? 'Elim. round' : '淘汰轮'}</div>
+          </div>
+          <VirtualizedList
+            items={rankedPlayers}
+            itemHeight={36}
+            getKey={player => player.id}
+            className="-mr-1 min-h-0 flex-1 pr-1 pt-1"
+            renderItem={(player, index) => {
+              const rank = index + 1;
+              return (
+                <div className="h-full pb-0.5">
                   <div
-                    key={player.id}
-                    className={`grid grid-cols-12 gap-1.5 px-2 py-1.5 rounded-md items-center transition-all
+                    className={`grid h-full grid-cols-12 items-center gap-1.5 rounded-md px-2 transition-all
                       ${rank <= 3 ? 'bg-slate-800/40' : 'bg-slate-800/20'}
                       ${rank === 1 ? 'border-l-2 border-yellow-400' : ''}
                       ${player.dropped
@@ -184,28 +187,31 @@ export function PlayerRanking() {
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* ============ 瑞士轮：卡片式布局（解决拥挤）============ */
-          <div className="space-y-1">
-            {rankedPlayers.map((player, index) => {
-              const rank = index + 1;
-              const history = getPlayerMatchHistory(player.id, currentGroup.matches, currentGroup.totalRounds);
-              const isDead = player.dropped || (player.eliminated && !isCompleted);
+                </div>
+              );
+            }}
+          />
+        </div>
+      ) : (
+        <VirtualizedList
+          items={rankedPlayers}
+          itemHeight={52}
+          getKey={player => player.id}
+          className="-mr-1 min-h-0 flex-1 pr-1"
+          renderItem={(player, index) => {
+            const rank = index + 1;
+            const history = getPlayerMatchHistory(player.id, currentGroup.matches, currentGroup.totalRounds);
+            const isDead = player.dropped || (player.eliminated && !isCompleted);
 
-              return (
+            return (
+              <div className="h-full pb-1">
                 <div
-                  key={player.id}
-                  className={`rounded-md px-2 py-1.5 transition-all
+                  className={`h-full rounded-md px-2 py-1.5 transition-all
                     ${rank <= 3 ? 'bg-slate-800/40' : 'bg-slate-800/20'}
                     ${rank === 1 ? 'border-l-2 border-yellow-400' : ''}
                     ${isDead ? 'opacity-60' : ''}
                     hover:bg-slate-800/50`}
                 >
-                  {/* 第一行：排名 + 选手名 + 战绩 + 比赛历史 */}
                   <div className="flex items-center gap-2">
                     <span className="w-6 shrink-0 flex items-center justify-center">
                       {getRankBadge(rank)}
@@ -251,7 +257,6 @@ export function PlayerRanking() {
                       )}
                     </div>
                   </div>
-                  {/* 第二行：百分比数据（紧凑展示，避免遮挡） */}
                   <div className="flex items-center gap-2 pl-8 mt-0.5 text-[10px] text-slate-400 font-mono">
                     <span title={isEnglish ? 'Opponent win rate' : '对手胜率'}>{isEnglish ? 'Opp. W' : '对胜'} <span className="text-slate-300">{(player.opponentWinRate * 100).toFixed(1)}%</span></span>
                     {isMultiGame ? (
@@ -269,11 +274,11 @@ export function PlayerRanking() {
                     )}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            );
+          }}
+        />
+      )}
 
       <div className="mt-3 pt-3 border-t border-slate-700/40 shrink-0">
         <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">

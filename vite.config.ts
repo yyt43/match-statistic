@@ -70,7 +70,7 @@ export default defineConfig({
       workbox: {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
+        skipWaiting: false,
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
       },

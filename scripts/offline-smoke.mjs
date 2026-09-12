@@ -42,6 +42,7 @@ try {
   });
   const context = await browser.newContext();
   const page = await context.newPage();
+  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
 
   await page.goto(appUrl, { waitUntil: 'networkidle' });
   await page.evaluate(() => navigator.serviceWorker.ready);

@@ -9,9 +9,11 @@ import {
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
 import type { GameType, PairingType } from '../../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../../utils/export/fileStorage';
+import { downloadErrorReport } from '../../utils/errorReport';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { BackupManager } from '../data/BackupManager';
+import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManager } from '../players/PlayerManager';
 
@@ -51,6 +53,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
   const [showGroupManager, setShowGroupManager] = useState(false);
@@ -70,6 +73,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [batchRoundsInput, setBatchRoundsInput] = useState<string>(String(batchRounds));
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
   const [importError, setImportError] = useState<string | null>(null);
+  const [importErrorFile, setImportErrorFile] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -203,6 +207,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                 importCompetition(data);
               } catch (err) {
                 setImportError(err instanceof Error ? err.message : t.importFailed);
+                setImportErrorFile(file.name);
               }
 
               // 清空文件输入
@@ -223,8 +228,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           </button>
         </div>
         {importError && (
-          <div className="mt-2 px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs">
-            {importError}
+          <div className="mt-2 px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs space-y-2">
+            <div>{importError}</div>
+            <button
+              onClick={() => downloadErrorReport('tournament-json-import', importError, {
+                fileName: importErrorFile,
+              })}
+              className="text-[11px] underline hover:text-rose-300"
+            >
+              {t.downloadErrorReport}
+            </button>
           </div>
         )}
         {competition.groups.some(g => g.status !== 'setup') && !importError && (
@@ -939,6 +952,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               {isEnglish ? 'Backup manager' : '备份管理'}
             </button>
             <button
+              onClick={() => setShowAuditLog(true)}
+              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+            >
+              <History className="w-3.5 h-3.5" />
+              {t.auditLog}
+            </button>
+            <button
               onClick={() => setShowResetConfirm(true)}
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
             >
@@ -1000,6 +1020,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <BackupManager
         isOpen={showBackupManager}
         onClose={() => setShowBackupManager(false)}
+      />
+      <AuditLogManager
+        isOpen={showAuditLog}
+        onClose={() => setShowAuditLog(false)}
       />
     </div>
   );

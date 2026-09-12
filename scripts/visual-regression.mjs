@@ -6,9 +6,16 @@ import { PNG } from 'pngjs';
 import { chromium } from 'playwright-core';
 
 const root = resolve(import.meta.dirname, '..');
-const baselinePath = join(root, 'visual-baselines', 'help-page.png');
-const currentPath = join(root, 'test-results', 'visual', 'help-page-current.png');
-const diffPath = join(root, 'test-results', 'visual', 'help-page-diff.png');
+const scenes = [
+  {
+    name: 'help-page',
+    viewport: { width: 1280, height: 900 },
+  },
+  {
+    name: 'help-page-mobile',
+    viewport: { width: 390, height: 844 },
+  },
+];
 const appPort = 4176;
 const appUrl = `http://127.0.0.1:${appPort}/`;
 const browserPath = findBrowser();
@@ -41,20 +48,35 @@ const browser = await chromium.launch({
 try {
   await waitFor(() => fetch(appUrl, { signal: AbortSignal.timeout(1000) }), 15000);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
   await page.goto(appUrl, { waitUntil: 'networkidle' });
-  await page.getByTitle('帮助与说明').click();
+  await page.getByTitle('帮助与说明').first().click();
   await page.getByText('功能概览').waitFor();
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: currentPath, fullPage: false });
 
-  if (process.argv.includes('--update') || !existsSync(baselinePath)) {
-    copyFileSync(currentPath, baselinePath);
-    console.log('Visual baseline updated:', baselinePath);
-  } else {
+  for (const scene of scenes) {
+    await page.setViewportSize(scene.viewport);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByTitle('帮助与说明').first().click();
+    await page.getByText('功能概览').waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    const baselinePath = join(root, 'visual-baselines', `${scene.name}.png`);
+    const currentPath = join(root, 'test-results', 'visual', `${scene.name}-current.png`);
+    const diffPath = join(root, 'test-results', 'visual', `${scene.name}-diff.png`);
+    await page.screenshot({ path: currentPath, fullPage: false });
+
+    if (process.argv.includes('--update') || !existsSync(baselinePath)) {
+      copyFileSync(currentPath, baselinePath);
+      console.log('Visual baseline updated:', baselinePath);
+      continue;
+    }
+
     const baseline = PNG.sync.read(readFileSync(baselinePath));
     const current = PNG.sync.read(readFileSync(currentPath));
     if (baseline.width !== current.width || baseline.height !== current.height) {
-      throw new Error(`Visual size mismatch: ${baseline.width}x${baseline.height} vs ${current.width}x${current.height}`);
+      throw new Error(
+        `${scene.name} size mismatch: ${baseline.width}x${baseline.height} vs ${current.width}x${current.height}`
+      );
     }
 
     const diff = new PNG({ width: current.width, height: current.height });
@@ -70,9 +92,9 @@ try {
     writeFileSync(diffPath, PNG.sync.write(diff));
 
     if (diffRatio > 0.03) {
-      throw new Error(`Visual regression detected: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
+      throw new Error(`Visual regression detected in ${scene.name}: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
     }
-    console.log(`Visual regression passed: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
+    console.log(`Visual regression passed for ${scene.name}: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
   }
 } finally {
   await browser.close();

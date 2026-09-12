@@ -5,6 +5,7 @@ import { updateCurrentGroup } from '../competitionMutators';
 import { createPlayersFromNames, getSingleEliminationRounds } from '../../utils/swissPairing';
 import { generateId } from '../tournamentFactory';
 import { saveCompetition } from '../../utils/storage/storage';
+import { logAudit } from '../../utils/auditLog';
 
 type PlayerActionKey =
   | 'addPlayer'
@@ -101,6 +102,7 @@ export function createPlayerActions(
       const group = competition.groups[index];
       if (group.status !== 'in_progress') return;
       const groups = [...competition.groups];
+      const player = group.players.find(item => item.id === playerId);
       groups[index] = {
         ...group,
         players: group.players.map(player =>
@@ -108,6 +110,13 @@ export function createPlayerActions(
         ),
       };
       persist({ ...competition, groups });
+      if (player) {
+        void logAudit(
+          player.dropped ? 'player-restore' : 'player-drop',
+          `${player.name} ${player.dropped ? 'restored' : 'dropped'}`,
+          { name: player.name }
+        );
+      }
     },
 
     setPlayerCount: (count: number) => {

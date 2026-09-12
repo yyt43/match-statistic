@@ -23,6 +23,9 @@ export function usePwaUpdate() {
     needRefresh,
     offlineReady,
     updateNow: () => updateRef.current(true),
-    dismissUpdate: () => setNeedRefresh(false),
+    dismissUpdate: () => {
+      setNeedRefresh(false);
+      setOfflineReady(false);
+    },
   };
 }

@@ -13,6 +13,7 @@ import { createCompetitionActions } from './actions/competitionActions';
 import { createSnapshotActions } from './actions/snapshotActions';
 import { createGroupActions } from './actions/groupActions';
 import { createPlayerActions } from './actions/playerActions';
+import { logAudit } from '../utils/auditLog';
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -315,6 +316,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated, viewRound: currentRound - 1 });
     saveCompetition(updated);
+    void logAudit('round-undo', `Round ${currentRound} undone`, { round: currentRound });
   },
 
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
@@ -330,6 +332,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     if (match.isPlayoff) {
       const updated = updateGroupAtIndex(competition, idx, currentGroup => recordPlayoffResult(currentGroup, matchId, result, player1Games, player2Games));
       set({ competition: updated }); saveCompetition(updated);
+      void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
 
@@ -370,6 +373,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated });
     saveCompetition(updated);
+    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
 
     const hasCompletedCurrentRound = isRoundComplete({ ...group, matches: updatedMatches, players: updatedPlayers });
 
@@ -416,6 +420,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
       groups[groupIdx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
       const updated = { ...competition, groups };
       set({ competition: updated }); saveCompetition(updated);
+      void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
 
@@ -456,6 +461,7 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated });
     saveCompetition(updated);
+    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
   },
 
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => {

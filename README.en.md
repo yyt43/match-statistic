@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.2.3
+Current version: v0.2.4
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
+[![Release](https://img.shields.io/badge/Release-v0.2.4-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.4)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -53,6 +53,8 @@ This project is suited for tournament management, club events, team activities, 
 This project is licensed under the MIT License, which makes it suitable for public display, custom development, and lightweight tool reuse. The license is simple and permissive: you may use, modify, and distribute the software while keeping copyright notices intact.
 
 - License file: [LICENSE](LICENSE)
+- Privacy notice: [PRIVACY.md](PRIVACY.md)
+- Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - Typical use cases: personal projects, team collaboration, tool-style open source projects
 - Goal: easier learning, reuse, and extension while keeping a clear copyright record
 
