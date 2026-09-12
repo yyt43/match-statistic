@@ -161,7 +161,7 @@ async function persistCompetitionEnvelope(
   rawSize: number,
   localStorageSaved: boolean,
   localError: unknown
-): Promise<void> {
+): Promise<boolean> {
   let indexedDbSaved = false;
   let indexedDbError: unknown = null;
   if (isIndexedDbAvailable()) {
@@ -192,12 +192,12 @@ async function persistCompetitionEnvelope(
             },
           }
     );
-    return;
+    return false;
   }
 
   if (!localStorageSaved && indexedDbSaved) {
     notifyStorageStatus('ok', { key: 'storageIndexedDbFallback' });
-    return;
+    return true;
   }
 
   // localStorage 仍是兼容镜像；只有 IndexedDB 不可用时才需要容量预警。
@@ -209,6 +209,7 @@ async function persistCompetitionEnvelope(
   } else if (prevStatus !== 'ok') {
     notifyStorageStatus('ok', null);
   }
+  return true;
 }
 
 function prepareStoredCompetition(
@@ -243,9 +244,6 @@ export function saveCompetition(competition: TournamentCompetition): void {
     savedAt: new Date().toISOString(),
     data: dataToSave,
   };
-  lastSavedAt = envelope.savedAt;
-  broadcastCompetitionSaved(envelope.savedAt, competition.id);
-
   let localStorageSaved = false;
   let localError: unknown = null;
   if (!isIndexedDbAvailable() || rawSize <= LOCAL_MIRROR_LIMIT_BYTES) {
@@ -269,7 +267,18 @@ export function saveCompetition(competition: TournamentCompetition): void {
   // Serialize writes so a slower older request can never overwrite newer data.
   writeQueue = writeQueue
     .catch(() => undefined)
-    .then(() => persistCompetitionEnvelope(envelope, rawSize, localStorageSaved, localError));
+    .then(async () => {
+      const persisted = await persistCompetitionEnvelope(
+        envelope,
+        rawSize,
+        localStorageSaved,
+        localError
+      );
+      if (!persisted) return;
+
+      lastSavedAt = envelope.savedAt;
+      broadcastCompetitionSaved(envelope.savedAt, competition.id);
+    });
 }
 
 export function flushStorage(): Promise<void> {
@@ -279,40 +288,79 @@ export function flushStorage(): Promise<void> {
 export async function loadCompetition(): Promise<TournamentCompetition | null> {
   await writeQueue.catch(() => undefined);
 
-  let parsed: { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null = null;
-  let source: 'indexeddb-main' | 'indexeddb-backup' | 'local-main' | 'local-backup' | null = null;
+  type Source = 'indexeddb-main' | 'indexeddb-backup' | 'local-main' | 'local-backup';
+  interface Candidate {
+    competition: TournamentCompetition;
+    savedAt?: string;
+    wasMigrated: boolean;
+    source: Source;
+  }
+
+  const candidates: Candidate[] = [];
+  const addCandidate = (
+    candidate: { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null,
+    source: Source
+  ) => {
+    if (candidate) candidates.push({ ...candidate, source });
+  };
 
   if (isIndexedDbAvailable()) {
     try {
-      parsed = prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(STORAGE_KEY)));
-      if (parsed) {
-        source = 'indexeddb-main';
-      } else {
-        parsed = prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(BACKUP_KEY)));
-        if (parsed) source = 'indexeddb-backup';
-      }
+      addCandidate(
+        prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(STORAGE_KEY))),
+        'indexeddb-main'
+      );
     } catch (error) {
       console.warn('[storage] IndexedDB read failed, falling back to localStorage', error);
     }
-  }
-
-  if (!parsed) {
-    parsed = prepareStoredCompetition(tryParse(localStorage.getItem(STORAGE_KEY)));
-    if (parsed) {
-      source = 'local-main';
-    } else {
-      parsed = prepareStoredCompetition(tryParse(localStorage.getItem(BACKUP_KEY)));
-      if (parsed) source = 'local-backup';
+    try {
+      addCandidate(
+        prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(BACKUP_KEY))),
+        'indexeddb-backup'
+      );
+    } catch (error) {
+      console.warn('[storage] IndexedDB backup read failed', error);
     }
   }
 
-  if (!parsed) return null;
+  addCandidate(
+    prepareStoredCompetition(tryParse(localStorage.getItem(STORAGE_KEY))),
+    'local-main'
+  );
+  addCandidate(
+    prepareStoredCompetition(tryParse(localStorage.getItem(BACKUP_KEY))),
+    'local-backup'
+  );
 
+  if (candidates.length === 0) return null;
+
+  const sourcePriority: Record<Source, number> = {
+    'indexeddb-main': 0,
+    'local-main': 1,
+    'indexeddb-backup': 2,
+    'local-backup': 3,
+  };
+  const timestamp = (savedAt?: string): number => {
+    if (!savedAt) return 0;
+    const value = Date.parse(savedAt);
+    return Number.isFinite(value) ? value : 0;
+  };
+  candidates.sort((a, b) => {
+    const timeDiff = timestamp(b.savedAt) - timestamp(a.savedAt);
+    return timeDiff || sourcePriority[a.source] - sourcePriority[b.source];
+  });
+
+  const parsed = candidates[0];
   const competition = parsed.competition;
-  const restoredFromBackup = source === 'indexeddb-backup' || source === 'local-backup';
+  const restoredFromBackup = parsed.source.endsWith('backup');
 
-  // Seed IndexedDB from legacy localStorage data and persist any schema migration.
-  if (parsed.wasMigrated || source === 'local-main' || source === 'local-backup') {
+  // Seed IndexedDB from newer local data, repair a backup restore, or persist a migration.
+  if (
+    parsed.wasMigrated
+    || restoredFromBackup
+    || parsed.source === 'local-main'
+    || parsed.source === 'local-backup'
+  ) {
     saveCompetition(competition);
   }
   if (restoredFromBackup) {

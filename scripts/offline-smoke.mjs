@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
+import { findBrowser } from './browserPath.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4175;
@@ -66,24 +67,6 @@ try {
   } catch {
     // Browser profiles can remain briefly locked on Windows after process exit.
   }
-}
-
-function findBrowser() {
-  if (process.env.BROWSER_PATH && existsSync(process.env.BROWSER_PATH)) {
-    return process.env.BROWSER_PATH;
-  }
-  const candidates = process.platform === 'win32'
-    ? [
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      ]
-    : [
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-      ];
-  return candidates.find(existsSync);
 }
 
 async function waitFor(check, timeoutMs) {

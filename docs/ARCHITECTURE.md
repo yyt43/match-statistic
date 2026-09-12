@@ -288,6 +288,7 @@ src/
 | 类型 | 工具 | 覆盖 |
 |------|------|------|
 | 单元测试 | Vitest | 配对、评分、加赛、存储、国际化、Excel 数据 |
+| 覆盖率门槛 | Vitest V8 | 语句、分支、函数和行覆盖率最低阈值 |
 | 浏览器流程 | Playwright Core | Excel 导入、开赛、Excel 导出、刷新恢复、语言切换 |
 | 离线测试 | Playwright + Preview | Service Worker 缓存后断网打开 |
 | 视觉回归 | pixelmatch + pngjs | HelpPage 基线截图 |
@@ -303,7 +304,7 @@ CI 流程：
 1. `npm ci`
 2. `npm run check`
 3. `npm run lint`
-4. `npm test`
+4. `npm run test:coverage`
 5. `npm run smoke`
 6. `npm run build`
 7. `npm run check:bundle`

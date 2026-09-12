@@ -379,7 +379,11 @@ export const useTournamentStore = create<CompetitionState>((set, get) => ({
 
     if (hasCompletedCurrentRound) {
       try {
-        void saveSnapshot(updated, `${group.name}·第${group.currentRound}轮完赛`);
+        void saveSnapshot(
+          updated,
+          `${group.name}·第${group.currentRound}轮完赛`,
+          { replaceSameLabel: true }
+        );
       } catch { /* 快照失败不影响主流程 */ }
     }
   },

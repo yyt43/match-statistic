@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
+import { findBrowser } from './browserPath.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const appPort = 4173;
@@ -14,9 +15,14 @@ if (!browserPath) {
   process.exit(0);
 }
 
+if (!existsSync(join(root, 'dist', 'index.html'))) {
+  throw new Error('dist/index.html not found. Run npm run build first.');
+}
+
 const browserDataDir = mkdtempSync(join(tmpdir(), 'match-statistic-smoke-'));
 const server = spawn(process.execPath, [
   join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
+  'preview',
   '--host',
   '127.0.0.1',
   '--port',
@@ -51,7 +57,18 @@ try {
   page.on('console', message => {
     if (message.type() === 'error') console.error('[browser console]', message.text());
   });
-  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
+  await page.addInitScript(() => {
+    localStorage.setItem('tournament-onboarding-v1', '1');
+    window.__capturedDownloads = [];
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download && this.href.startsWith('blob:')) {
+        window.__capturedDownloads.push({ name: this.download, href: this.href });
+        return;
+      }
+      originalClick.call(this);
+    };
+  });
 
   await page.goto(appUrl, { waitUntil: 'networkidle' });
   await page.getByTitle('Switch to English').click();
@@ -71,32 +88,27 @@ try {
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
 
-  if (!process.env.CI) {
-    await page.getByRole('button', { name: 'Export Excel' }).click();
-    await page.getByRole('button', { name: 'Match table' }).click();
-    const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download Excel' }).click();
-    const download = await downloadPromise;
-    const downloadPath = join(browserDataDir, 'round-export.xlsx');
-    await download.saveAs(downloadPath);
-    if (statSync(downloadPath).size === 0) {
-      throw new Error('Excel export produced an empty file.');
-    }
-    await page.getByRole('button', { name: 'Cancel' }).click();
-
-    await page.getByRole('button', { name: 'Export image' }).click();
-    await page.getByRole('button', { name: 'Match table' }).click();
-    const imageDownloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download image' }).click();
-    const imageDownload = await imageDownloadPromise;
-    const imageDownloadPath = join(browserDataDir, 'ranking-export.png');
-    await imageDownload.saveAs(imageDownloadPath);
-    const pngSignature = readFileSync(imageDownloadPath).subarray(0, 8).toString('hex');
-    if (pngSignature !== '89504e470d0a1a0a') {
-      throw new Error('Image export did not produce a valid PNG file.');
-    }
-    await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Export Excel' }).click();
+  await page.getByRole('button', { name: 'Match table' }).click();
+  await page.getByRole('button', { name: 'Download Excel' }).click();
+  const excel = await readCapturedBlob(page, 0);
+  if (
+    excel.size === 0
+    || !excel.fileName.endsWith('.xlsx')
+    || !excel.signature.startsWith('504b0304')
+  ) {
+    throw new Error(`Excel export produced an invalid file: ${JSON.stringify(excel)}`);
   }
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await page.getByRole('button', { name: 'Export image' }).click();
+  await page.getByRole('button', { name: 'Match table' }).click();
+  await page.getByRole('button', { name: 'Download image' }).click();
+  const image = await readCapturedBlob(page, 1);
+  if (image.size === 0 || !image.fileName.endsWith('.png') || image.signature !== '89504e470d0a1a0a') {
+    throw new Error(`Image export produced an invalid file: ${JSON.stringify(image)}`);
+  }
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.reload({ waitUntil: 'networkidle' });
   await waitForText(page, 'Round 1 match list');
@@ -136,30 +148,29 @@ try {
   }
 }
 
-function findBrowser() {
-  if (process.env.BROWSER_PATH && existsSync(process.env.BROWSER_PATH)) {
-    return process.env.BROWSER_PATH;
-  }
-  const candidates = process.platform === 'win32'
-    ? [
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      ]
-    : [
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-      ];
-  return candidates.find(existsSync);
-}
-
 async function waitForText(page, text) {
   await page.waitForFunction(
     value => document.body.textContent?.includes(value),
     text,
     { timeout: 10000 }
   );
+}
+
+async function readCapturedBlob(page, index) {
+  await page.waitForFunction(
+    expected => (window.__capturedDownloads?.length ?? 0) > expected,
+    index,
+    { timeout: 30000 }
+  );
+  return page.evaluate(async capturedIndex => {
+    const captured = window.__capturedDownloads[capturedIndex];
+    const response = await fetch(captured.href);
+    const buffer = await response.arrayBuffer();
+    const signature = Array.from(new Uint8Array(buffer).slice(0, 8))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    return { fileName: captured.name, size: buffer.byteLength, signature };
+  }, index);
 }
 
 async function waitFor(check, timeoutMs) {

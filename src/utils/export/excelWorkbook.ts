@@ -1,5 +1,6 @@
 import type { ExcelSheetPayload } from '../../workers/excelWorker';
 import { createAbortError, throwIfAborted } from '../async';
+import { downloadBlob } from './download';
 
 export interface ExcelExportProgress {
   percent: number;
@@ -68,16 +69,10 @@ export async function writeExcelWorkbook(
     });
 
     throwIfAborted(options.signal);
-    const url = URL.createObjectURL(new Blob([buffer], {
+    const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    });
+    downloadBlob(blob, fileName);
   } finally {
     worker.terminate();
   }

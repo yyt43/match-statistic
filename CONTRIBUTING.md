@@ -19,7 +19,8 @@
 3. 完成修改并补充必要测试
 4. 执行本地验证：
    - `npm run check`
-   - `npm test -- --run`
+   - `npm run test:coverage`
+   - `npm run visual:check`
    - `npm run build`
 5. 提交 PR，并在描述中说明改动背景、影响范围和验证结果
 

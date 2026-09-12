@@ -1,5 +1,6 @@
 import type { TournamentCompetition } from '../../types';
 import { validateCompetitionData } from '../schema';
+import { downloadBlob } from './download';
 
 /**
  * 将比赛数据导出为JSON文件
@@ -7,15 +8,7 @@ import { validateCompetitionData } from '../schema';
 export function exportCompetitionToFile(competition: TournamentCompetition): void {
   const dataStr = JSON.stringify(competition, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${competition.name}-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `${competition.name}-${new Date().toISOString().split('T')[0]}.json`);
 }
 /**
  * 从文件导入比赛数据

@@ -18,6 +18,11 @@ export interface Snapshot {
   data: TournamentCompetition;
 }
 
+export interface SaveSnapshotOptions {
+  /** Replace the previous automatic snapshot for the same competition and label. */
+  replaceSameLabel?: boolean;
+}
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 }
@@ -76,7 +81,11 @@ async function persistSnapshots(snapshots: Snapshot[]): Promise<void> {
   }
 }
 
-export async function saveSnapshot(competition: TournamentCompetition, label: string): Promise<void> {
+export async function saveSnapshot(
+  competition: TournamentCompetition,
+  label: string,
+  options: SaveSnapshotOptions = {}
+): Promise<void> {
   try {
     const snapshot: Snapshot = {
       id: generateId(),
@@ -86,6 +95,12 @@ export async function saveSnapshot(competition: TournamentCompetition, label: st
     };
 
     const existing = await listSnapshots();
+    if (options.replaceSameLabel) {
+      const previousIndex = existing.findIndex(
+        item => item.data.id === competition.id && item.label === label
+      );
+      if (previousIndex >= 0) existing.splice(previousIndex, 1);
+    }
     existing.unshift(snapshot);
     // 保留最新的 MAX_SNAPSHOTS 份
     const trimmed = existing.slice(0, MAX_SNAPSHOTS);
