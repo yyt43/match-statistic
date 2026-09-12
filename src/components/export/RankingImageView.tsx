@@ -268,16 +268,16 @@ export function RankingImageView() {
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '24px', margin: '0 auto', flexWrap: 'wrap', justifyContent: 'center' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }}></span>{t.winLegend}
+            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#ef4444', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}>{t.winCell}</span>{t.winLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#000', border: '1px solid #475569' }}></span>{t.lossLegend}
+            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#000', border: '1px solid #475569', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}>{t.lossCell}</span>{t.lossLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f97316' }}></span>{t.drawLegend}
+            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#f97316', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}>{t.drawCell}</span>{t.drawLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b' }}></span>{t.byeLegend}
+            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#f59e0b', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}>{t.byeCell}</span>{t.byeLegend}
           </span>
           <span style={{ marginLeft: '12px', color: '#64748b' }}>
             {isSingleElimination

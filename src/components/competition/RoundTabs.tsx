@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { useLanguagePreference } from '../../i18n/context';
+import { formatText } from '../../i18n/data';
 
 export function RoundTabs() {
   const currentGroup = useCurrentGroup();
@@ -51,8 +52,8 @@ export function RoundTabs() {
                 }
               `}
             >
-              第{round}轮
-              {isCurrent && <span className="ml-1 text-xs">· 当前</span>}
+              {formatText(t.roundN, { round })}
+              {isCurrent && <span className="ml-1 text-xs">{t.roundCurrentMark}</span>}
               {isComplete && !isCurrent && <span className="ml-1 text-xs">✓</span>}
             </button>
           );

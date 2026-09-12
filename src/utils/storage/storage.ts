@@ -5,8 +5,8 @@ import { broadcastCompetitionSaved } from './storageSync';
 import { validateCompetitionData } from '../schema';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
 
-const STORAGE_KEY = 'swiss_tournament_data';
-const BACKUP_KEY = 'swiss_tournament_data_backup';
+export const STORAGE_KEY = 'swiss_tournament_data';
+export const BACKUP_KEY = 'swiss_tournament_data_backup';
 // localStorage 通常上限 5~10MB，提前到 3MB 预警（含压缩后的数据）
 const STORAGE_WARN_BYTES = 3 * 1024 * 1024;
 // 压缩前原始数据超过此阈值则强制提示导出（4MB）

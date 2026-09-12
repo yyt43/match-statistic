@@ -85,6 +85,7 @@ src/store/actions/
 
 - `utils/swissPairing.ts`：瑞士轮、单败淘汰、排名和评分核心。
 - `utils/tiebreak.ts`：破分链预设、归一化和自定义规则。
+- `utils/storage/health.ts`：存储完整性检查、主备镜像比对和安全重写修复。
 - `utils/ranking.ts`：淘汰头衔、比赛历史和展示辅助。
 - `utils/playoffs.ts`：同分加赛流程。
 - `utils/maximumMatching.ts`：配对回溯辅助。

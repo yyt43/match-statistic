@@ -1,10 +1,11 @@
 import { PlayoffPanel } from './PlayoffPanel';
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy, Edit2,
-  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History
+  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History,
+  ShieldCheck, Swords
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
 import type { GameType, PairingType } from '../../types';
@@ -17,6 +18,13 @@ import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManager } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
+
+const QuickScoreModal = lazy(() =>
+  import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
+);
+const StorageHealthModal = lazy(() =>
+  import('../data/StorageHealthModal').then(module => ({ default: module.StorageHealthModal }))
+);
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -54,6 +62,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
+  const [showStorageHealth, setShowStorageHealth] = useState(false);
+  const [showQuickScore, setShowQuickScore] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -396,7 +406,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       {group.name}
                     </span>
                   )}
-                  <span className="text-slate-500">{group.players.length}人</span>
+                  <span className="text-slate-500">
+                    {formatText(t.playersCount, { count: group.players.length })}
+                  </span>
                   {editingGroupIndex !== index && (
                     <button
                       onClick={e => {
@@ -936,6 +948,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
               {currentGroup.currentRound > 0 && (
                 <button
+                  onClick={() => setShowQuickScore(true)}
+                  className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
+                >
+                  <Swords className="w-4 h-4" />
+                  {isEnglish ? 'Quick score entry' : '快速录分'}
+                </button>
+              )}
+
+              {currentGroup.currentRound > 0 && (
+                <button
                   onClick={() => setShowUndoConfirm(true)}
                   className="w-full py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm flex items-center justify-center gap-2 border border-orange-500/25"
                 >
@@ -967,6 +989,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           )}
 
           <div className="pt-2 border-t border-slate-700/40 space-y-1.5">
+            <button
+              onClick={() => setShowStorageHealth(true)}
+              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {isEnglish ? 'Storage health' : '存储体检'}
+            </button>
             <button
               onClick={() => setShowBackupManager(true)}
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-sky-400 hover:bg-sky-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
@@ -1044,6 +1073,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         isOpen={showBackupManager}
         onClose={() => setShowBackupManager(false)}
       />
+      <Suspense fallback={null}>
+        <StorageHealthModal
+          isOpen={showStorageHealth}
+          onClose={() => setShowStorageHealth(false)}
+        />
+        <QuickScoreModal
+          isOpen={showQuickScore}
+          onClose={() => setShowQuickScore(false)}
+        />
+      </Suspense>
       <AuditLogManager
         isOpen={showAuditLog}
         onClose={() => setShowAuditLog(false)}

@@ -301,22 +301,23 @@ export function PlayerRanking() {
       )}
 
       <div className="mt-3 pt-3 border-t border-slate-700/40 shrink-0">
-        <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-slate-500">
+          <span className="font-medium text-slate-400">{t.matchHistory}:</span>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div>
-            <span>{isEnglish ? 'Win' : '胜'}</span>
+            {getResultBlock('win')}
+            <span>{t.winLegend}</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-black border border-slate-600"></div>
-            <span>{isEnglish ? 'Loss' : '负'}</span>
+            {getResultBlock('loss')}
+            <span>{t.lossLegend}</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-orange-500"></div>
-            <span>{isEnglish ? 'Draw' : '双负'}</span>
+            {getResultBlock('draw')}
+            <span>{t.drawLegend}</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-amber-500"></div>
-            <span>{isEnglish ? 'Bye' : '轮空'}</span>
+            {getResultBlock('bye')}
+            <span>{t.byeLegend}</span>
           </div>
         </div>
         <div className="text-center text-[10px] text-slate-600 mt-1.5">
