@@ -1,5 +1,12 @@
 # 更新日志 CHANGELOG
 
+## [Unreleased]
+
+### 安全
+
+- GitHub Actions 固定到不可变提交，CI 与 Release 增加高危依赖审计。
+- 新增 Dependency Review 与 CodeQL 扫描，GitHub Actions 更新改为分组提交。
+
 ## [0.2.4] - 2026-09-12
 
 ### 优化
