@@ -141,6 +141,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const isCompleted = currentGroup.status === 'completed';
   // 任一小组已开始比赛时，禁止调整小组数量
   const hasAnyStarted = competition.groups.some(g => g.status !== 'setup');
+  const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
 
   return (
     <div className="h-full flex flex-col bg-slate-800/40 border border-slate-700/40 rounded-2xl overflow-hidden">
@@ -935,6 +936,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
+          {hasAnyRound && (
+            <button
+              onClick={() => setShowQuickScore(true)}
+              className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
+            >
+              <Swords className="w-4 h-4" />
+              {isEnglish ? 'Quick score entry' : '快速录分'}
+            </button>
+          )}
+
           {isInProgress && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -945,16 +956,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   {currentGroup.matches.filter(m => m.round === currentGroup.currentRound && m.result !== 'pending').length} / {currentGroup.matches.filter(m => m.round === currentGroup.currentRound).length} {isEnglish ? 'matches complete' : '场完成'}
                 </span>
               </div>
-
-              {currentGroup.currentRound > 0 && (
-                <button
-                  onClick={() => setShowQuickScore(true)}
-                  className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
-                >
-                  <Swords className="w-4 h-4" />
-                  {isEnglish ? 'Quick score entry' : '快速录分'}
-                </button>
-              )}
 
               {currentGroup.currentRound > 0 && (
                 <button

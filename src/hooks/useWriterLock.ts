@@ -40,7 +40,9 @@ export function useWriterLock(): void {
       ).catch(() => setReadOnly(true));
     };
 
-    acquire();
+    // Defer the first request so React StrictMode's mount/unmount probe does not
+    // make the second request race against a lock owned by the first probe.
+    const initialAcquireTimer = window.setTimeout(acquire, 0);
     const retryTimer = window.setInterval(acquire, 3000);
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') acquire();
@@ -50,6 +52,7 @@ export function useWriterLock(): void {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialAcquireTimer);
       window.clearInterval(retryTimer);
       window.removeEventListener('focus', handleVisibility);
       document.removeEventListener('visibilitychange', handleVisibility);
