@@ -8,11 +8,12 @@ export const TAB_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto
 export interface CompetitionSavedEvent {
   sourceId: string;
   savedAt: string;
+  competitionId: string;
 }
 
-export function broadcastCompetitionSaved(savedAt: string): void {
+export function broadcastCompetitionSaved(savedAt: string, competitionId: string): void {
   if (typeof window === 'undefined') return;
-  const event: CompetitionSavedEvent = { sourceId: TAB_ID, savedAt };
+  const event: CompetitionSavedEvent = { sourceId: TAB_ID, savedAt, competitionId };
   window.dispatchEvent(new CustomEvent<CompetitionSavedEvent>(LOCAL_EVENT, { detail: event }));
 
   if (typeof BroadcastChannel === 'undefined') return;

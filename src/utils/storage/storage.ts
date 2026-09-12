@@ -284,7 +284,7 @@ export function saveCompetition(competition: TournamentCompetition): void {
     data: dataToSave,
   };
   lastSavedAt = envelope.savedAt;
-  broadcastCompetitionSaved(envelope.savedAt);
+  broadcastCompetitionSaved(envelope.savedAt, competition.id);
 
   let localStorageSaved = false;
   let localError: unknown = null;

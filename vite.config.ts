@@ -57,8 +57,8 @@ export default defineConfig({
     }),
     tsconfigPaths(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      registerType: 'prompt',
+      injectRegister: null,
       manifest: false,
       includeAssets: [
         'favicon.svg',

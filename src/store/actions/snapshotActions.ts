@@ -1,15 +1,8 @@
 import type { CompetitionState } from '../useTournamentStore';
+import type { StoreGet, StoreSet } from './actionTypes';
 import { saveCompetition } from '../../utils/storage/storage';
 import { getSnapshot, saveSnapshot } from '../../utils/storage/snapshot';
 import { calculateAllWinRates, getRankedPlayers } from '../../utils/swissPairing';
-
-type StoreSet = (
-  partial:
-    | Partial<CompetitionState>
-    | ((state: CompetitionState) => Partial<CompetitionState>)
-) => void;
-
-type StoreGet = () => CompetitionState;
 
 export function createSnapshotActions(
   set: StoreSet,

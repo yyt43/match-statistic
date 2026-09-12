@@ -1,14 +1,9 @@
 import type { TournamentCompetition } from '../../types';
 import type { CompetitionState } from '../useTournamentStore';
+import type { StoreSet } from './actionTypes';
 import { createNewCompetition } from '../tournamentFactory';
 import { loadCompetition, saveCompetition } from '../../utils/storage/storage';
 import { normalizeCompetitionGroups, resolveViewRound } from '../competitionState';
-
-type StoreSet = (
-  partial:
-    | Partial<CompetitionState>
-    | ((state: CompetitionState) => Partial<CompetitionState>)
-) => void;
 
 export function createCompetitionActions(
   set: StoreSet

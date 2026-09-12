@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
-import { getLastSavedAt } from '../utils/storage/storage';
+import { getLastSavedAt, saveCompetition } from '../utils/storage/storage';
 import { subscribeCompetitionSaved, TAB_ID } from '../utils/storage/storageSync';
 
 export function useStorageSync() {
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(getLastSavedAt);
   const [syncedFromOtherTab, setSyncedFromOtherTab] = useState(false);
-  const [conflictDetected, setConflictDetected] = useState(false);
+  const [conflict, setConflict] = useState<{ savedAt: string; competitionId: string } | null>(null);
   const lastLocalSaveRef = useRef(0);
 
   useEffect(() => subscribeCompetitionSaved(event => {
@@ -17,17 +17,32 @@ export function useStorageSync() {
       return;
     }
 
+    const currentCompetition = useTournamentStore.getState().competition;
+    if (event.competitionId !== currentCompetition.id) return;
+
+    if (Date.now() - lastLocalSaveRef.current < 2000) {
+      setConflict({ savedAt: event.savedAt, competitionId: event.competitionId });
+      return;
+    }
+
     void loadSavedCompetition().then(loaded => {
       if (!loaded) return;
-      if (Date.now() - lastLocalSaveRef.current < 2000) {
-        setConflictDetected(true);
-        window.setTimeout(() => setConflictDetected(false), 3200);
-      } else {
-        setSyncedFromOtherTab(true);
-        window.setTimeout(() => setSyncedFromOtherTab(false), 2200);
-      }
+      setSyncedFromOtherTab(true);
+      window.setTimeout(() => setSyncedFromOtherTab(false), 2200);
     });
   }), [loadSavedCompetition]);
 
-  return { lastSavedAt, syncedFromOtherTab, conflictDetected };
+  return {
+    lastSavedAt,
+    syncedFromOtherTab,
+    conflict,
+    loadOtherTabVersion: async () => {
+      const loaded = await loadSavedCompetition();
+      if (loaded) setConflict(null);
+    },
+    keepLocalVersion: () => {
+      saveCompetition(useTournamentStore.getState().competition);
+      setConflict(null);
+    },
+  };
 }
