@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { getStoredLanguage, translations } from '../../i18n/data';
+import { downloadBlob } from '../../utils/export/download';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -37,12 +38,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       const data = localStorage.getItem('swiss_tournament_data');
       if (data) {
         const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tournament-backup-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(blob, `tournament-backup-${new Date().toISOString().slice(0, 10)}.json`);
       }
     } catch (e) {
       console.error('导出数据失败：', e);

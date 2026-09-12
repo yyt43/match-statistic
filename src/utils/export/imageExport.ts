@@ -1,4 +1,5 @@
 import { createAbortError, throwIfAborted } from '../async';
+import { downloadBlob } from './download';
 
 export interface ImageExportOptions {
   signal?: AbortSignal;
@@ -128,14 +129,7 @@ export async function generateImage(
     throwIfAborted(options.signal);
     options.onProgress?.(95);
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = `${fileName}.png`;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `${fileName}.png`);
     options.onProgress?.(100);
   } finally {
     window.scrollTo(originalScrollX, originalScrollY);
