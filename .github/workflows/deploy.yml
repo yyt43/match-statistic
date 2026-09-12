@@ -28,9 +28,9 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run test:coverage
-      - run: npm run smoke
       - run: npm run build
       - run: npm run check:bundle
+      - run: npm run smoke
       - run: npm run smoke:offline
       - run: npm run visual:check
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5

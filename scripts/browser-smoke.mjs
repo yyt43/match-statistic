@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -15,9 +15,14 @@ if (!browserPath) {
   process.exit(0);
 }
 
+if (!existsSync(join(root, 'dist', 'index.html'))) {
+  throw new Error('dist/index.html not found. Run npm run build first.');
+}
+
 const browserDataDir = mkdtempSync(join(tmpdir(), 'match-statistic-smoke-'));
 const server = spawn(process.execPath, [
   join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
+  'preview',
   '--host',
   '127.0.0.1',
   '--port',
