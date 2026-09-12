@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+### 修复
+
+- 帮助页补回中英文瑞士轮排名规则、破分链、SOS/SOSOS 口径和同分加赛说明。
+
 ### 安全
 
 - GitHub Actions 固定到不可变提交，CI 与 Release 增加高危依赖审计。
 - 新增 Dependency Review 与 CodeQL 扫描，GitHub Actions 更新改为分组提交。
+- npm 依赖的大版本更新不再自动分组，改为单独评估和迁移。
 
 ## [0.2.4] - 2026-09-12
 
