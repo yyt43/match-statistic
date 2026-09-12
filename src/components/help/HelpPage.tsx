@@ -113,6 +113,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <GripVertical className="w-5 h-5" />, title: '拖拽改序', description: '正常查看对阵时可直接拖动卡片调整显示顺序，并自动保存。' },
       { icon: <History className="w-5 h-5" />, title: '快照恢复', description: '保留最近 5 份自动快照，也可手动创建、恢复或删除快照。' },
       { icon: <Keyboard className="w-5 h-5" />, title: '快捷操作', description: '使用 Ctrl/Cmd+Z 撤销上一操作，Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做。' },
+      { icon: <History className="w-5 h-5" />, title: '持久操作历史', description: '操作历史保存在本地，刷新后可继续撤销、重做或跳转到指定状态。' },
     ],
     shortcuts: '键盘快捷键',
     shortcutGroups: [
@@ -196,6 +197,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       '赛事数据优先保存在浏览器 IndexedDB 中，容量不足时兼容 localStorage 回退。',
       '主数据和备份数据会分别保存，主数据损坏时可自动恢复。',
       '多个标签页打开时只有一个可编辑，其他标签页自动进入只读状态。',
+      '撤销和重做历史保存在本地，可用于刷新后的继续操作或恢复历史状态。',
       '快照保存在浏览器内，清除浏览器数据会一并删除。',
       '跨设备迁移或长期保存请导出 JSON 文件。',
     ],
@@ -240,6 +242,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <GripVertical className="w-5 h-5" />, title: 'Drag to reorder', description: 'Reorder match cards in normal view; the new display order is saved automatically.' },
       { icon: <History className="w-5 h-5" />, title: 'Snapshot recovery', description: 'Keep up to five automatic snapshots, or create, restore, and delete snapshots manually.' },
       { icon: <Keyboard className="w-5 h-5" />, title: 'Quick actions', description: 'Undo with Ctrl/Cmd+Z and redo with Ctrl/Cmd+Shift+Z or Ctrl+Y.' },
+      { icon: <History className="w-5 h-5" />, title: 'Persistent history', description: 'Undo and redo history survives refresh and can be restored or cleared.' },
     ],
     shortcuts: 'Keyboard shortcuts',
     shortcutGroups: [
@@ -323,6 +326,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       'Tournament data is stored primarily in browser IndexedDB, with localStorage retained as a compatibility fallback.',
       'Primary and backup records are stored separately for automatic recovery.',
       'When multiple tabs are open, one remains editable and the others become read-only.',
+      'Undo and redo history is stored locally so it can be used again after refresh.',
       'Snapshots remain in the browser and are removed when browser data is cleared.',
       'Use JSON export for long-term backup or moving to another device.',
     ],

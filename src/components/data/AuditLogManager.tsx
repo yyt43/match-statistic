@@ -44,6 +44,8 @@ export function AuditLogManager({ isOpen, onClose }: AuditLogManagerProps) {
         return t.auditHistoryUndo;
       case 'history-redo':
         return t.auditHistoryRedo;
+      case 'history-jump':
+        return formatText(t.auditHistoryJump, { label: String(details.label ?? '') });
       case 'tournament-reset':
         return t.auditTournamentReset;
       case 'tournament-import':
