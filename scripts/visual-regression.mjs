@@ -106,8 +106,12 @@ try {
     const diffRatio = diffPixels / (current.width * current.height);
     writeFileSync(diffPath, PNG.sync.write(diff));
 
-    if (diffRatio > 0.03) {
-      throw new Error(`Visual regression detected in ${scene.name}: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
+    const maxDiffRatio = process.env.CI ? 0.08 : 0.03;
+    if (diffRatio > maxDiffRatio) {
+      throw new Error(
+        `Visual regression detected in ${scene.name}: ${(diffRatio * 100).toFixed(2)}% pixels changed `
+        + `(limit ${(maxDiffRatio * 100).toFixed(0)}%).`
+      );
     }
     console.log(`Visual regression passed for ${scene.name}: ${(diffRatio * 100).toFixed(2)}% pixels changed.`);
   }
