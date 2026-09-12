@@ -29,6 +29,9 @@ This project is suited for tournament management, club events, team activities, 
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
+- Operation-level undo / redo: step through the latest 30 tournament changes
+- Single-writer protection: the first tab edits while other tabs become read-only
+- Configurable tiebreak chains: BO1 / multi-game presets plus custom metric ordering
 - Results export: Excel, image, and JSON export for reporting and backups
 - Public hosting: ready for GitHub Pages and similar static deployments
 
@@ -43,7 +46,7 @@ This project is suited for tournament management, club events, team activities, 
 - `src/components/export`: Excel/image export and export previews
 - `src/i18n`: translations, language context, and localization tests
 - `src/store/actions`: competition lifecycle and snapshot actions
-- `src/utils/storage`: IndexedDB, localStorage, snapshots, and cross-tab sync
+- `src/utils/storage`: IndexedDB, localStorage, snapshots, cross-tab sync, and writer locking
 - `src/utils/export`: Excel, image, and JSON export
 - `src/utils/import`: Excel, CSV, and TXT player import
 - `src/utils/schema.ts`: import and persistence data validation
@@ -153,7 +156,7 @@ This is useful when organizers keep different group rosters in separate tabs and
 ### Pairing and ranking
 
 - Pairing algorithm: score bucket -> fold pairing -> exhaustive backtracking -> priority-based group shifting -> remaining byes
-- Ranking rules: ranking is computed according to the selected format and tiebreak chain
+- Ranking rules: use the default format preset or configure a custom tiebreak chain
   - BO1: wins -> SOS -> SOSOS
   - BO3 / BO5 / BO7: wins -> SOS -> player game win rate -> opponent game win rate
 - Draws: supported in BO1 and multi-game formats; in single elimination, both players can be eliminated in the same round
@@ -168,7 +171,7 @@ This is useful when organizers keep different group rosters in separate tabs and
 
 - Export capabilities: Excel (`.xlsx` with rankings + round details), player list images, and full event JSON for backup and re-import
 - Error boundary: a global error wrapper shows recovery options and preserves data
-- Other features: test mode, Ctrl/Cmd+Z undo, preview modal optimization, responsive UI, and accessibility labels
+- Other features: test mode, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo, preview modal optimization, responsive UI, and accessibility labels
 
 ## Quick Start
 
@@ -240,7 +243,7 @@ The Swiss pairing follows these rules (see the in-app help for the full explanat
 
 ## Ranking Rules
 
-When multiple players share the same record, rankings are broken by the format-specific tiebreak chain.
+When multiple players share the same record, rankings use the following default tiebreak chains. Before the event starts, the format settings can use a preset or a custom metric order.
 
 ### BO1 format
 

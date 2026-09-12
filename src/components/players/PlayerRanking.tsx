@@ -13,14 +13,34 @@ export function PlayerRanking() {
   const isCompleted = currentGroup.status === 'completed';
 
   const rankedPlayers = useMemo(() => {
-    return getRankedPlayers(currentGroup.players, currentGroup.gameType, currentGroup.pairingType);
-  }, [currentGroup.players, currentGroup.gameType, currentGroup.pairingType]);
+    return getRankedPlayers(
+      currentGroup.players,
+      currentGroup.gameType,
+      currentGroup.pairingType,
+      currentGroup.tiebreakRules
+    );
+  }, [
+    currentGroup.players,
+    currentGroup.gameType,
+    currentGroup.pairingType,
+    currentGroup.tiebreakRules,
+  ]);
 
   // 检测平分选手（仅比赛完成且瑞士轮时）
   const tieGroups = useMemo(() => {
     if (!isCompleted || currentGroup.pairingType !== 'swiss') return [];
-    return detectTieGroups(currentGroup.players, currentGroup.gameType);
-  }, [isCompleted, currentGroup.pairingType, currentGroup.players, currentGroup.gameType]);
+    return detectTieGroups(
+      currentGroup.players,
+      currentGroup.gameType,
+      currentGroup.tiebreakRules
+    );
+  }, [
+    isCompleted,
+    currentGroup.pairingType,
+    currentGroup.players,
+    currentGroup.gameType,
+    currentGroup.tiebreakRules,
+  ]);
 
   const tiedPlayerIds = useMemo(() => {
     return new Set(tieGroups.flat().map(p => p.id));

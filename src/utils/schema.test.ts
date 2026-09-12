@@ -61,4 +61,13 @@ describe('competition schema', () => {
       expect(result.message).toContain('invalid bye match');
     }
   });
+
+  it('rejects duplicate tiebreak rules', () => {
+    const competition = validCompetition();
+    competition.groups[0].tiebreakRules = ['points', 'points'];
+
+    const result = validateCompetitionData(competition);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.message).toContain('tiebreakRules');
+  });
 });

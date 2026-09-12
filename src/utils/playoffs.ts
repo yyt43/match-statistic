@@ -37,7 +37,15 @@ export function syncPlayoffs(group: TournamentGroup): TournamentGroup {
       p.playoffWins = group.matches.filter(m => m.playoffBracketId === bracket.id && !m.isBye && decided(m) && winner(m) === id).length;
     }
   }
-  return { ...group, players: getRankedPlayers(players, group.gameType, group.pairingType) };
+  return {
+    ...group,
+    players: getRankedPlayers(
+      players,
+      group.gameType,
+      group.pairingType,
+      group.tiebreakRules
+    ),
+  };
 }
 
 /** 生成初轮或继续下一阶段。同分组各自独立；三人等候位不是获胜场次。 */
@@ -49,10 +57,15 @@ export function advancePlayoffs(group: TournamentGroup, formats: ThreePlayerForm
   }
   if (!group.playoffBrackets?.length) {
     if (group.matches.some(m => m.isPlayoff)) throw new Error('这是旧版加赛记录。请先导出备份，再清除旧加赛并按新版规则重新生成。');
-    const ties = detectTieGroups(group.players, group.gameType);
+    const ties = detectTieGroups(group.players, group.gameType, group.tiebreakRules);
     if (ties.some(t => t.length > 4)) throw new Error('存在超过4人的同分组，手册未规定其赛程；请由裁判确认补充规则后处理。');
     if (!ties.length) return group;
-    const ranked = getRankedPlayers(group.players.filter(p => !p.dropped && !p.eliminated), group.gameType, group.pairingType);
+    const ranked = getRankedPlayers(
+      group.players.filter(p => !p.dropped && !p.eliminated),
+      group.gameType,
+      group.pairingType,
+      group.tiebreakRules
+    );
     const brackets: PlayoffBracket[] = [];
     const matches: Match[] = [];
     for (const tied of ties) {

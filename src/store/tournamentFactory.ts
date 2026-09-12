@@ -1,5 +1,6 @@
 import type { GameType, PairingType, TournamentCompetition, TournamentGroup } from '../types';
 import { createPlayersFromNames, getSingleEliminationRounds } from '../utils/swissPairing';
+import { getDefaultTiebreakRules, getDefaultTiebreakTemplate } from '../utils/tiebreak';
 
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -34,6 +35,8 @@ export function createNewGroup(
     createdAt: new Date().toISOString(),
     pairingType,
     gameType,
+    tiebreakTemplate: getDefaultTiebreakTemplate(gameType),
+    tiebreakRules: getDefaultTiebreakRules(gameType),
     roundGameTypes: new Array(totalRounds).fill(gameType),
   };
 }

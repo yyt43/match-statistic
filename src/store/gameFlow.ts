@@ -7,7 +7,14 @@ export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   if (nextRound > group.totalRounds) return group;
 
   const roundGameType = getRoundGameType(group, nextRound);
-  const { matches, updatedPlayers: pairedPlayers } = generatePairings(group.players, nextRound, roundGameType, group.pairingType, group.matches);
+  const { matches, updatedPlayers: pairedPlayers } = generatePairings(
+    group.players,
+    nextRound,
+    roundGameType,
+    group.pairingType,
+    group.matches,
+    group.tiebreakRules
+  );
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
   for (const match of matches) {
@@ -199,7 +206,12 @@ export function applyMatchResultFast(
 
 export function recalculateRanking(group: TournamentGroup): TournamentGroup {
   const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
-  const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+  const rankedPlayers = getRankedPlayers(
+    updatedPlayers,
+    group.gameType,
+    group.pairingType,
+    group.tiebreakRules
+  );
   const previousRankMap = new Map(group.players.map(p => [p.id, p.previousRank]));
   const finalPlayers = rankedPlayers.map(p => ({
     ...p,

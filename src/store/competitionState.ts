@@ -1,12 +1,20 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus } from '../types';
 import { calculateAllWinRates, getRankedPlayers } from '../utils/swissPairing';
+import { getDefaultTiebreakTemplate, normalizeTiebreakRules } from '../utils/tiebreak';
 
 export function buildRankedGroup(group: TournamentGroup): TournamentGroup {
   const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
-  const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+  const rankedPlayers = getRankedPlayers(
+    updatedPlayers,
+    group.gameType,
+    group.pairingType,
+    group.tiebreakRules
+  );
 
   return {
     ...group,
+    tiebreakTemplate: group.tiebreakTemplate ?? getDefaultTiebreakTemplate(group.gameType),
+    tiebreakRules: normalizeTiebreakRules(group.tiebreakRules, group.gameType),
     players: rankedPlayers.map((player, index) => ({
       ...player,
       previousRank: index + 1,

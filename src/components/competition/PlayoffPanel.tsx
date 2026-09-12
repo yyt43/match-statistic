@@ -13,11 +13,15 @@ export function PlayoffPanel() {
   const [formats, setFormats] = useState<ThreePlayerFormats>({});
   const [error, setError] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
-  const ties = useMemo(() => detectTieGroups(group.players, group.gameType), [group.players, group.gameType]);
+  const ties = useMemo(
+    () => detectTieGroups(group.players, group.gameType, group.tiebreakRules),
+    [group.players, group.gameType, group.tiebreakRules]
+  );
   const ranked = getRankedPlayers(
     group.players.filter(player => !player.dropped && !player.eliminated),
     group.gameType,
-    group.pairingType
+    group.pairingType,
+    group.tiebreakRules
   );
   const name = (id: string) => group.players.find(player => player.id === id)?.name ?? id;
   const brackets = group.playoffBrackets ?? [];

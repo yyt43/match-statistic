@@ -1,5 +1,6 @@
 import { maximumMatching } from './maximumMatching';
-import type { Player, Match, GameType, PairingType, TournamentGroup } from '../types';
+import type { Player, Match, GameType, PairingType, TournamentGroup, TiebreakRule } from '../types';
+import { resolveTiebreakRules } from './tiebreak';
 
 /** 配对结果：包含本轮对阵与更新后的选手状态（上下匹配标记/次数） */
 export interface PairingResult {
@@ -27,11 +28,37 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * 瑞士轮排名规则（按文档要求分赛制定制，统一用于排序与排行榜展示）：
- * - BO1 ：活跃状态 → 胜场数 → 对手胜率(SOS) → 对手的对手胜率(SOSOS) → points → 加赛胜场 → 姓名
- * - BO3+：活跃状态 → 胜场数 → 对手胜率(SOS) → 本人局胜率 → 对手局胜率 → points → 加赛胜场 → 姓名
+ * 瑞士轮排名规则：活跃状态和胜场数固定优先，其余破分链由小组配置。
  */
-function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Player[] {
+function compareTiebreakRule(
+  a: Player,
+  b: Player,
+  rule: TiebreakRule
+): number {
+  if (rule === 'playoffWins') {
+    if (a.playoffBracketId || b.playoffBracketId) {
+      if (
+        a.playoffBracketId === b.playoffBracketId
+        && a.playoffRank !== undefined
+        && b.playoffRank !== undefined
+        && a.playoffRank !== b.playoffRank
+      ) {
+        return a.playoffRank - b.playoffRank;
+      }
+      return 0;
+    }
+    return (b.playoffWins || 0) - (a.playoffWins || 0);
+  }
+
+  return b[rule] - a[rule];
+}
+
+function sortPlayersByRank(
+  players: Player[],
+  gameType: GameType = 'bo1',
+  tiebreakRules?: TiebreakRule[]
+): Player[] {
+  const rules = resolveTiebreakRules({ gameType, tiebreakRules });
   return [...players].sort((a, b) => {
     // Step 0：活跃状态（活跃 2 > 淘汰 1 > 弃赛 0）
     const aActive = a.dropped ? 0 : a.eliminated ? 1 : 2;
@@ -41,31 +68,10 @@ function sortPlayersByRank(players: Player[], gameType: GameType = 'bo1'): Playe
     // Step 1：胜场数
     if (b.wins !== a.wins) return b.wins - a.wins;
 
-    // Step 2：对手胜率 SOS
-    if (b.opponentWinRate !== a.opponentWinRate) return b.opponentWinRate - a.opponentWinRate;
-
-    if (gameType === 'bo1') {
-      // BO1 Step 3：对手的对手胜率 SOSOS
-      if (b.opponentOpponentWinRate !== a.opponentOpponentWinRate) return b.opponentOpponentWinRate - a.opponentOpponentWinRate;
-    } else {
-      // BO3+ Step 3：本人局胜率
-      if (b.gameWinRate !== a.gameWinRate) return b.gameWinRate - a.gameWinRate;
-      // BO3+ Step 4：对手局胜率
-      if (b.opponentGameWinRate !== a.opponentGameWinRate) return b.opponentGameWinRate - a.opponentGameWinRate;
+    for (const rule of rules) {
+      const result = compareTiebreakRule(a, b, rule);
+      if (result !== 0) return result;
     }
-
-    if (b.points !== a.points) return b.points - a.points;
-
-    // 最终破分：加赛胜场（只用于区分名次，不计入常规小分）
-    if (a.playoffBracketId || b.playoffBracketId) {
-      if (a.playoffBracketId === b.playoffBracketId && a.playoffRank !== undefined && b.playoffRank !== undefined) {
-        if (a.playoffRank !== b.playoffRank) return a.playoffRank - b.playoffRank;
-      }
-      return a.name.localeCompare(b.name);
-    }
-    const aPlayoff = a.playoffWins || 0;
-    const bPlayoff = b.playoffWins || 0;
-    if (bPlayoff !== aPlayoff) return bPlayoff - aPlayoff;
 
     return a.name.localeCompare(b.name);
   });
@@ -87,11 +93,16 @@ function sortPlayersByEliminationRank(players: Player[]): Player[] {
  * 统一的选手排序入口（瑞士轮 + 单败淘汰）。
  * 供 store / excelExport / imageExport 共用，避免重复实现导致排名不一致。
  */
-export function sortPlayers(players: Player[], gameType: GameType, pairingType: PairingType): Player[] {
+export function sortPlayers(
+  players: Player[],
+  gameType: GameType,
+  pairingType: PairingType,
+  tiebreakRules?: TiebreakRule[]
+): Player[] {
   if (pairingType === 'single_elimination') {
     return sortPlayersByEliminationRank(players);
   }
-  return sortPlayersByRank(players, gameType);
+  return sortPlayersByRank(players, gameType, tiebreakRules);
 }
 
 /**
@@ -367,7 +378,8 @@ function getByeWins(gameType: GameType): number {
 export function generateSwissPairings(
   players: Player[],
   round: number,
-  gameType: GameType = 'bo1'
+  gameType: GameType = 'bo1',
+  tiebreakRules?: TiebreakRule[]
 ): PairingResult {
   const byeWins = getByeWins(gameType);
   const matches: Match[] = [];
@@ -412,7 +424,7 @@ export function generateSwissPairings(
 
   // ===== 第2轮及以后：标准瑞士轮配对 =====
   const activePool = players.filter(p => !p.dropped && !p.eliminated);
-  const sorted = sortPlayersByRank(activePool, gameType);
+  const sorted = sortPlayersByRank(activePool, gameType, tiebreakRules);
 
   // 构建可变状态
   const stateMap = new Map<string, PlayerState>();
@@ -544,13 +556,14 @@ export function generatePairings(
   round: number,
   gameType: GameType,
   pairingType: PairingType,
-  allMatches: Match[]
+  allMatches: Match[],
+  tiebreakRules?: TiebreakRule[]
 ): PairingResult {
   if (pairingType === 'single_elimination') {
     const matches = generateSingleEliminationPairings(players, round, gameType, allMatches);
     return { matches, updatedPlayers: players };
   }
-  return generateSwissPairings(players, round, gameType);
+  return generateSwissPairings(players, round, gameType, tiebreakRules);
 }
 
 // ===== 胜率计算 =====
@@ -769,8 +782,13 @@ export function calculateAllWinRates(
   return Array.from(playerMap.values());
 }
 
-export function getRankedPlayers(players: Player[], gameType: GameType = 'bo1', pairingType: PairingType = 'swiss'): Player[] {
-  return sortPlayers(players, gameType, pairingType);
+export function getRankedPlayers(
+  players: Player[],
+  gameType: GameType = 'bo1',
+  pairingType: PairingType = 'swiss',
+  tiebreakRules?: TiebreakRule[]
+): Player[] {
+  return sortPlayers(players, gameType, pairingType, tiebreakRules);
 }
 
 /**
@@ -781,9 +799,14 @@ export function getRankedPlayers(players: Player[], gameType: GameType = 'bo1', 
  * 如果上述所有指标都相同，且至少有 2 名选手，则返回这些选手的分组。
  * 只在同一排名区间内检测（排除已弃赛/淘汰的选手）。
  */
-export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): Player[][] {
+export function detectTieGroups(
+  players: Player[],
+  gameType: GameType = 'bo1',
+  tiebreakRules?: TiebreakRule[]
+): Player[][] {
   const active = players.filter(p => !p.dropped && !p.eliminated);
-  const ranked = sortPlayersByRank(active, gameType);
+  const ranked = sortPlayersByRank(active, gameType, tiebreakRules);
+  const rules = resolveTiebreakRules({ gameType, tiebreakRules });
 
   const groups: Player[][] = [];
   let i = 0;
@@ -795,15 +818,8 @@ export function detectTieGroups(players: Player[], gameType: GameType = 'bo1'): 
       const b = ranked[j];
       // 比较所有破分指标（含加赛胜场）
       if (
-        a.wins === b.wins &&
-        a.opponentWinRate === b.opponentWinRate &&
-        a.points === b.points &&
-        (a.playoffBracketId || b.playoffBracketId
-          ? a.playoffRank === b.playoffRank
-          : (a.playoffWins || 0) === (b.playoffWins || 0)) &&
-        (gameType === 'bo1'
-          ? a.opponentOpponentWinRate === b.opponentOpponentWinRate
-          : a.gameWinRate === b.gameWinRate && a.opponentGameWinRate === b.opponentGameWinRate)
+        a.wins === b.wins
+        && rules.every(rule => compareTiebreakRule(a, b, rule) === 0)
       ) {
         group.push(b);
         j++;

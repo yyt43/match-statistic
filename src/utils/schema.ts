@@ -6,6 +6,15 @@ const STATUSES = new Set(['setup', 'in_progress', 'completed']);
 const RESULTS = new Set(['player1', 'player2', 'draw', 'pending']);
 const PLAYOFF_FORMATS = new Set(['two', 'three_one', 'three_two', 'four']);
 const PLAYOFF_ROLES = new Set(['opening', 'final', 'placement']);
+const TIEBREAK_TEMPLATES = new Set(['standard_bo1', 'standard_multi', 'custom']);
+const TIEBREAK_RULES = new Set([
+  'opponentWinRate',
+  'opponentOpponentWinRate',
+  'gameWinRate',
+  'opponentGameWinRate',
+  'points',
+  'playoffWins',
+]);
 
 export type CompetitionSchemaResult =
   | { success: true; data: TournamentCompetition }
@@ -68,6 +77,20 @@ function validateGroup(value: unknown, path: string, errors: string[]): void {
       || !group.roundGameTypes.every(value => typeof value === 'string' && GAME_TYPES.has(value))
       || (totalRounds > 0 && group.roundGameTypes.length !== totalRounds)) {
       errors.push(`${path}.roundGameTypes: expected ${totalRounds} valid game types`);
+    }
+  }
+
+  if (group.tiebreakTemplate !== undefined) {
+    requireEnum(group, 'tiebreakTemplate', TIEBREAK_TEMPLATES, `${path}.tiebreakTemplate`, errors);
+  }
+  if (group.tiebreakRules !== undefined) {
+    if (
+      !Array.isArray(group.tiebreakRules)
+      || group.tiebreakRules.length === 0
+      || !group.tiebreakRules.every(value => typeof value === 'string' && TIEBREAK_RULES.has(value))
+      || new Set(group.tiebreakRules).size !== group.tiebreakRules.length
+    ) {
+      errors.push(`${path}.tiebreakRules: expected a non-empty array of unique tiebreak rules`);
     }
   }
 

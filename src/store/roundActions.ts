@@ -45,7 +45,8 @@ export function generateNextRoundForCompetition(
     nextRound,
     roundGameType,
     group.pairingType,
-    group.matches
+    group.matches,
+    group.tiebreakRules
   );
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
@@ -87,8 +88,9 @@ export function generateNextRoundAllGroupsInCompetition(
 export function buildUpdatedPlayersFromMatches(
   players: Player[],
   matches: TournamentGroup['matches'],
-  gameType: TournamentGroup['gameType']
+  gameType: TournamentGroup['gameType'],
+  tiebreakRules?: TournamentGroup['tiebreakRules']
 ): Player[] {
   const refreshed = calculateAllWinRates(players, matches, gameType);
-  return getRankedPlayers(refreshed, gameType, 'swiss');
+  return getRankedPlayers(refreshed, gameType, 'swiss', tiebreakRules);
 }

@@ -1,9 +1,20 @@
 import type { CompetitionState } from '../useTournamentStore';
-import type { GameType, PairingType, Player, TournamentGroup } from '../../types';
+import type {
+  GameType,
+  PairingType,
+  Player,
+  TiebreakRule,
+  TiebreakTemplate,
+  TournamentGroup,
+} from '../../types';
 import type { StoreGet, StoreSet } from './actionTypes';
 import { createNewGroup, generateId } from '../tournamentFactory';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
-import { saveCompetition } from '../../utils/storage/storage';
+import {
+  getDefaultTiebreakRules,
+  getDefaultTiebreakTemplate,
+  normalizeTiebreakRules,
+} from '../../utils/tiebreak';
 
 type GroupActionKey =
   | 'setCurrentGroup'
@@ -15,15 +26,15 @@ type GroupActionKey =
   | 'setTotalRounds'
   | 'setGameType'
   | 'setPairingType'
-  | 'setRoundGameType';
+  | 'setRoundGameType'
+  | 'setTiebreakTemplate';
 
 export function createGroupActions(
   set: StoreSet,
   get: StoreGet
 ): Pick<CompetitionState, GroupActionKey> {
-  const persist = (competition: CompetitionState['competition']) => {
-    set({ competition });
-    saveCompetition(competition);
+  const persist = (competition: CompetitionState['competition'], label: string) => {
+    set({ competition }, { label });
   };
 
   return {
@@ -55,7 +66,7 @@ export function createGroupActions(
         'swiss',
         maxPlayerIndex + 1
       );
-      persist({ ...competition, groups: [...competition.groups, newGroup] });
+      persist({ ...competition, groups: [...competition.groups, newGroup] }, '添加小组');
     },
 
     removeGroup: (index: number) => {
@@ -66,7 +77,7 @@ export function createGroupActions(
         ...competition,
         groups,
         currentGroupIndex: Math.min(competition.currentGroupIndex, groups.length - 1),
-      });
+      }, '删除小组');
     },
 
     setGroupCount: (count: number) => {
@@ -124,7 +135,7 @@ export function createGroupActions(
         ...competition,
         groups,
         currentGroupIndex: Math.min(competition.currentGroupIndex, groups.length - 1),
-      });
+      }, '调整小组数量');
     },
 
     batchSetGroupConfig: (
@@ -167,23 +178,28 @@ export function createGroupActions(
           && roundGameTypes.length === totalRounds
           ? [...roundGameTypes]
           : new Array(totalRounds).fill(gameType);
+        const template = group.tiebreakTemplate ?? getDefaultTiebreakTemplate(gameType);
         return {
           ...group,
           players,
           totalRounds,
           gameType,
           pairingType,
+          tiebreakTemplate: template === 'custom' ? template : getDefaultTiebreakTemplate(gameType),
+          tiebreakRules: template === 'custom'
+            ? normalizeTiebreakRules(group.tiebreakRules, gameType)
+            : getDefaultTiebreakRules(gameType),
           roundGameTypes: finalRoundGameTypes,
         };
       });
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '批量设置小组');
     },
 
     updateGroupName: (index: number, name: string) => {
       const { competition } = get();
       const groups = [...competition.groups];
       groups[index] = { ...groups[index], name: name.trim() };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '修改小组名称');
     },
 
     setTotalRounds: (rounds: number) => {
@@ -203,7 +219,7 @@ export function createGroupActions(
       }
       const groups = [...competition.groups];
       groups[index] = { ...group, totalRounds: newRounds, roundGameTypes };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '修改轮次');
     },
 
     setGameType: (gameType: GameType) => {
@@ -215,9 +231,15 @@ export function createGroupActions(
       groups[index] = {
         ...group,
         gameType,
+        tiebreakTemplate: group.tiebreakTemplate === 'custom'
+          ? 'custom'
+          : getDefaultTiebreakTemplate(gameType),
+        tiebreakRules: group.tiebreakTemplate === 'custom'
+          ? normalizeTiebreakRules(group.tiebreakRules, gameType)
+          : getDefaultTiebreakRules(gameType),
         roundGameTypes: new Array(group.totalRounds).fill(gameType),
       };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '修改赛制');
     },
 
     setPairingType: (pairingType: PairingType) => {
@@ -238,7 +260,7 @@ export function createGroupActions(
       }
       const groups = [...competition.groups];
       groups[index] = { ...group, pairingType, totalRounds, roundGameTypes };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '修改配对方式');
     },
 
     setRoundGameType: (round: number, gameType: GameType) => {
@@ -254,7 +276,29 @@ export function createGroupActions(
       }
       const groups = [...competition.groups];
       groups[index] = { ...group, roundGameTypes };
-      persist({ ...competition, groups });
+      persist({ ...competition, groups }, '修改单轮赛制');
+    },
+
+    setTiebreakTemplate: (
+      template: TiebreakTemplate,
+      rules?: TiebreakRule[]
+    ) => {
+      const { competition } = get();
+      const index = competition.currentGroupIndex;
+      const group = competition.groups[index];
+      if (group.status !== 'setup') return;
+
+      const defaultGameType = template === 'standard_bo1' ? 'bo1' : group.gameType;
+      const tiebreakRules = template === 'custom'
+        ? normalizeTiebreakRules(rules ?? group.tiebreakRules, group.gameType)
+        : getDefaultTiebreakRules(defaultGameType);
+      const groups = [...competition.groups];
+      groups[index] = {
+        ...group,
+        tiebreakTemplate: template,
+        tiebreakRules,
+      };
+      persist({ ...competition, groups }, '修改破分链');
     },
   };
 }

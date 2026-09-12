@@ -1,6 +1,5 @@
 import type { CompetitionState } from '../useTournamentStore';
 import type { StoreGet, StoreSet } from './actionTypes';
-import { saveCompetition } from '../../utils/storage/storage';
 import { getSnapshot, saveSnapshot } from '../../utils/storage/snapshot';
 import { calculateAllWinRates, getRankedPlayers } from '../../utils/swissPairing';
 import { logAudit } from '../../utils/auditLog';
@@ -25,7 +24,12 @@ export function createSnapshotActions(
 
       const recalculatedGroups = snapshot.data.groups.map(group => {
         const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
-        const rankedPlayers = getRankedPlayers(updatedPlayers, group.gameType, group.pairingType);
+        const rankedPlayers = getRankedPlayers(
+          updatedPlayers,
+          group.gameType,
+          group.pairingType,
+          group.tiebreakRules
+        );
         return {
           ...group,
           players: rankedPlayers.map((player, index) => ({ ...player, previousRank: index + 1 })),
@@ -38,8 +42,7 @@ export function createSnapshotActions(
         viewRound: currentGroup?.currentRound > 0 ? currentGroup.currentRound : 0,
         isRandomGenerating: false,
         randomGenerateProgress: { total: 0, current: 0 },
-      });
-      saveCompetition(restored);
+      }, { label: `恢复快照：${snapshot.label}` });
       void logAudit('snapshot-restore', `Restored ${snapshot.label}`, { label: snapshot.label });
       return true;
     },
