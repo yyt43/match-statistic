@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -52,7 +52,18 @@ try {
   page.on('console', message => {
     if (message.type() === 'error') console.error('[browser console]', message.text());
   });
-  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
+  await page.addInitScript(() => {
+    localStorage.setItem('tournament-onboarding-v1', '1');
+    window.__capturedDownloads = [];
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download && this.href.startsWith('blob:')) {
+        window.__capturedDownloads.push({ name: this.download, href: this.href });
+        return;
+      }
+      originalClick.call(this);
+    };
+  });
 
   await page.goto(appUrl, { waitUntil: 'networkidle' });
   await page.getByTitle('Switch to English').click();
@@ -74,26 +85,23 @@ try {
 
   await page.getByRole('button', { name: 'Export Excel' }).click();
   await page.getByRole('button', { name: 'Match table' }).click();
-  const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download Excel' }).click();
-  const download = await downloadPromise;
-  const downloadPath = join(browserDataDir, 'round-export.xlsx');
-  await download.saveAs(downloadPath);
-  if (statSync(downloadPath).size === 0) {
-    throw new Error('Excel export produced an empty file.');
+  const excel = await readCapturedBlob(page, 0);
+  if (
+    excel.size === 0
+    || !excel.fileName.endsWith('.xlsx')
+    || !excel.signature.startsWith('504b0304')
+  ) {
+    throw new Error(`Excel export produced an invalid file: ${JSON.stringify(excel)}`);
   }
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('button', { name: 'Export image' }).click();
   await page.getByRole('button', { name: 'Match table' }).click();
-  const imageDownloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download image' }).click();
-  const imageDownload = await imageDownloadPromise;
-  const imageDownloadPath = join(browserDataDir, 'ranking-export.png');
-  await imageDownload.saveAs(imageDownloadPath);
-  const pngSignature = readFileSync(imageDownloadPath).subarray(0, 8).toString('hex');
-  if (pngSignature !== '89504e470d0a1a0a') {
-    throw new Error('Image export did not produce a valid PNG file.');
+  const image = await readCapturedBlob(page, 1);
+  if (image.size === 0 || !image.fileName.endsWith('.png') || image.signature !== '89504e470d0a1a0a') {
+    throw new Error(`Image export produced an invalid file: ${JSON.stringify(image)}`);
   }
   await page.getByRole('button', { name: 'Cancel' }).click();
 
@@ -141,6 +149,23 @@ async function waitForText(page, text) {
     text,
     { timeout: 10000 }
   );
+}
+
+async function readCapturedBlob(page, index) {
+  await page.waitForFunction(
+    expected => (window.__capturedDownloads?.length ?? 0) > expected,
+    index,
+    { timeout: 30000 }
+  );
+  return page.evaluate(async capturedIndex => {
+    const captured = window.__capturedDownloads[capturedIndex];
+    const response = await fetch(captured.href);
+    const buffer = await response.arrayBuffer();
+    const signature = Array.from(new Uint8Array(buffer).slice(0, 8))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    return { fileName: captured.name, size: buffer.byteLength, signature };
+  }, index);
 }
 
 async function waitFor(check, timeoutMs) {
