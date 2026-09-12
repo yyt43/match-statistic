@@ -4,6 +4,7 @@ import type { StoreSet } from './actionTypes';
 import { createNewCompetition } from '../tournamentFactory';
 import { loadCompetition, saveCompetition } from '../../utils/storage/storage';
 import { normalizeCompetitionGroups, resolveViewRound } from '../competitionState';
+import { logAudit } from '../../utils/auditLog';
 
 export function createCompetitionActions(
   set: StoreSet
@@ -45,12 +46,14 @@ export function createCompetitionActions(
         randomGenerateProgress: { total: 0, current: 0 },
       });
       saveCompetition(normalized);
+      void logAudit('tournament-import', `Imported ${normalized.name}`, { name: normalized.name });
     },
 
     resetCompetition: () => {
       const competition = createNewCompetition('新建赛事');
       set({ competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } });
       saveCompetition(competition);
+      void logAudit('tournament-reset', 'Tournament reset');
     },
   };
 }

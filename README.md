@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.2.3
+当前版本：v0.2.4
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.2.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.3)
+[![Release](https://img.shields.io/badge/Release-v0.2.4-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.2.4)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -53,6 +53,8 @@
 本项目采用 MIT License，适合公开展示、二次开发与轻量工具复用。该协议简单直接，允许自由使用、修改和分发，同时保留版权说明。
 
 - 许可证文件：[LICENSE](LICENSE)
+- 隐私说明：[PRIVACY.md](PRIVACY.md)
+- 第三方许可：[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 适用场景：个人项目、团队协作、工具型开源项目
 - 目标：让代码更容易学习、复用和扩展，同时保持清晰的版权记录
 

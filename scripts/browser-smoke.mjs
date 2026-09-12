@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -47,6 +47,11 @@ try {
   });
   const context = await browser.newContext();
   const page = await context.newPage();
+  page.on('pageerror', error => console.error('[browser error]', error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') console.error('[browser console]', message.text());
+  });
+  await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
 
   await page.goto(appUrl, { waitUntil: 'networkidle' });
   await page.getByTitle('Switch to English').click();
@@ -78,6 +83,19 @@ try {
       throw new Error('Excel export produced an empty file.');
     }
     await page.getByRole('button', { name: 'Cancel' }).click();
+
+    await page.getByRole('button', { name: 'Export image' }).click();
+    await page.getByRole('button', { name: 'Match table' }).click();
+    const imageDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download image' }).click();
+    const imageDownload = await imageDownloadPromise;
+    const imageDownloadPath = join(browserDataDir, 'ranking-export.png');
+    await imageDownload.saveAs(imageDownloadPath);
+    const pngSignature = readFileSync(imageDownloadPath).subarray(0, 8).toString('hex');
+    if (pngSignature !== '89504e470d0a1a0a') {
+      throw new Error('Image export did not produce a valid PNG file.');
+    }
+    await page.getByRole('button', { name: 'Cancel' }).click();
   }
 
   await page.reload({ waitUntil: 'networkidle' });
@@ -106,7 +124,7 @@ try {
   await page.getByTitle('Switch to Chinese').click();
   await waitForText(page, '诗意 · 比赛战绩统计系统');
 
-  console.log('Browser smoke test passed: create roster, start event, export Excel, reload persistence, switch language.');
+  console.log('Browser smoke test passed: create roster, start event, export Excel and PNG, reload persistence, switch language.');
 } finally {
   await browser?.close();
   server.kill();

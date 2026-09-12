@@ -3,6 +3,7 @@ import { notifyStorageStatus, getStorageStatus, estimateDataSize } from './stora
 import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
 import { broadcastCompetitionSaved } from './storageSync';
 import { validateCompetitionData } from '../schema';
+import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
 
 const STORAGE_KEY = 'swiss_tournament_data';
 const BACKUP_KEY = 'swiss_tournament_data_backup';
@@ -21,7 +22,7 @@ interface StorageEnvelope {
   data: TournamentCompetition;
 }
 
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = CURRENT_STORAGE_VERSION;
 const LOCAL_MIRROR_LIMIT_BYTES = 2 * 1024 * 1024;
 let lastSavedAt: string | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
@@ -86,58 +87,19 @@ interface LegacyTournament {
   pairingType?: PairingType;
 }
 
-/** 旧格式中可能缺失新字段的 group（迁移用） */
-type LegacyGroup = Partial<Omit<TournamentGroup, 'gameType' | 'pairingType' | 'players'>> & {
-  gameType?: string;
-  pairingType?: string;
-  players?: Player[];
-  totalRounds?: number;
-};
-
-function migrateGroupPairingType(group: LegacyGroup): TournamentGroup {
-  const migrated: LegacyGroup = { ...group };
-
-  // 旧格式：gameType = 'single_elimination'，迁移为 pairingType
-  if (migrated.gameType === 'single_elimination' && !migrated.pairingType) {
-    migrated.pairingType = 'single_elimination';
-    migrated.gameType = 'bo1';
-  }
-
-  if (!['bo1', 'bo3', 'bo5', 'bo7'].includes(migrated.gameType || '')) {
-    migrated.gameType = 'bo1';
-  }
-
-  // 确保 pairingType 存在
-  if (!migrated.pairingType) {
-    migrated.pairingType = 'swiss';
-  }
-
-  // 确保 roundGameTypes 存在
-  if (!migrated.roundGameTypes || !Array.isArray(migrated.roundGameTypes)) {
-    migrated.roundGameTypes = new Array(migrated.totalRounds || 5).fill(migrated.gameType || 'bo1');
-  }
-
-  // 确保每个 player 都有上下匹配相关字段（新字段兼容旧数据）
-  if (migrated.players && Array.isArray(migrated.players)) {
-    migrated.players = migrated.players.map((p) => ({
-      ...p,
-      downMatchCount: p.downMatchCount ?? 0,
-      upMatchCount: p.upMatchCount ?? 0,
-      hasDownPriority: p.hasDownPriority ?? false,
-      hasUpPriority: p.hasUpPriority ?? false,
-    }));
-  }
-
-  return migrated as TournamentGroup;
-}
-
 /**
  * 尝试从原始字符串中解析数据，兼容三种格式：
  * 1. StorageEnvelope (version 2) : {version, savedAt, data: {...}}
  * 2. 原始 TournamentCompetition (version 1) : 直接 {groups, currentGroupIndex, ...}
  * 3. 旧格式 LegacyTournament : 单小组（无groups字段，含 players/matches）
  */
-function parseStoredValue(parsed: unknown): { competition: TournamentCompetition; savedAt?: string } | null {
+interface ParsedStoredCompetition {
+  competition: TournamentCompetition;
+  savedAt?: string;
+  version: number;
+}
+
+function parseStoredValue(parsed: unknown): ParsedStoredCompetition | null {
   if (!parsed || typeof parsed !== 'object') return null;
 
   // 格式1：Envelope
@@ -145,13 +107,14 @@ function parseStoredValue(parsed: unknown): { competition: TournamentCompetition
     const env = parsed as StorageEnvelope;
     const competition = env.data;
     if (competition && Array.isArray(competition.groups)) {
-      return { competition, savedAt: env.savedAt };
+      const version = Number.isInteger(env.version) ? env.version : 1;
+      return { competition, savedAt: env.savedAt, version };
     }
   }
 
   // 格式2：新格式 TournamentCompetition（含 groups）
   if ('groups' in parsed && Array.isArray(parsed.groups)) {
-    return { competition: parsed as unknown as TournamentCompetition };
+    return { competition: parsed as unknown as TournamentCompetition, version: 1 };
   }
 
   // 格式3：旧格式 LegacyTournament（无 groups，有 players/matches）
@@ -170,7 +133,7 @@ function parseStoredValue(parsed: unknown): { competition: TournamentCompetition
       pairingType: tournament.pairingType || 'swiss',
       gameType: tournament.gameType === 'single_elimination' ? 'bo1' : tournament.gameType,
     };
-    const group = migrateGroupPairingType(rawGroup);
+    const group = rawGroup;
     const competition: TournamentCompetition = {
       id: generateId(),
       name: tournament.name || '迁移的比赛',
@@ -178,13 +141,13 @@ function parseStoredValue(parsed: unknown): { competition: TournamentCompetition
       currentGroupIndex: 0,
       createdAt: tournament.createdAt || new Date().toISOString(),
     };
-    return { competition };
+    return { competition, version: 1 };
   }
 
   return null;
 }
 
-function tryParse(raw: string | null): { competition: TournamentCompetition; savedAt?: string } | null {
+function tryParse(raw: string | null): ParsedStoredCompetition | null {
   if (!raw) return null;
   try {
     return parseStoredValue(JSON.parse(raw));
@@ -248,21 +211,18 @@ async function persistCompetitionEnvelope(
   }
 }
 
-function needsMigration(competition: TournamentCompetition): boolean {
-  return competition.groups.some(g => !g.pairingType || !g.roundGameTypes || !Array.isArray(g.roundGameTypes));
-}
-
-function migrateCompetition(competition: TournamentCompetition): TournamentCompetition {
-  if (!needsMigration(competition)) return competition;
-  return { ...competition, groups: competition.groups.map(group => migrateGroupPairingType(group)) };
-}
-
 function prepareStoredCompetition(
-  parsed: { competition: TournamentCompetition; savedAt?: string } | null
+  parsed: ParsedStoredCompetition | null
 ): { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null {
   if (!parsed) return null;
-  const wasMigrated = needsMigration(parsed.competition);
-  const migrated = migrateCompetition(parsed.competition);
+  const wasMigrated = parsed.version < CURRENT_STORAGE_VERSION;
+  let migrated: TournamentCompetition;
+  try {
+    migrated = migrateCompetitionData(parsed.competition, parsed.version);
+  } catch (error) {
+    console.warn('[storage] Unsupported competition version:', error);
+    return null;
+  }
   const validation = validateCompetitionData(migrated);
   if (!validation.success) {
     console.warn('[storage] Invalid competition data rejected:', validation.message);

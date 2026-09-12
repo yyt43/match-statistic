@@ -21,9 +21,11 @@ import {
   Youtube,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useRef } from 'react';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useLanguagePreference } from '../../i18n/context';
 import type { AppLanguage } from '../../i18n/data';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface HelpPageProps {
   isOpen: boolean;
@@ -251,11 +253,13 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   useEscapeClose(isOpen, onClose);
   const { language, t } = useLanguagePreference();
   const copy = content[language];
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, dialogRef);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
+    <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-12">
         <button
           onClick={onClose}

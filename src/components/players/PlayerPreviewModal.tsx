@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { X, Users, Search, Copy, Check, AlertCircle } from 'lucide-react';
 import { useTournamentStore } from '../../store/useTournamentStore';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useLanguagePreference } from '../../i18n/context';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { VirtualizedList } from '../common/VirtualizedList';
 
 interface PlayerPreviewModalProps {
   isOpen: boolean;
@@ -14,8 +16,10 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
   const { language } = useLanguagePreference();
   const [search, setSearch] = useState('');
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEscapeClose(isOpen, onClose);
+  useFocusTrap(isOpen, dialogRef);
 
   const totalPlayers = useMemo(
     () => competition.groups.reduce((sum, g) => sum + g.players.length, 0),
@@ -72,7 +76,7 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
   const hasProgress = competition.groups.some(g => g.status !== 'setup');
 
   return (
-    <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
+    <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* 顶部栏 */}
         <div className="flex items-center justify-between mb-6 sticky top-0 bg-slate-900/80 backdrop-blur-sm py-3 -mx-6 px-6 z-10 border-b border-slate-800">
@@ -157,17 +161,22 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
                   {group.players.length}{isEnglish ? '' : '人'}
                 </span>
               </div>
-              <div className="max-h-72 overflow-y-auto p-2">
+              <div className="p-2">
                 {group.players.length === 0 ? (
                   <div className="py-6 text-center text-xs text-slate-600">{isEnglish ? 'No players yet' : '暂无选手'}</div>
                 ) : (
-                  <ol className="space-y-0.5">
-                    {group.players.map((player, idx) => {
+                  <VirtualizedList
+                    items={group.players}
+                    itemHeight={30}
+                    getKey={player => player.id}
+                    className="max-h-72"
+                    role="list"
+                    renderItem={(player, idx) => {
                       const isDup = duplicateNames.has(player.name.trim().toLowerCase());
                       return (
-                        <li
-                          key={player.id}
-                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-800/50 text-sm"
+                        <div
+                          role="listitem"
+                          className="flex h-full items-center gap-2 rounded px-2 text-sm hover:bg-slate-800/50"
                         >
                           <span className="text-slate-500 font-mono text-xs w-8 text-right">
                             {String(idx + 1).padStart(2, '0')}.
@@ -178,10 +187,10 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
                           {isDup && (
                             <span className="text-[10px] text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded">{isEnglish ? 'Duplicate' : '重名'}</span>
                           )}
-                        </li>
+                        </div>
                       );
-                    })}
-                  </ol>
+                    }}
+                  />
                 )}
               </div>
             </div>

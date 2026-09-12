@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { getRankingTableData, getMatchTableData, exportAllGroupsRankingToExcel, exportAllGroupsCurrentRoundMatchesToExcel, exportAllGroupsToExcel, exportGroupSummaryToExcel, exportSingleSheetToExcel } from '../../utils/export/excelExport';
@@ -6,6 +6,8 @@ import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { TournamentGroup } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { isAbortError } from '../../utils/async';
 
 type ExportType = 'ranking' | 'match' | 'summary';
 
@@ -20,18 +22,25 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   const [exportAllGroups, setExportAllGroups] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'building' | 'saving'>('idle');
+  const [exportProgress, setExportProgress] = useState(0);
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
   const { language, t } = useLanguagePreference();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
 
   useEscapeClose(isOpen && !isExporting, onClose);
+  useFocusTrap(isOpen, dialogRef);
 
   useEffect(() => {
     if (isOpen) {
       setActiveType(initialType);
       setExportAllGroups(false);
+      setExportProgress(0);
     }
   }, [isOpen, initialType]);
+
+  useEffect(() => () => exportAbortRef.current?.abort(), []);
 
   if (!isOpen) return null;
 
@@ -70,14 +79,22 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       : getMatchTableData(previewGroup, viewRound, language);
 
   const handleDownload = async () => {
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
     setIsExporting(true);
     setExportPhase('loading');
+    setExportProgress(0);
+    const options = {
+      signal: controller.signal,
+      onProgress: (progress: { percent: number }) => setExportProgress(progress.percent),
+    };
+
     try {
       if (isSummary) {
         if (exportAllGroups) {
-          await exportAllGroupsToExcel(availableGroups, competition.name, language);
+          await exportAllGroupsToExcel(availableGroups, competition.name, language, options);
         } else {
-          await exportGroupSummaryToExcel(previewGroup, competition.name, language);
+          await exportGroupSummaryToExcel(previewGroup, competition.name, language, options);
         }
         return;
       }
@@ -85,9 +102,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       setExportPhase('building');
       if (exportAllGroups) {
         if (isRanking) {
-          await exportAllGroupsRankingToExcel(availableGroups, competition.name, language);
+          await exportAllGroupsRankingToExcel(availableGroups, competition.name, language, options);
         } else {
-          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name, language);
+          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name, language, options);
         }
       } else {
         setExportPhase('saving');
@@ -99,14 +116,20 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         const fileName = isRanking
           ? `${competition.name}-${previewGroup.name}-${t.ranking}.xlsx`
           : `${competition.name}-${previewGroup.name}-${formatText(t.roundN, { round: viewRound })} ${t.matchTable}.xlsx`;
-        await exportSingleSheetToExcel(sheetName, data, fileName);
+        await exportSingleSheetToExcel(sheetName, data, fileName, options);
       }
     } catch (err) {
-      console.error('Excel export failed:', err);
-      alert(t.exportFailedAlert);
+      if (!isAbortError(err)) {
+        console.error('Excel export failed:', err);
+        alert(t.exportFailedAlert);
+      }
     } finally {
-      setIsExporting(false);
-      setExportPhase('idle');
+      if (exportAbortRef.current === controller) {
+        exportAbortRef.current = null;
+        setIsExporting(false);
+        setExportPhase('idle');
+        setExportProgress(0);
+      }
     }
   };
 
@@ -119,7 +142,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl flex flex-col">
+      <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} className="relative w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
@@ -127,7 +150,8 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
           </h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            disabled={isExporting}
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
           >
             <X className="w-5 h-5" />
           </button>
@@ -310,12 +334,22 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         </div>
 
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-700">
+          {isExporting && (
+            <div className="mr-auto flex items-center gap-2" role="status" aria-live="polite">
+              <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-[width] duration-200"
+                  style={{ width: `${Math.max(4, exportProgress)}%` }}
+                />
+              </div>
+              <span className="min-w-8 text-xs tabular-nums text-slate-400">{exportProgress}%</span>
+            </div>
+          )}
           <button
-            onClick={onClose}
-            disabled={isExporting}
-            className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={isExporting ? () => exportAbortRef.current?.abort() : onClose}
+            className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
-            {t.cancel}
+            {isExporting ? t.cancelExport : t.cancel}
           </button>
           <button
             onClick={handleDownload}

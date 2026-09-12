@@ -26,11 +26,18 @@ self.onmessage = (event: MessageEvent<ExcelWorkerRequest>) => {
   try {
     if (request.type === 'write') {
       const workbook = XLSX.utils.book_new();
-      for (const sheet of request.sheets) {
+      request.sheets.forEach((sheet, index) => {
         XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name);
-      }
+        self.postMessage({
+          id: request.id,
+          phase: 'preparing',
+          progress: Math.round(((index + 1) / request.sheets.length) * 80),
+        });
+      });
+      self.postMessage({ id: request.id, phase: 'writing', progress: 90 });
       const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
-      self.postMessage({ id: request.id, buffer }, { transfer: [buffer] });
+      self.postMessage({ id: request.id, phase: 'writing', progress: 100 });
+      self.postMessage({ id: request.id, buffer }, [buffer]);
       return;
     }
 

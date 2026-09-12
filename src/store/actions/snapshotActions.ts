@@ -3,6 +3,7 @@ import type { StoreGet, StoreSet } from './actionTypes';
 import { saveCompetition } from '../../utils/storage/storage';
 import { getSnapshot, saveSnapshot } from '../../utils/storage/snapshot';
 import { calculateAllWinRates, getRankedPlayers } from '../../utils/swissPairing';
+import { logAudit } from '../../utils/auditLog';
 
 export function createSnapshotActions(
   set: StoreSet,
@@ -39,6 +40,7 @@ export function createSnapshotActions(
         randomGenerateProgress: { total: 0, current: 0 },
       });
       saveCompetition(restored);
+      void logAudit('snapshot-restore', `Restored ${snapshot.label}`, { label: snapshot.label });
       return true;
     },
   };

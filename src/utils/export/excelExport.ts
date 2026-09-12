@@ -2,7 +2,7 @@ import type { Player, Match, GameType, PairingType, TournamentGroup } from '../.
 import { getEliminationTitleI18n, getEliminatedRound } from '../ranking';
 import { sortPlayers } from '../swissPairing';
 import { translations, formatText, type AppLanguage } from '../../i18n/data';
-import { writeExcelWorkbook } from './excelWorkbook';
+import { writeExcelWorkbook, type ExcelExportOptions } from './excelWorkbook';
 
 type TranslationTable = Record<keyof typeof translations['zh'], string>;
 
@@ -143,7 +143,8 @@ export async function exportRankingToExcel(
   matches?: Match[],
   pairingType: PairingType = 'swiss',
   totalRounds?: number,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType, pairingType,
@@ -153,7 +154,7 @@ export async function exportRankingToExcel(
   const { headers, rows } = getRankingTableData(group, language);
   const t = translations[language];
   const data: (string | number)[][] = [headers, ...rows];
-  await writeExcelWorkbook([{ name: t.ranking, rows: data }], `${competitionName}-${groupName}-${t.ranking}.xlsx`);
+  await writeExcelWorkbook([{ name: t.ranking, rows: data }], `${competitionName}-${groupName}-${t.ranking}.xlsx`, options);
 }
 
 export async function exportMatchesToExcel(
@@ -162,7 +163,8 @@ export async function exportMatchesToExcel(
   competitionName: string,
   groupName: string,
   round: number,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
@@ -173,7 +175,8 @@ export async function exportMatchesToExcel(
   const data: (string | number)[][] = [headers, ...rows];
   await writeExcelWorkbook(
     [{ name: formatText(t.roundN, { round }), rows: data }],
-    `${competitionName}-${groupName}-${formatText(t.roundN, { round })} ${t.matchTable}.xlsx`
+    `${competitionName}-${groupName}-${formatText(t.roundN, { round })} ${t.matchTable}.xlsx`,
+    options
   );
 }
 
@@ -183,7 +186,8 @@ export async function exportAllRoundsToExcel(
   competitionName: string,
   groupName: string,
   totalRounds: number,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const group: TournamentGroup = {
     id: '', name: groupName, players, gameType: 'bo1', pairingType: 'swiss',
@@ -197,14 +201,15 @@ export async function exportAllRoundsToExcel(
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({ name: formatText(t.roundN, { round }), rows: data });
   }
-  await writeExcelWorkbook(sheets, `${competitionName}-${groupName}-${t.matchTable}.xlsx`);
+  await writeExcelWorkbook(sheets, `${competitionName}-${groupName}-${t.matchTable}.xlsx`, options);
 }
 
 /** 导出单小组总表（排行榜+全部对阵） */
 export async function exportGroupSummaryToExcel(
   group: TournamentGroup,
   competitionName: string,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const t = translations[language];
   const { headers, rows } = getRankingTableData(group, language);
@@ -218,13 +223,14 @@ export async function exportGroupSummaryToExcel(
     const mData: (string | number)[][] = [mHeaders, ...mRows];
     sheets.push({ name: formatText(t.roundN, { round }), rows: mData });
   }
-  await writeExcelWorkbook(sheets, `${competitionName}-${group.name}-${t.summary}.xlsx`);
+  await writeExcelWorkbook(sheets, `${competitionName}-${group.name}-${t.summary}.xlsx`, options);
 }
 
 export async function exportAllGroupsToExcel(
   groups: TournamentGroup[],
   competitionName: string,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
@@ -239,13 +245,14 @@ export async function exportAllGroupsToExcel(
       sheets.push({ name: `${group.name}-${formatText(t.roundN, { round })}`, rows: mData });
     }
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.summary}.xlsx`);
+  await writeExcelWorkbook(sheets, `${competitionName}-${t.summary}.xlsx`, options);
 }
 
 export async function exportAllGroupsRankingToExcel(
   groups: TournamentGroup[],
   competitionName: string,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
@@ -255,14 +262,15 @@ export async function exportAllGroupsRankingToExcel(
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({ name: `${group.name}-${t.ranking}`, rows: data });
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`);
+  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`, options);
 }
 
 /** 导出所有小组本轮对阵表 */
 export async function exportAllGroupsCurrentRoundMatchesToExcel(
   groups: TournamentGroup[],
   competitionName: string,
-  language: AppLanguage = 'zh'
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
@@ -276,13 +284,14 @@ export async function exportAllGroupsCurrentRoundMatchesToExcel(
       rows: data,
     });
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`);
+  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`, options);
 }
 
 export async function exportSingleSheetToExcel(
   sheetName: string,
   rows: (string | number)[][],
-  fileName: string
+  fileName: string,
+  options?: ExcelExportOptions
 ): Promise<void> {
-  await writeExcelWorkbook([{ name: sheetName, rows }], fileName);
+  await writeExcelWorkbook([{ name: sheetName, rows }], fileName, options);
 }

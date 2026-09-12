@@ -9,7 +9,11 @@ export function AppUpdatePrompt() {
   if (!needRefresh && !offlineReady) return null;
 
   return (
-    <div className="fixed top-20 right-4 z-50 max-w-sm rounded-xl border border-sky-500/30 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-sm">
+    <div
+      className="fixed top-20 right-4 z-50 max-w-sm rounded-xl border border-sky-500/30 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex items-start gap-3">
         <div className="mt-0.5 rounded-lg bg-sky-500/15 p-2 text-sky-300">
           {needRefresh ? <Download className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}

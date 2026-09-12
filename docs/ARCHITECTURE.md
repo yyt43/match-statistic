@@ -184,12 +184,15 @@ Worker 负责 SheetJS 读取，主线程不直接加载 xlsx 库。
 
 1. 将工作表数据发送给 Worker。
 2. Worker 使用 SheetJS 生成工作簿。
-3. 返回可转移的 ArrayBuffer。
-4. 主线程创建 Blob 并触发下载。
+3. Worker 按工作表回传构建进度。
+4. 返回可转移的 ArrayBuffer；取消操作会终止 Worker。
+5. 主线程创建 Blob 并触发下载。
 
 ### 6.3 图片与 JSON
 
-- 图片使用 `html2canvas`，导出前按需加载。
+- 图片使用 `html2canvas` 绘制，导出前按需加载。
+- PNG 编码优先交给 OffscreenCanvas Worker，主线程只处理 DOM 截图和下载。
+- 图片批量导出显示总体进度，并可在当前文件完成后立即取消。
 - JSON 使用原生 Blob 和 FileReader。
 - JSON 导入必须先通过 Schema 校验。
 
@@ -198,7 +201,7 @@ Worker 负责 SheetJS 读取，主线程不直接加载 xlsx 库。
 - `public/site.webmanifest` 定义应用名称、颜色和图标。
 - `vite-plugin-pwa` 生成 `sw.js` 和 Workbox 运行时。
 - 预缓存 HTML、JS、CSS、SVG、PNG 和 manifest。
-- `registerType: autoUpdate` 自动发现新版本。
+- `registerType: prompt` 发现新版本后等待用户确认，再激活更新。
 - 离线测试通过 Playwright 断网后刷新验证。
 
 ## 8. 目录结构
@@ -215,6 +218,8 @@ src/
 │   └── players/
 ├── hooks/
 │   ├── useEscapeClose.ts
+│   ├── useFocusTrap.ts
+│   ├── usePwaUpdate.ts
 │   ├── useStorageSync.ts
 │   └── useTheme.ts
 ├── i18n/
@@ -231,11 +236,16 @@ src/
 │   ├── export/
 │   ├── import/
 │   ├── storage/
+│   ├── async.ts
+│   ├── auditLog.ts
+│   ├── errorReport.ts
 │   ├── schema.ts
 │   ├── playoffs.ts
 │   ├── ranking.ts
 │   └── swissPairing.ts
-├── workers/excelWorker.ts
+├── workers/
+│   ├── excelWorker.ts
+│   └── imageWorker.ts
 ├── App.tsx
 └── main.tsx
 ```

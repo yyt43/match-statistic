@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Download, Camera, Trophy, Swords, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { RankingImageView } from './RankingImageView';
 import { MatchImageView } from '../matches/MatchImageView';
@@ -8,6 +8,8 @@ import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { TournamentGroup } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { isAbortError } from '../../utils/async';
 
 type ExportType = 'ranking' | 'match';
 
@@ -23,19 +25,26 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   const [exportAllGroups, setExportAllGroups] = useState(initialExportAll);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingGroupIdx, setGeneratingGroupIdx] = useState(0);
+  const [exportProgress, setExportProgress] = useState(0);
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
   const { t } = useLanguagePreference();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
 
   useEscapeClose(isOpen && !isGenerating, onClose);
+  useFocusTrap(isOpen, dialogRef);
 
   useEffect(() => {
     if (isOpen) {
       setActiveType(initialType);
       setExportAllGroups(initialExportAll);
       setGeneratingGroupIdx(0);
+      setExportProgress(0);
     }
   }, [isOpen, initialType, initialExportAll]);
+
+  useEffect(() => () => exportAbortRef.current?.abort(), []);
 
   if (!isOpen) return null;
 
@@ -70,7 +79,11 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   };
 
   const handleDownload = async () => {
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
     setIsGenerating(true);
+    setExportProgress(0);
+
     try {
       if (exportAllGroups) {
         for (let i = 0; i < groupsToExport.length; i++) {
@@ -81,23 +94,37 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
           const groupViewRound = useTournamentStore.getState().viewRound;
           const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: groupViewRound });
-          await generateImage(elementId, `${groupsToExport[i].name}-${suffix}`);
+          await generateImage(elementId, `${groupsToExport[i].name}-${suffix}`, {
+            signal: controller.signal,
+            onProgress: percent => {
+              setExportProgress(Math.round(((i + percent / 100) / groupsToExport.length) * 100));
+            },
+          });
         }
       } else {
         const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
         const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: viewRound });
-        await generateImage(elementId, `${currentGroup.name}-${suffix}`);
+        await generateImage(elementId, `${currentGroup.name}-${suffix}`, {
+          signal: controller.signal,
+          onProgress: setExportProgress,
+        });
       }
     } catch (error) {
-      console.error('生成图片失败:', error);
+      if (!isAbortError(error)) {
+        console.error('Image export failed:', error);
+      }
     } finally {
-      setIsGenerating(false);
+      if (exportAbortRef.current === controller) {
+        exportAbortRef.current = null;
+        setIsGenerating(false);
+        setExportProgress(0);
+      }
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl flex flex-col">
+      <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} className="relative w-full max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Camera className="w-5 h-5 text-gold-400" />
@@ -105,7 +132,8 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           </h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            disabled={isGenerating}
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
           >
             <X className="w-5 h-5" />
           </button>
@@ -225,11 +253,22 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
         </div>
 
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-700">
+          {isGenerating && (
+            <div className="mr-auto flex items-center gap-2" role="status" aria-live="polite">
+              <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gold-500 transition-[width] duration-200"
+                  style={{ width: `${Math.max(4, exportProgress)}%` }}
+                />
+              </div>
+              <span className="min-w-8 text-xs tabular-nums text-slate-400">{exportProgress}%</span>
+            </div>
+          )}
           <button
-            onClick={onClose}
+            onClick={isGenerating ? () => exportAbortRef.current?.abort() : onClose}
             className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
-            {t.cancel}
+            {isGenerating ? t.cancelExport : t.cancel}
           </button>
           <button
             onClick={handleDownload}
