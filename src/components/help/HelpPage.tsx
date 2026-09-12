@@ -63,6 +63,8 @@ interface HelpCopy {
   rules: string;
   swissRules: string;
   swissRuleItems: HelpRule[];
+  swissRankingRules: string;
+  swissRankingRuleItems: HelpRule[];
   eliminationRules: string;
   eliminationRuleItems: string[];
   storage: string;
@@ -127,6 +129,15 @@ const content: Record<AppLanguage, HelpCopy> = {
       { title: '优先标记与次数', text: '跨组匹配优先处理已有上下标记、匹配次数较少和排名位置合适的选手。' },
       { title: '对折与穷举', text: '组内优先对折匹配，必要时使用回溯穷举避免重复对阵。' },
       { title: '轮空规则', text: '最终无法匹配的选手轮空；轮空比分计入排名和对手胜率网络。' },
+    ],
+    swissRankingRules: '瑞士轮排名规则',
+    swissRankingRuleItems: [
+      { title: '总体顺序', text: '先比较参赛状态（正常参赛 > 已淘汰 > 已弃赛），再从胜场数和破分指标逐级排序。' },
+      { title: 'BO1 破分链', text: '胜场数 → 对手胜率（SOS）→ 对手的对手胜率（SOSOS）→ 积分 → 加赛胜场/名次 → 姓名。' },
+      { title: 'BO3 / BO5 / BO7 破分链', text: '胜场数 → 对手胜率（SOS）→ 本人局胜率 → 对手局胜率 → 积分 → 加赛胜场/名次 → 姓名。' },
+      { title: '对手胜率（SOS）', text: '按 Σ对手有效胜场 / Σ对手有效总场次聚合计算；赛前弃赛和加赛不进入该网络，轮空按 0 胜 / 1 场计入。' },
+      { title: '局胜率（BO3+）', text: '本人局胜率与对手局胜率均按累计胜局 / 累计总局计算，赛前弃赛和加赛不计入。' },
+      { title: '完全同分', text: '若常规破分指标全部相同，系统会标记需要加赛；加赛胜场和最终名次只用于区分名次，不改变常规小分。' },
     ],
     eliminationRules: '单败淘汰规则',
     eliminationRuleItems: [
@@ -210,6 +221,15 @@ const content: Record<AppLanguage, HelpCopy> = {
       { title: 'Priority and balance', text: 'Cross-group matching prefers existing up/down markers, fewer previous moves, and suitable rank positions.' },
       { title: 'Fold and search', text: 'Groups first attempt fold pairing, then backtracking to avoid repeat opponents.' },
       { title: 'Byes', text: 'Any remaining unmatched player receives a bye; bye games count toward rankings and opponent-rate calculations.' },
+    ],
+    swissRankingRules: 'Swiss ranking rules',
+    swissRankingRuleItems: [
+      { title: 'Overall order', text: 'First compare participation status (active > eliminated > dropped), then sort by wins and the applicable tiebreak chain.' },
+      { title: 'BO1 tiebreak chain', text: 'Wins → opponent win rate (SOS) → opponents-of-opponents win rate (SOSOS) → points → playoff wins/placement → name.' },
+      { title: 'BO3 / BO5 / BO7 tiebreak chain', text: 'Wins → opponent win rate (SOS) → personal game win rate → opponent game win rate → points → playoff wins/placement → name.' },
+      { title: 'Opponent win rate (SOS)', text: 'Calculated as Σ opponent wins / Σ opponent games. Pre-match drops and playoffs are excluded; a bye contributes 0 wins over 1 game.' },
+      { title: 'Game rates (BO3+)', text: 'Personal and opponent game win rates use total games won / total games played. Pre-match drops and playoffs are excluded.' },
+      { title: 'Exact ties', text: 'If every regular tiebreak metric is identical, the app marks the players as requiring a playoff. Playoff wins and final placement never change regular tiebreak metrics.' },
     ],
     eliminationRules: 'Single-elimination rules',
     eliminationRuleItems: [
@@ -305,6 +325,16 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
               <h3 className="text-sm font-semibold text-gold-400 mb-3">{copy.swissRules}</h3>
               <div className="text-sm text-slate-300 space-y-3">
                 {copy.swissRuleItems.map((rule, index) => (
+                  <RuleItem key={rule.title} num={String(index + 1)} title={rule.title}>
+                    {rule.text}
+                  </RuleItem>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gold-400 mb-3">{copy.swissRankingRules}</h3>
+              <div className="text-sm text-slate-300 space-y-3">
+                {copy.swissRankingRuleItems.map((rule, index) => (
                   <RuleItem key={rule.title} num={String(index + 1)} title={rule.title}>
                     {rule.text}
                   </RuleItem>
