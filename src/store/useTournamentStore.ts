@@ -28,8 +28,8 @@ import {
   createHistoryEntry,
   createStoreSet,
   HISTORY_LIMIT,
-  type CompetitionHistoryEntry,
 } from './competitionHistory';
+import type { CompetitionHistoryEntry } from './historyTypes';
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -89,6 +89,7 @@ export interface CompetitionState {
   setViewRound: (round: number) => void;
   undo: () => boolean;
   redo: () => boolean;
+  jumpToHistory: (index: number) => boolean;
   clearHistory: () => void;
   setReadOnly: (readOnly: boolean) => void;
   resetCompetition: () => void;
@@ -161,6 +162,31 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       historyFuture: state.historyFuture.slice(1),
     }, { history: 'skip' });
     void logAudit('history-redo', `Redo ${next.label}`, { label: next.label });
+    return true;
+  },
+
+  jumpToHistory: (index: number) => {
+    const state = get();
+    const target = state.historyPast[index];
+    if (!target || state.isReadOnly) return false;
+
+    const currentLabel = state.historyPast[state.historyPast.length - 1]?.label;
+    const future = [
+      ...state.historyPast.slice(index + 1).map((entry, offset) => ({
+        ...entry,
+        label: state.historyPast[index + offset]?.label ?? entry.label,
+      })),
+      createHistoryEntry(state, currentLabel || '当前状态'),
+    ].slice(-HISTORY_LIMIT);
+
+    const nextCompetition = cloneCompetition(target.competition);
+    set({
+      competition: nextCompetition,
+      viewRound: target.viewRound,
+      historyPast: state.historyPast.slice(0, index),
+      historyFuture: future,
+    }, { history: 'skip' });
+    void logAudit('history-jump', `Jumped to ${target.label}`, { label: target.label });
     return true;
   },
 

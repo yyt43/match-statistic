@@ -25,6 +25,9 @@ const QuickScoreModal = lazy(() =>
 const StorageHealthModal = lazy(() =>
   import('../data/StorageHealthModal').then(module => ({ default: module.StorageHealthModal }))
 );
+const HistoryManager = lazy(() =>
+  import('../data/HistoryManager').then(module => ({ default: module.HistoryManager }))
+);
 
 interface ControlPanelProps {
   onShowConfirm: () => void;
@@ -63,6 +66,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showStorageHealth, setShowStorageHealth] = useState(false);
+  const [showHistoryManager, setShowHistoryManager] = useState(false);
   const [showQuickScore, setShowQuickScore] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
@@ -1012,6 +1016,13 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               {t.auditLog}
             </button>
             <button
+              onClick={() => setShowHistoryManager(true)}
+              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-violet-400 hover:bg-violet-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+            >
+              <History className="w-3.5 h-3.5" />
+              {isEnglish ? 'Operation history' : '操作历史'}
+            </button>
+            <button
               onClick={() => setShowResetConfirm(true)}
               className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
             >
@@ -1078,6 +1089,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         <StorageHealthModal
           isOpen={showStorageHealth}
           onClose={() => setShowStorageHealth(false)}
+        />
+        <HistoryManager
+          isOpen={showHistoryManager}
+          onClose={() => setShowHistoryManager(false)}
         />
         <QuickScoreModal
           isOpen={showQuickScore}

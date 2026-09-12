@@ -1,17 +1,11 @@
 import type { TournamentCompetition } from '../types';
 import type { CompetitionState } from './useTournamentStore';
 import type { StoreGet, StoreSet, StoreSetOptions } from './actions/actionTypes';
+import type { CompetitionHistoryEntry } from './historyTypes';
 import { saveCompetition } from '../utils/storage/storage';
+import { persistCompetitionHistory } from '../utils/storage/historyStore';
 
 export const HISTORY_LIMIT = 30;
-
-export interface CompetitionHistoryEntry {
-  id: string;
-  label: string;
-  timestamp: string;
-  competition: TournamentCompetition;
-  viewRound: number;
-}
 
 type RawSet = (
   partial:
@@ -60,6 +54,14 @@ export function createStoreSet(
   let pendingSnapshot: CompetitionHistoryEntry | null = null;
   let flushScheduled = false;
 
+  const persistCurrentHistory = () => {
+    const state = get();
+    void persistCompetitionHistory(state.competition.id, {
+      past: state.historyPast,
+      future: state.historyFuture,
+    });
+  };
+
   const flushHistory = () => {
     flushScheduled = false;
     const snapshot = pendingSnapshot;
@@ -70,6 +72,7 @@ export function createStoreSet(
       historyPast: [...state.historyPast, snapshot].slice(-HISTORY_LIMIT),
       historyFuture: [],
     }));
+    persistCurrentHistory();
   };
 
   const clearPendingHistory = () => {
@@ -89,6 +92,9 @@ export function createStoreSet(
     if (!Object.prototype.hasOwnProperty.call(nextPartial, 'competition')) {
       if (options.history === 'replace') clearPendingHistory();
       rawSet(nextPartial);
+      if (options.history === 'replace' && options.persist !== false) {
+        queueMicrotask(persistCurrentHistory);
+      }
       return;
     }
 
@@ -113,6 +119,7 @@ export function createStoreSet(
         historyFuture: [],
       });
       if (options.persist !== false) saveCompetition(nextCompetition);
+      if (options.persist !== false) queueMicrotask(persistCurrentHistory);
       return;
     }
 
@@ -128,5 +135,8 @@ export function createStoreSet(
 
     rawSet(nextPartial);
     if (options.persist !== false) saveCompetition(nextCompetition);
+    if (options.persist !== false && options.history === 'skip') {
+      queueMicrotask(persistCurrentHistory);
+    }
   };
 }

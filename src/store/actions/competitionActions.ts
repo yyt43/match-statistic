@@ -3,6 +3,7 @@ import type { CompetitionState } from '../useTournamentStore';
 import type { StoreSet } from './actionTypes';
 import { createNewCompetition } from '../tournamentFactory';
 import { loadCompetition } from '../../utils/storage/storage';
+import { loadCompetitionHistory } from '../../utils/storage/historyStore';
 import { normalizeCompetitionGroups, resolveViewRound } from '../competitionState';
 import { logAudit } from '../../utils/auditLog';
 
@@ -39,6 +40,13 @@ export function createCompetitionActions(
         },
         { history: 'replace', allowReadOnly: true, persist: false }
       );
+      const history = await loadCompetitionHistory(saved.id);
+      if (history) {
+        set({
+          historyPast: history.past,
+          historyFuture: history.future,
+        });
+      }
       return true;
     },
 

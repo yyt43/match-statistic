@@ -29,7 +29,7 @@ This project is suited for tournament management, club events, team activities, 
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
-- Operation-level undo / redo: step through the latest 30 tournament changes
+- Persistent operation history: the latest 30 tournament changes survive refresh and can be undone, redone, or restored
 - Single-writer protection: the first tab edits while other tabs become read-only
 - Configurable tiebreak chains: BO1 / multi-game presets plus custom metric ordering
 - Quick score entry: multi-group scoring with search, filters, feedback before advance, and keyboard shortcuts

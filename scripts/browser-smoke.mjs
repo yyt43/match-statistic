@@ -132,6 +132,15 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await waitForText(page, 'Round 1 match list');
 
+  const undoButton = page.getByTitle('Undo last action');
+  if (await undoButton.isDisabled()) {
+    throw new Error('Persistent history was not restored after reload.');
+  }
+  await page.getByRole('button', { name: 'Operation history' }).click();
+  const historyDialog = page.getByRole('dialog').filter({ hasText: 'Operation history' });
+  await historyDialog.getByRole('button', { name: 'Restore before' }).first().waitFor();
+  await historyDialog.getByRole('button', { name: 'Close' }).click();
+
   const indexedDbReady = await page.evaluate(() => new Promise(resolve => {
     const request = indexedDB.open('match-statistic-storage');
     request.onsuccess = () => {

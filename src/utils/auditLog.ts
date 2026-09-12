@@ -10,6 +10,7 @@ export type AuditAction =
   | 'round-undo'
   | 'history-undo'
   | 'history-redo'
+  | 'history-jump'
   | 'tournament-reset'
   | 'tournament-import'
   | 'player-drop'
