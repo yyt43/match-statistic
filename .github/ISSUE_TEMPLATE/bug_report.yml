@@ -1,0 +1,56 @@
+name: Bug 反馈
+description: 报告可复现的页面、统计、导入导出或部署问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请尽量提供可复现步骤，不要上传真实选手隐私数据。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 简要说明发生了什么，以及期望行为。
+      placeholder: 例如：开启英文模式后，导出图片仍显示中文。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 创建 8 名选手
+        2. 开始比赛并录分
+        3. 点击导出...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 赛制与配对
+        - 排名与计分
+        - 弃赛、轮空与加赛
+        - Excel / CSV 导入
+        - Excel / 图片 / JSON 导出
+        - 中英文与界面
+        - PWA / 离线缓存
+        - 部署与构建
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 浏览器与系统
+      placeholder: Chrome 140 / Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 截图、日志或补充信息
+      description: 可粘贴已脱敏的错误日志、截图或赛事结构说明。
+    validations:
+      required: false

@@ -1,0 +1,10 @@
+title: "[General] "
+labels: []
+body:
+  - type: textarea
+    id: topic
+    attributes:
+      label: 讨论内容
+      description: 请说明背景、当前做法和希望讨论的问题。
+    validations:
+      required: true

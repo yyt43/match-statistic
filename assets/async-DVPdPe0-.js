@@ -1,0 +1,1 @@
+function t(r="Operation aborted"){const o=new Error(r);return o.name="AbortError",o}function e(r){if(r!=null&&r.aborted)throw t()}function n(r){return r instanceof Error&&r.name==="AbortError"}export{t as c,n as i,e as t};
