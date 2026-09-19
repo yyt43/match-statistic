@@ -48,7 +48,9 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
     const entries: QuickMatchEntry[] = [];
     competition.groups.forEach((group, groupIndex) => {
       if (group.currentRound <= 0) return;
-      const roundMatches = group.matches.filter(match => match.round === group.currentRound);
+      const roundMatches = group.matches.filter(
+        match => match.round === group.currentRound && !match.isBye
+      );
       roundMatches.forEach((match, matchIndex) => {
         entries.push({
           key: `${groupIndex}:${match.id}`,
@@ -168,7 +170,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
     player2Games?: number,
     preDrop?: boolean
   ) => {
-    if (!selectedEntry || isReadOnly) return;
+    if (!selectedEntry || selectedEntry.match.isBye || isReadOnly) return;
     updateMatchResultForGroup(
       selectedEntry.groupIndex,
       selectedEntry.match.id,
