@@ -77,7 +77,7 @@ export interface CompetitionState {
   randomGenerateCurrentRoundAllGroups: () => Promise<void>;
   updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => void;
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => void;
-  batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string }[]) => void;
+  batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string; isBye?: boolean }[]) => void;
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
   restoreFromSnapshot: (snapshotId: string) => Promise<boolean>;
   createSnapshot: (label?: string) => Promise<void>;
@@ -110,6 +110,23 @@ export function useIsCurrentRoundComplete(): boolean {
   if (group.currentRound === 0) return false;
   const currentMatches = group.matches.filter(m => m.round === group.currentRound);
   return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
+}
+
+function hasPlayoffData(group: TournamentGroup): boolean {
+  return (group.playoffBrackets?.length ?? 0) > 0 || group.matches.some(match => match.isPlayoff);
+}
+
+function hasRegularResultChanged(
+  match: TournamentGroup['matches'][number],
+  result: MatchResult,
+  player1Games?: number,
+  player2Games?: number,
+  preDrop?: boolean
+): boolean {
+  return match.result !== result
+    || match.player1Games !== player1Games
+    || match.player2Games !== player2Games
+    || !!match.preDrop !== !!preDrop;
 }
 
 
@@ -430,20 +447,25 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const group = competition.groups[idx];
+    const storedGroup = competition.groups[idx];
 
-    const matchIndex = group.matches.findIndex(m => m.id === matchId);
+    const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
 
-    const match = group.matches[matchIndex];
+    const storedMatch = storedGroup.matches[matchIndex];
+    if (storedMatch.isBye) return;
 
-    if (match.isPlayoff) {
+    if (storedMatch.isPlayoff) {
       const updated = updateGroupAtIndex(competition, idx, currentGroup => recordPlayoffResult(currentGroup, matchId, result, player1Games, player2Games));
       set({ competition: updated }, { label: '修改加赛结果' });
       void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
 
+    const playoffsCleared = hasPlayoffData(storedGroup)
+      && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
+    const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
+    const match = group.matches[matchIndex];
     const oldResult = match.result;
     const oldPreDrop = !!match.preDrop;
 
@@ -489,8 +511,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
-    set({ competition: updated }, { label: '修改比赛结果' });
-    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
+    set(
+      { competition: updated, ...(playoffsCleared ? { viewRound: group.currentRound } : {}) },
+      { label: playoffsCleared ? '修改比赛结果并清除加赛' : '修改比赛结果' }
+    );
+    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result, playoffsCleared });
 
     const hasCompletedCurrentRound = isRoundComplete({ ...group, matches: updatedMatches, players: updatedPlayers });
 
@@ -533,22 +558,27 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   updateMatchResultForGroup: (groupIdx: number, matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const { competition } = get();
-    const group = competition.groups[groupIdx];
-    if (!group) return;
+    const storedGroup = competition.groups[groupIdx];
+    if (!storedGroup) return;
 
-    const matchIndex = group.matches.findIndex(m => m.id === matchId);
+    const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
 
-    const match = group.matches[matchIndex];
-    if (match.isPlayoff) {
+    const storedMatch = storedGroup.matches[matchIndex];
+    if (storedMatch.isBye) return;
+    if (storedMatch.isPlayoff) {
       const groups = [...competition.groups];
-      groups[groupIdx] = recordPlayoffResult(group, matchId, result, player1Games, player2Games);
+      groups[groupIdx] = recordPlayoffResult(storedGroup, matchId, result, player1Games, player2Games);
       const updated = { ...competition, groups };
       set({ competition: updated }, { label: '修改小组比赛结果' });
       void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
       return;
     }
 
+    const playoffsCleared = hasPlayoffData(storedGroup)
+      && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
+    const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
+    const match = group.matches[matchIndex];
     const oldResult = match.result;
     const oldPreDrop = !!match.preDrop;
 
@@ -594,8 +624,12 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
+    const shouldResetViewRound = playoffsCleared && groupIdx === competition.currentGroupIndex;
+    if (shouldResetViewRound) {
+      set({ viewRound: group.currentRound });
+    }
     set({ competition: updated }, { label: '修改小组比赛结果' });
-    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result });
+    void logAudit('match-result', `${matchId} -> ${result}`, { matchId, result, playoffsCleared });
   },
 
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => {
@@ -626,15 +660,18 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const updatedMatches = group.matches.map(m => {
       const update = updates.find(u => u.matchId === m.id);
       if (update && m.result === 'pending') {
-        if (!update.isBye && update.player1Id === update.player2Id) return m;
         const newIsBye = update.isBye ?? m.isBye;
+        if (newIsBye && update.player1Id === 'bye') return m;
+        if (!newIsBye && (update.player1Id === 'bye' || update.player2Id === 'bye')) return m;
+        if (!newIsBye && update.player1Id === update.player2Id) return m;
         const roundGt = getRoundGameType(group, round);
         const byeWins = roundGt === 'bo7' ? 4 : roundGt === 'bo5' ? 3 : roundGt === 'bo3' ? 2 : 1;
         return {
           ...m,
           player1Id: update.player1Id,
-          player2Id: update.player2Id,
+          player2Id: newIsBye ? 'bye' : update.player2Id,
           isBye: newIsBye,
+          result: newIsBye ? 'player1' as const : 'pending' as const,
           player1Games: newIsBye ? byeWins : undefined,
           player2Games: newIsBye ? 0 : undefined,
         };
@@ -642,8 +679,55 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       return m;
     });
 
+    const playerMap = new Map(group.players.map(player => [player.id, { ...player }]));
+    const isSingleElimination = group.pairingType === 'single_elimination';
+    let addedAutomaticBye = false;
+    updatedMatches.forEach((match, index) => {
+      const previous = group.matches[index];
+      if (previous.result === 'pending' && match.isBye && match.result === 'player1') {
+        applyMatchResultToMap(
+          playerMap,
+          match,
+          'player1',
+          false,
+          isSingleElimination,
+          match.player1Games,
+          match.player2Games
+        );
+        addedAutomaticBye = true;
+      }
+    });
+
+    let updatedPlayers = group.players;
+    if (addedAutomaticBye) {
+      const recalculated = calculateAllWinRates(Array.from(playerMap.values()), updatedMatches, group.gameType);
+      const rankedPlayers = getRankedPlayers(
+        recalculated,
+        group.gameType,
+        group.pairingType,
+        group.tiebreakRules
+      );
+      const previousRankMap = new Map(
+        getRankedPlayers(
+          group.players,
+          group.gameType,
+          group.pairingType,
+          group.tiebreakRules
+        ).map((player, index) => [player.id, index + 1])
+      );
+      updatedPlayers = rankedPlayers.map(player => ({
+        ...player,
+        previousRank: previousRankMap.get(player.id),
+      }));
+    }
+
     const updatedGroups = [...competition.groups];
-    updatedGroups[competition.currentGroupIndex] = { ...group, matches: updatedMatches };
+    updatedGroups[competition.currentGroupIndex] = {
+      ...group,
+      matches: updatedMatches,
+      players: updatedPlayers,
+      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
+    };
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated }, { label: '批量调整对阵' });
   },
