@@ -301,12 +301,18 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                   {preview.ready.map(candidate => {
                     const status = verification[candidate.rowNumber] ?? 'not_required';
                     const evidenceUrl = getEvidenceUrl(candidate.evidenceRef);
+                    const safeEvidenceUrl = evidenceUrl?.startsWith('blob:') ? evidenceUrl : undefined;
                     return (
                       <div key={`${candidate.matchId}-${candidate.rowNumber}`} className="rounded-lg border border-slate-700/60 bg-slate-800/35 p-3">
                         <div className="flex items-start gap-3">
                           <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-700 bg-slate-950/50">
-                            {evidenceUrl ? (
-                              <img src={evidenceUrl} alt="evidence" className="h-full w-full object-contain" />
+                            {safeEvidenceUrl ? (
+                              <img
+                                src={safeEvidenceUrl}
+                                alt="evidence"
+                                referrerPolicy="no-referrer"
+                                className="h-full w-full object-contain"
+                              />
                             ) : (
                               <ImageIcon className="h-7 w-7 text-slate-700" />
                             )}
