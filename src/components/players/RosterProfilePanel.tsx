@@ -1,7 +1,7 @@
 import { BadgeCheck, ChevronDown, ChevronUp, Lock, Save, Upload, UserRoundCog } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
-import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
+import { useTournamentStore } from '../../store/useTournamentStore';
 import type { PlayerSchemaId } from '../../types';
 import {
   getRosterWorkbookColumnsFromFile,
@@ -17,12 +17,10 @@ import {
 export function RosterProfilePanel() {
   const { language } = useLanguagePreference();
   const isEnglish = language === 'en';
-  const currentGroup = useCurrentGroup();
   const {
     competition,
     setPlayerSchema,
     importPlayerProfiles,
-    updatePlayerProfile,
     assignParticipantCodes,
     lockRoster,
   } = useTournamentStore();
@@ -122,7 +120,7 @@ export function RosterProfilePanel() {
       >
         <span className="flex items-center gap-2">
           <UserRoundCog className="w-3.5 h-3.5" />
-          {isEnglish ? 'Player profiles' : '选手档案与 UID'}
+          {isEnglish ? 'Profile import & lock' : '档案导入与锁定'}
           <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
             locked
               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
@@ -257,45 +255,6 @@ export function RosterProfilePanel() {
               {summary.issues.slice(0, 20).map((issue, index) => (
                 <div key={`${issue.code}-${issue.playerId ?? index}`}>
                   {isEnglish ? issue.messageEn ?? issue.message : issue.message}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {schemaId === 'poetryCupS2' && (
-            <div className="space-y-1">
-              {currentGroup.players.map(player => (
-                <div
-                  key={`${player.id}:${player.participantCode ?? ''}:${player.name}:${player.profile?.uid ?? ''}:${player.profile?.qq ?? ''}`}
-                  className="grid grid-cols-[56px_1fr_112px_88px] items-center gap-1 text-[10px]"
-                >
-                  <input
-                    defaultValue={player.participantCode ?? ''}
-                    disabled={locked}
-                    onBlur={event => updatePlayerProfile(player.id, { participantCode: event.target.value.toUpperCase() })}
-                    className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 font-mono text-gold-300 disabled:opacity-70"
-                    placeholder="A01"
-                  />
-                  <input
-                    defaultValue={player.name}
-                    disabled={locked}
-                    onBlur={event => updatePlayerProfile(player.id, { name: event.target.value })}
-                    className="min-w-0 rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-slate-200 disabled:opacity-70"
-                  />
-                  <input
-                    defaultValue={player.profile?.uid ?? ''}
-                    disabled={locked}
-                    onBlur={event => updatePlayerProfile(player.id, { uid: event.target.value })}
-                    className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 font-mono text-sky-300 disabled:opacity-70"
-                    placeholder="UID"
-                  />
-                  <input
-                    defaultValue={player.profile?.qq ?? ''}
-                    disabled={locked}
-                    onBlur={event => updatePlayerProfile(player.id, { qq: event.target.value })}
-                    className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 font-mono text-slate-300 disabled:opacity-70"
-                    placeholder="QQ"
-                  />
                 </div>
               ))}
             </div>

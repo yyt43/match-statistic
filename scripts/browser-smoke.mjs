@@ -100,8 +100,8 @@ try {
   await page.getByRole('button', { name: '诗意杯 S2' }).click();
   await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
   await waitForText(page, 'Imported 4 player profiles.');
-  await waitForText(page, 'Alice');
-  await waitForText(page, 'UID 180748058');
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
   await page.getByRole('button', { name: 'Generic' }).click();
 
   await page.getByRole('button', { name: /Group management/ }).click();

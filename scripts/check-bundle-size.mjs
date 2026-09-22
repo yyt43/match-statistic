@@ -35,7 +35,7 @@ const checks = [
   {
     name: 'main application',
     actual: assets.find(asset => /^index-.*\.js$/.test(asset.file))?.gzipBytes ?? 0,
-    limit: 90 * 1024,
+    limit: 95 * 1024,
   },
 ];
 

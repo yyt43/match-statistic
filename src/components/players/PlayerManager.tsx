@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Edit2, FileText, Trash2, Upload, Users } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Trash2, Upload, Users } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
@@ -11,6 +11,7 @@ import {
 } from '../../utils/import/playerImport';
 import { createPlayersFromNames } from '../../utils/swissPairing';
 import { downloadErrorReport } from '../../utils/errorReport';
+import { isRosterLocked } from '../../utils/playerProfiles';
 
 const RosterProfilePanel = lazy(() =>
   import('./RosterProfilePanel').then(module => ({ default: module.RosterProfilePanel }))
@@ -20,7 +21,13 @@ export function PlayerManager() {
   const currentGroup = useCurrentGroup();
   const { language, t } = useLanguagePreference();
   const isEnglish = language === 'en';
-  const { competition, importCompetition, removePlayer, replacePlayers, updatePlayerName } = useTournamentStore();
+  const {
+    competition,
+    importCompetition,
+    removePlayer,
+    replacePlayers,
+    updatePlayerProfile,
+  } = useTournamentStore();
 
   const [expanded, setExpanded] = useState(true);
   const [showBatchImport, setShowBatchImport] = useState(false);
@@ -29,29 +36,19 @@ export function PlayerManager() {
   const [playerImportErrorFile, setPlayerImportErrorFile] = useState('');
   const [excelColumnSelections, setExcelColumnSelections] = useState<Record<string, string>>({});
   const [excelColumnChoices, setExcelColumnChoices] = useState<Array<{ sheetName: string; columns: string[]; detectedColumn: string }>>([]);
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [editNameValue, setEditNameValue] = useState('');
   const playerFileInputRef = useRef<HTMLInputElement>(null);
   const batchImportSummary = useMemo(() => summarizePlayerNameInput(batchNames), [batchNames]);
   const importRuleText = isEnglish
     ? t.importRuleTextZh
     : 'Excel 会优先读取表头包含 姓名 / Name / Player 的列；若没有此列，则按当前表格第一列兜底。用户也可以在导入前手动指定某一列作为选手名称。';
+  const rosterLocked = isRosterLocked(competition);
+  const showProfileColumns = (competition.playerSchemaId ?? 'generic') === 'poetryCupS2';
 
   useEffect(() => {
-    setEditingPlayerId(null);
-    setEditNameValue('');
     setPlayerImportError(null);
     setExcelColumnChoices([]);
     setExcelColumnSelections({});
   }, [competition.id]);
-
-  const handleConfirmEditName = () => {
-    if (editingPlayerId && editNameValue.trim()) {
-      updatePlayerName(editingPlayerId, editNameValue.trim());
-      setEditingPlayerId(null);
-      setEditNameValue('');
-    }
-  };
 
   const handleImportPlayersFromText = () => {
     const names = parsePlayerNamesFromText(batchNames);
@@ -303,61 +300,69 @@ export function PlayerManager() {
           )}
 
           <div className="space-y-1">
+            <div className={`grid items-center gap-2 px-3 text-[10px] text-slate-500 ${
+              showProfileColumns
+                ? 'grid-cols-[24px_58px_minmax(100px,1fr)_104px_82px_28px]'
+                : 'grid-cols-[24px_58px_minmax(100px,1fr)_28px]'
+            }`}>
+              <span>#</span>
+              <span>{isEnglish ? 'Code' : '编号'}</span>
+              <span>{isEnglish ? 'Name' : '昵称'}</span>
+              {showProfileColumns && <span>UID</span>}
+              {showProfileColumns && <span>QQ</span>}
+              <span />
+            </div>
             {currentGroup.players.map((player, index) => (
-              <div key={player.id}>
-                <div className="group flex min-h-10 items-center gap-2 rounded-lg bg-slate-800/30 px-3 py-2 transition-colors hover:bg-slate-800/50">
-                  <span className="text-slate-500 font-mono text-xs w-6">{index + 1}.</span>
-                  {editingPlayerId === player.id ? (
-                    <>
-                      <input
-                        type="text"
-                        value={editNameValue}
-                        onChange={event => setEditNameValue(event.target.value)}
-                        onKeyDown={event => {
-                          if (event.key === 'Enter') handleConfirmEditName();
-                          if (event.key === 'Escape') {
-                            setEditingPlayerId(null);
-                            setEditNameValue('');
-                          }
-                        }}
-                        autoFocus
-                        className="flex-1 px-2 py-1 bg-slate-700 border border-gold-500/50 rounded text-sm text-white focus:outline-none"
-                      />
-                      <button onClick={handleConfirmEditName} className="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">
-                        {isEnglish ? 'Confirm' : '确认'}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1 text-sm text-slate-300">
-                        {player.participantCode && (
-                          <span className="mr-2 font-mono text-xs text-gold-300">{player.participantCode}</span>
-                        )}
-                        {player.name}
-                        {player.profile?.uid && (
-                          <span className="ml-2 font-mono text-[10px] text-sky-400/80">
-                            UID {player.profile.uid}
-                          </span>
-                        )}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setEditingPlayerId(player.id);
-                          setEditNameValue(player.name);
-                        }}
-                        className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => removePlayer(player.id)}
-                        className="p-1 rounded hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
+              <div
+                key={`${player.id}:${player.participantCode ?? ''}:${player.name}:${player.profile?.uid ?? ''}:${player.profile?.qq ?? ''}`}
+                className={`grid items-center gap-2 rounded-lg bg-slate-800/30 px-3 py-2 transition-colors hover:bg-slate-800/50 ${
+                  showProfileColumns
+                    ? 'grid-cols-[24px_58px_minmax(100px,1fr)_104px_82px_28px]'
+                    : 'grid-cols-[24px_58px_minmax(100px,1fr)_28px]'
+                }`}
+              >
+                <span className="font-mono text-xs text-slate-500">{index + 1}.</span>
+                <input
+                  defaultValue={player.participantCode ?? ''}
+                  disabled={rosterLocked}
+                  onBlur={event => updatePlayerProfile(player.id, {
+                    participantCode: event.target.value.toUpperCase(),
+                  })}
+                  placeholder="A01"
+                  className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-gold-300 outline-none focus:border-gold-500/40 disabled:opacity-70"
+                />
+                <input
+                  defaultValue={player.name}
+                  disabled={rosterLocked}
+                  onBlur={event => updatePlayerProfile(player.id, { name: event.target.value })}
+                  className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-2 py-1 text-sm text-slate-200 outline-none focus:border-gold-500/40 disabled:opacity-70"
+                />
+                {showProfileColumns && (
+                  <input
+                    defaultValue={player.profile?.uid ?? ''}
+                    disabled={rosterLocked}
+                    onBlur={event => updatePlayerProfile(player.id, { uid: event.target.value })}
+                    placeholder="UID"
+                    className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-sky-300 outline-none focus:border-sky-500/40 disabled:opacity-70"
+                  />
+                )}
+                {showProfileColumns && (
+                  <input
+                    defaultValue={player.profile?.qq ?? ''}
+                    disabled={rosterLocked}
+                    onBlur={event => updatePlayerProfile(player.id, { qq: event.target.value })}
+                    placeholder="QQ"
+                    className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-slate-300 outline-none focus:border-slate-500/40 disabled:opacity-70"
+                  />
+                )}
+                <button
+                  onClick={() => removePlayer(player.id)}
+                  disabled={rosterLocked}
+                  className="rounded p-1 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-30"
+                  title={isEnglish ? 'Remove player' : '删除选手'}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             ))}
           </div>
