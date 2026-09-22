@@ -70,4 +70,20 @@ describe('competition schema', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.message).toContain('tiebreakRules');
   });
+
+  it('rejects duplicate participant codes and UIDs across groups', () => {
+    const competition = validCompetition();
+    competition.playerSchemaId = 'poetryCupS2';
+    competition.groups[0].players[0].participantCode = 'A01';
+    competition.groups[0].players[0].profile = { uid: '180748058' };
+    competition.groups[0].players[1].participantCode = 'A01';
+    competition.groups[0].players[1].profile = { uid: '180748058' };
+
+    const result = validateCompetitionData(competition);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.message).toContain('duplicate');
+      expect(result.message).toContain('uid');
+    }
+  });
 });

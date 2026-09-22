@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Edit2, FileText, Trash2, Upload, Users } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
@@ -11,7 +11,10 @@ import {
 } from '../../utils/import/playerImport';
 import { createPlayersFromNames } from '../../utils/swissPairing';
 import { downloadErrorReport } from '../../utils/errorReport';
-import { VirtualizedList } from '../common/VirtualizedList';
+
+const RosterProfilePanel = lazy(() =>
+  import('./RosterProfilePanel').then(module => ({ default: module.RosterProfilePanel }))
+);
 
 export function PlayerManager() {
   const currentGroup = useCurrentGroup();
@@ -19,7 +22,7 @@ export function PlayerManager() {
   const isEnglish = language === 'en';
   const { competition, importCompetition, removePlayer, replacePlayers, updatePlayerName } = useTournamentStore();
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [showBatchImport, setShowBatchImport] = useState(false);
   const [batchNames, setBatchNames] = useState('');
   const [playerImportError, setPlayerImportError] = useState<string | null>(null);
@@ -173,6 +176,9 @@ export function PlayerManager() {
 
       {expanded && (
         <div className="mt-3 space-y-3">
+          <Suspense fallback={null}>
+            <RosterProfilePanel />
+          </Suspense>
           <button
             onClick={() => setShowBatchImport(!showBatchImport)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-medium transition-colors"
@@ -296,14 +302,10 @@ export function PlayerManager() {
             </div>
           )}
 
-          <VirtualizedList
-            items={currentGroup.players}
-            itemHeight={40}
-            getKey={player => player.id}
-            className="max-h-48"
-            renderItem={(player, index) => (
-              <div className="h-full pb-1">
-                <div className="group flex h-full items-center gap-2 rounded-lg bg-slate-800/30 px-3 transition-colors hover:bg-slate-800/50">
+          <div className="space-y-1">
+            {currentGroup.players.map((player, index) => (
+              <div key={player.id}>
+                <div className="group flex min-h-10 items-center gap-2 rounded-lg bg-slate-800/30 px-3 py-2 transition-colors hover:bg-slate-800/50">
                   <span className="text-slate-500 font-mono text-xs w-6">{index + 1}.</span>
                   {editingPlayerId === player.id ? (
                     <>
@@ -327,7 +329,17 @@ export function PlayerManager() {
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-sm text-slate-300 truncate">{player.name}</span>
+                      <span className="flex-1 text-sm text-slate-300">
+                        {player.participantCode && (
+                          <span className="mr-2 font-mono text-xs text-gold-300">{player.participantCode}</span>
+                        )}
+                        {player.name}
+                        {player.profile?.uid && (
+                          <span className="ml-2 font-mono text-[10px] text-sky-400/80">
+                            UID {player.profile.uid}
+                          </span>
+                        )}
+                      </span>
                       <button
                         onClick={() => {
                           setEditingPlayerId(player.id);
@@ -347,8 +359,8 @@ export function PlayerManager() {
                   )}
                 </div>
               </div>
-            )}
-          />
+            ))}
+          </div>
         </div>
       )}
     </div>

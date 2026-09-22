@@ -16,9 +16,57 @@ export type TiebreakRule =
 
 export type TiebreakTemplate = 'standard_bo1' | 'standard_multi' | 'custom';
 
+export type PlayerSchemaId = 'generic' | 'poetryCupS2';
+
+export type PlayerFieldType = 'text' | 'gameUid' | 'qq' | 'select';
+
+export interface PlayerFieldDefinition {
+  key: string;
+  label: string;
+  type: PlayerFieldType;
+  required: boolean;
+  unique: boolean;
+  immutableAfter?: 'never' | 'rosterLock';
+  visibility: 'public' | 'admin';
+  searchable: boolean;
+  showInPairings: boolean;
+  importAliases?: string[];
+  pattern?: string;
+}
+
+export type EvidenceVerificationStatus =
+  | 'not_required'
+  | 'pending'
+  | 'verified'
+  | 'mismatch'
+  | 'unreadable'
+  | 'missing';
+
+export type PublicResultStatus =
+  | 'not_announced'
+  | 'announced'
+  | 'default_confirmed'
+  | 'disputed';
+
+export interface MatchResultOverride {
+  previousResult: MatchResult;
+  previousPlayer1Games?: number;
+  previousPlayer2Games?: number;
+  newResult: MatchResult;
+  newPlayer1Games?: number;
+  newPlayer2Games?: number;
+  reason: string;
+  evidenceRefs: string[];
+  changedBy?: string;
+  changedAt: string;
+  snapshotId?: string;
+}
+
 export interface Player {
   id: string;
   name: string;
+  participantCode?: string;
+  profile?: Record<string, string>;
   points: number;
   wins: number;
   losses: number;
@@ -74,6 +122,19 @@ export interface Match {
   playoffBracketId?: string;
   playoffStage?: 1 | 2;
   playoffRole?: 'opening' | 'final' | 'placement';
+  resultSource?: 'manual' | 'import' | 'referee_override';
+  sourceSubmissionId?: string;
+  sourceSubmittedAt?: string;
+  evidenceRefs?: string[];
+  evidenceHash?: string;
+  evidenceVerificationStatus?: EvidenceVerificationStatus;
+  evidenceVerifiedBy?: string;
+  evidenceVerifiedAt?: string;
+  publicResultStatus?: PublicResultStatus;
+  announcedAt?: string;
+  confirmationDeadlineAt?: string;
+  disputedAt?: string;
+  resultOverrides?: MatchResultOverride[];
 }
 
 export type PlayoffFormat = 'two' | 'three_one' | 'three_two' | 'four';
@@ -109,4 +170,7 @@ export interface TournamentCompetition {
   groups: TournamentGroup[];
   currentGroupIndex: number;
   createdAt: string;
+  playerSchemaId?: PlayerSchemaId;
+  playerFields?: PlayerFieldDefinition[];
+  rosterLockedAt?: string;
 }

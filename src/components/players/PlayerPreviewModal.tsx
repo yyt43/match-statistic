@@ -5,6 +5,7 @@ import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useLanguagePreference } from '../../i18n/context';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { VirtualizedList } from '../common/VirtualizedList';
+import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface PlayerPreviewModalProps {
   isOpen: boolean;
@@ -31,7 +32,11 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
     if (!keyword) return competition.groups;
     return competition.groups.map(g => ({
       ...g,
-      players: g.players.filter(p => p.name.toLowerCase().includes(keyword)),
+      players: g.players.filter(p =>
+        p.name.toLowerCase().includes(keyword)
+        || p.participantCode?.toLowerCase().includes(keyword)
+        || p.profile?.uid?.toLowerCase().includes(keyword)
+      ),
     })).filter(g => g.players.length > 0);
   }, [competition.groups, search]);
 
@@ -59,7 +64,10 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
     const lines: string[] = [];
     for (const g of competition.groups) {
       lines.push(isEnglish ? `[${g.name}] (${g.players.length} players)` : `【${g.name}】(${g.players.length}人)`);
-      g.players.forEach((p, i) => lines.push(`${String(i + 1).padStart(3, '0')}. ${p.name}`));
+      g.players.forEach((p, i) => {
+        const uid = p.profile?.uid ? ` UID:${p.profile.uid}` : '';
+        lines.push(`${String(i + 1).padStart(3, '0')}. ${getPlayerDisplayName(p)}${uid}`);
+      });
       lines.push('');
     }
     try {
@@ -182,8 +190,13 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
                             {String(idx + 1).padStart(2, '0')}.
                           </span>
                           <span className={`flex-1 truncate ${isDup ? 'text-amber-400 font-medium' : 'text-slate-300'}`}>
-                            {player.name}
+                            {getPlayerDisplayName(player)}
                           </span>
+                          {player.profile?.uid && (
+                            <span className="font-mono text-[10px] text-sky-400/80">
+                              UID {player.profile.uid}
+                            </span>
+                          )}
                           {isDup && (
                             <span className="text-[10px] text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded">{isEnglish ? 'Duplicate' : '重名'}</span>
                           )}

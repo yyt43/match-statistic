@@ -1,5 +1,9 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus, Player } from '../types';
 import { calculateAllWinRates, generatePairings, getRankedPlayers, getRoundGameType, getSingleEliminationRounds } from '../utils/swissPairing';
+import {
+  hasUnresolvedRankingDisputes,
+  hasUnresolvedRankingDisputesForGroup,
+} from '../utils/matchStatus';
 
 export function startTournamentForGroup(
   competition: TournamentCompetition,
@@ -35,6 +39,7 @@ export function generateNextRoundForCompetition(
 ): TournamentCompetition {
   const group = competition.groups[groupIdx];
   if (!group || group.status !== 'in_progress') return competition;
+  if (hasUnresolvedRankingDisputesForGroup(group)) return competition;
 
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return competition;
@@ -78,6 +83,7 @@ export function generateNextRoundAllGroupsInCompetition(
   competition: TournamentCompetition,
   groupIndices: number[]
 ): TournamentCompetition {
+  if (hasUnresolvedRankingDisputes(competition)) return competition;
   let nextCompetition = competition;
   for (const index of groupIndices) {
     nextCompetition = generateNextRoundForCompetition(nextCompetition, index);
