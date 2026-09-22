@@ -25,6 +25,7 @@ This project is suited for tournament management, club events, team activities, 
 ## Key Highlights
 
 - Multi-group tournament management: manage multiple groups, formats, and rounds in one event
+- Shared format draft: apply one configuration to the current group or all groups, with a pre-start event summary
 - Swiss / single-elimination support: common tournament flow and knockout structures
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group

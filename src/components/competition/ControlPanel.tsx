@@ -4,14 +4,19 @@ import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import {
   Users, Play, RotateCcw, Settings, AlertTriangle, Trophy, Edit2,
-  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, Layers, History,
+  Undo2, Plus, Minus, ChevronDown, ChevronUp, Download, FileUp, History,
   ShieldCheck, Swords
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
-import type { GameType, PairingType } from '../../types';
+import type { GameType, PairingType, TiebreakRule, TiebreakTemplate } from '../../types';
 import { exportCompetitionToFile, importCompetitionFromFile } from '../../utils/export/fileStorage';
 import { downloadErrorReport } from '../../utils/errorReport';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
+import {
+  getDefaultTiebreakRules,
+  getDefaultTiebreakTemplate,
+  normalizeTiebreakRules,
+} from '../../utils/tiebreak';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { BackupManager } from '../data/BackupManager';
 import { AuditLogManager } from '../data/AuditLogManager';
@@ -40,6 +45,16 @@ interface ControlPanelProps {
   onShowConfirmAll?: () => void;
 }
 
+function fitRoundGameTypes(
+  values: GameType[] | undefined,
+  length: number,
+  fallback: GameType
+): GameType[] {
+  const next = (values ?? []).slice(0, length);
+  while (next.length < length) next.push(fallback);
+  return next;
+}
+
 export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
   const isCurrentRoundComplete = useIsCurrentRoundComplete();
@@ -54,15 +69,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     undoLastRound,
     resetCompetition,
     updateCompetitionName,
-    setPlayerCount,
-    setTotalRounds,
-    setGameType,
-    setPairingType,
-    setRoundGameType,
     addGroup,
     removeGroup,
     setGroupCount,
-    batchSetGroupConfig,
+    applyGroupConfiguration,
     updateGroupName,
     importCompetition,
     setCurrentGroup,
@@ -81,19 +91,23 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [showFormatManager, setShowFormatManager] = useState(false);
   const [showPlayerManager, setShowPlayerManager] = useState(true);
-  const [showBatchSettings, setShowBatchSettings] = useState(false);
-  const [batchPlayerCount, setBatchPlayerCount] = useState(32);
-  const [batchRounds, setBatchRounds] = useState(5);
-  const [batchGameType, setBatchGameType] = useState<GameType>('bo1');
-  const [batchPairingType, setBatchPairingType] = useState<PairingType>('swiss');
-  const [batchRoundGameTypes, setBatchRoundGameTypes] = useState<GameType[]>([]);
+  const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
+  const [draftGameType, setDraftGameType] = useState<GameType>(currentGroup.gameType);
+  const [draftRoundGameTypes, setDraftRoundGameTypes] = useState<GameType[]>(() =>
+    fitRoundGameTypes(currentGroup.roundGameTypes, currentGroup.totalRounds, currentGroup.gameType)
+  );
+  const [draftTiebreakTemplate, setDraftTiebreakTemplate] = useState<TiebreakTemplate>(
+    currentGroup.tiebreakTemplate ?? getDefaultTiebreakTemplate(currentGroup.gameType)
+  );
+  const [draftTiebreakRules, setDraftTiebreakRules] = useState<TiebreakRule[]>(() =>
+    normalizeTiebreakRules(currentGroup.tiebreakRules, currentGroup.gameType)
+  );
+  const [startConfirmTarget, setStartConfirmTarget] = useState<'single' | 'all' | null>(null);
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
   const [editGroupNameValue, setEditGroupNameValue] = useState('');
   const [groupCountInput, setGroupCountInput] = useState<string>(String(competition.groups.length));
   // 数字输入框字符串缓冲（允许清空编辑中间态）
   const [playerCountInput, setPlayerCountInput] = useState<string>(String(currentGroup.players.length));
-  const [batchPlayerCountInput, setBatchPlayerCountInput] = useState<string>(String(batchPlayerCount));
-  const [batchRoundsInput, setBatchRoundsInput] = useState<string>(String(batchRounds));
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
   const [importError, setImportError] = useState<string | null>(null);
   const [importErrorFile, setImportErrorFile] = useState<string>('');
@@ -117,22 +131,31 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     setGroupCountInput(String(competition.groups.length));
   }, [competition.groups.length]);
 
-  // 同步参赛人数 / 批量人数 / 批量轮次输入框（响应式回填，不打断编辑）
+  // 同步当前小组配置到赛制草稿。
   useEffect(() => {
     setPlayerCountInput(String(currentGroup.players.length));
-  }, [currentGroup.players.length]);
-
-  useEffect(() => {
-    setBatchPlayerCountInput(String(batchPlayerCount));
-  }, [batchPlayerCount]);
-
-  useEffect(() => {
-    setBatchRoundsInput(String(batchRounds));
-  }, [batchRounds]);
-
-  useEffect(() => {
     setTotalRoundsInput(String(currentGroup.totalRounds));
-  }, [currentGroup.totalRounds]);
+    setDraftPairingType(currentGroup.pairingType);
+    setDraftGameType(currentGroup.gameType);
+    setDraftRoundGameTypes(
+      fitRoundGameTypes(currentGroup.roundGameTypes, currentGroup.totalRounds, currentGroup.gameType)
+    );
+    setDraftTiebreakTemplate(
+      currentGroup.tiebreakTemplate ?? getDefaultTiebreakTemplate(currentGroup.gameType)
+    );
+    setDraftTiebreakRules(
+      normalizeTiebreakRules(currentGroup.tiebreakRules, currentGroup.gameType)
+    );
+  }, [
+    currentGroup.id,
+    currentGroup.players.length,
+    currentGroup.totalRounds,
+    currentGroup.pairingType,
+    currentGroup.gameType,
+    currentGroup.roundGameTypes,
+    currentGroup.tiebreakTemplate,
+    currentGroup.tiebreakRules,
+  ]);
 
   useEffect(() => {
     const handleGenerateNext = () => {
@@ -155,6 +178,52 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   // 任一小组已开始比赛时，禁止调整小组数量
   const hasAnyStarted = competition.groups.some(g => g.status !== 'setup');
   const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
+  const draftPlayerCount = Math.max(
+    2,
+    Math.min(200, parseInt(playerCountInput, 10) || currentGroup.players.length)
+  );
+  const draftRounds = Math.max(
+    1,
+    Math.min(20, parseInt(totalRoundsInput, 10) || currentGroup.totalRounds)
+  );
+  const draftEffectiveRounds = draftPairingType === 'single_elimination'
+    ? getSingleEliminationRounds(draftPlayerCount)
+    : draftRounds;
+  const normalizedDraftRoundGameTypes = fitRoundGameTypes(
+    draftRoundGameTypes,
+    draftEffectiveRounds,
+    draftGameType
+  );
+  const groupsForStart = startConfirmTarget === 'all'
+    ? competition.groups.filter(group => group.status === 'setup' && group.players.length >= 2)
+    : [currentGroup];
+
+  const handleDraftGameTypeChange = (gameType: GameType) => {
+    setDraftGameType(gameType);
+    setDraftRoundGameTypes(new Array(draftEffectiveRounds).fill(gameType));
+    if (draftTiebreakTemplate === 'custom') {
+      setDraftTiebreakRules(current => normalizeTiebreakRules(current, gameType));
+    } else {
+      setDraftTiebreakTemplate(getDefaultTiebreakTemplate(gameType));
+      setDraftTiebreakRules(getDefaultTiebreakRules(gameType));
+    }
+  };
+
+  const applyDraftConfiguration = (target: 'current' | 'all') => {
+    applyGroupConfiguration(
+      {
+        playerCount: draftPlayerCount,
+        rounds: draftRounds,
+        gameType: draftGameType,
+        pairingType: draftPairingType,
+        roundGameTypes: normalizedDraftRoundGameTypes,
+        tiebreakTemplate: draftTiebreakTemplate,
+        tiebreakRules: draftTiebreakRules,
+      },
+      target
+    );
+    setShowFormatManager(false);
+  };
 
   return (
     <div className="h-full flex flex-col bg-slate-800/40 border border-slate-700/40 rounded-2xl overflow-hidden">
@@ -511,16 +580,16 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <div ref={controlScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* 赛制管理 */}
         {isSetup && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {showFormatManager && (
-              <div className="mt-3 space-y-3">
+              <div className="space-y-3">
                 <div className="space-y-2">
                   <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => setPairingType('swiss')}
+                      onClick={() => setDraftPairingType('swiss')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.pairingType === 'swiss'
+                        draftPairingType === 'swiss'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -528,9 +597,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       {isEnglish ? 'Swiss' : '瑞士轮'}
                     </button>
                     <button
-                      onClick={() => setPairingType('single_elimination')}
+                      onClick={() => setDraftPairingType('single_elimination')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.pairingType === 'single_elimination'
+                        draftPairingType === 'single_elimination'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -544,9 +613,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   <label className="text-xs text-slate-500">{isEnglish ? 'Match length' : '比赛局数'}</label>
                   <div className="grid grid-cols-4 gap-2">
                     <button
-                      onClick={() => setGameType('bo1')}
+                      onClick={() => handleDraftGameTypeChange('bo1')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.gameType === 'bo1'
+                        draftGameType === 'bo1'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -554,9 +623,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       BO1
                     </button>
                     <button
-                      onClick={() => setGameType('bo3')}
+                      onClick={() => handleDraftGameTypeChange('bo3')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.gameType === 'bo3'
+                        draftGameType === 'bo3'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -564,9 +633,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       BO3
                     </button>
                     <button
-                      onClick={() => setGameType('bo5')}
+                      onClick={() => handleDraftGameTypeChange('bo5')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.gameType === 'bo5'
+                        draftGameType === 'bo5'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -574,9 +643,9 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                       BO5
                     </button>
                     <button
-                      onClick={() => setGameType('bo7')}
+                      onClick={() => handleDraftGameTypeChange('bo7')}
                       className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                        currentGroup.gameType === 'bo7'
+                        draftGameType === 'bo7'
                           ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                           : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                       }`}
@@ -591,8 +660,8 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   <div className="flex items-center gap-3">
                     <input
                       type="range" min="2" max="100"
-                      value={currentGroup.players.length}
-                      onChange={e => setPlayerCount(parseInt(e.target.value))}
+                      value={draftPlayerCount}
+                      onChange={e => setPlayerCountInput(e.target.value)}
                       className="flex-1 accent-gold-500"
                     />
                     <input
@@ -609,7 +678,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                         if (isNaN(num)) return;
                         const v = Math.max(2, Math.min(100, num));
                         setPlayerCountInput(String(v));
-                        setPlayerCount(v);
                       }}
                       onBlur={() => {
                         const num = parseInt(playerCountInput, 10);
@@ -624,14 +692,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   </div>
                 </div>
 
-                {currentGroup.pairingType !== 'single_elimination' ? (
+                {draftPairingType !== 'single_elimination' ? (
                   <div className="space-y-2">
                     <label className="text-xs text-slate-500">{isEnglish ? 'Set rounds' : '设置轮次'}</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="range" min="1" max="20"
-                        value={currentGroup.totalRounds}
-                        onChange={e => setTotalRounds(parseInt(e.target.value))}
+                        value={draftRounds}
+                        onChange={e => setTotalRoundsInput(e.target.value)}
                         className="flex-1 accent-gold-500"
                       />
                       <input
@@ -649,7 +717,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                           if (isNaN(num)) return;
                           const v = Math.max(1, Math.min(20, num));
                           setTotalRoundsInput(String(v));
-                          setTotalRounds(v);
                         }}
                         onBlur={() => {
                           const num = parseInt(totalRoundsInput, 10);
@@ -668,31 +735,35 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                     <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
                     <div className="px-3 py-2 bg-slate-800/30 rounded-lg text-sm text-slate-400">
                       {isEnglish
-                        ? `Total ${currentGroup.totalRounds} rounds (auto-calculated from ${currentGroup.players.length} players)`
+                        ? `Total ${draftEffectiveRounds} rounds (auto-calculated from ${draftPlayerCount} players)`
                         : (
                           <>
-                            共 <span className="font-mono text-gold-400 font-bold">{currentGroup.totalRounds}</span>
-                            {' '}轮（根据 {currentGroup.players.length} 人自动计算）
+                            共 <span className="font-mono text-gold-400 font-bold">{draftEffectiveRounds}</span>
+                            {' '}轮（根据 {draftPlayerCount} 人自动计算）
                           </>
                         )}
                     </div>
                   </div>
                 )}
 
-                {currentGroup.pairingType === 'single_elimination' && (
+                {draftPairingType === 'single_elimination' && (
                   <div className="space-y-2">
                     <label className="text-xs text-slate-500">{isEnglish ? 'Match length per round' : '每轮比赛局数'}</label>
                     <div className="space-y-1.5">
-                      {Array.from({ length: currentGroup.totalRounds }, (_, i) => i + 1).map(round => (
+                      {Array.from({ length: draftEffectiveRounds }, (_, i) => i + 1).map(round => (
                         <div key={round} className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 w-10">{isEnglish ? `Round ${round}` : `第${round}轮`}</span>
                           <div className="flex-1 grid grid-cols-4 gap-1.5">
                             {(['bo1', 'bo3', 'bo5', 'bo7'] as GameType[]).map(gt => (
                               <button
                                 key={gt}
-                                onClick={() => setRoundGameType(round, gt)}
+                                onClick={() => {
+                                  const next = [...normalizedDraftRoundGameTypes];
+                                  next[round - 1] = gt;
+                                  setDraftRoundGameTypes(next);
+                                }}
                                 className={`py-1 rounded text-[10px] font-medium transition-colors ${
-                                  (currentGroup.roundGameTypes?.[round - 1] ?? currentGroup.gameType) === gt
+                                  normalizedDraftRoundGameTypes[round - 1] === gt
                                     ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                                     : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
                                 }`}
@@ -707,256 +778,31 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
                   </div>
                 )}
 
-                {currentGroup.pairingType === 'swiss' && (
+                {draftPairingType === 'swiss' && (
                   <TiebreakSettings
-                    gameType={currentGroup.gameType}
-                    template={currentGroup.tiebreakTemplate}
-                    rules={currentGroup.tiebreakRules}
+                    gameType={draftGameType}
+                    template={draftTiebreakTemplate}
+                    rules={draftTiebreakRules}
+                    onChange={(template, rules) => {
+                      setDraftTiebreakTemplate(template);
+                      setDraftTiebreakRules(rules);
+                    }}
                   />
                 )}
 
-                {/* 批量设置所有小组 */}
-                <div className="pt-2 border-t border-slate-700/50">
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-700/50 pt-3">
                   <button
-                    onClick={() => setShowBatchSettings(!showBatchSettings)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/30 text-xs text-slate-400 hover:bg-slate-800/50 transition-colors"
+                    onClick={() => applyDraftConfiguration('current')}
+                    className="rounded-lg border border-gold-500/30 bg-gold-500/15 px-3 py-2 text-xs font-medium text-gold-400 transition-colors hover:bg-gold-500/25"
                   >
-                    <span className="flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5" />
-                      {isEnglish ? 'Apply settings to all groups' : '批量设置所有小组'}
-                    </span>
-                    {showBatchSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {isEnglish ? 'Apply to this group' : '适用于本小组'}
                   </button>
-
-                  {showBatchSettings && (
-                    <div className="mt-2 space-y-3 p-3 bg-slate-800/30 rounded-lg">
-                      <div className="space-y-1">
-                        <label className="text-xs text-slate-500">{isEnglish ? 'Players per group' : '每组人数'}</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range" min="2" max="100"
-                            value={batchPlayerCount}
-                            onChange={e => setBatchPlayerCount(parseInt(e.target.value))}
-                            className="flex-1 accent-gold-500"
-                          />
-                          <input
-                            type="text" inputMode="numeric" pattern="[0-9]*"
-                            value={batchPlayerCountInput}
-                            onChange={e => {
-                              const raw = e.target.value;
-                              if (raw === '') {
-                                setBatchPlayerCountInput('');
-                                return;
-                              }
-                              if (!/^\d+$/.test(raw)) return;
-                              const num = parseInt(raw, 10);
-                              if (isNaN(num)) return;
-                              const v = Math.max(2, Math.min(100, num));
-                              setBatchPlayerCountInput(String(v));
-                              setBatchPlayerCount(v);
-                            }}
-                            onBlur={() => {
-                              const num = parseInt(batchPlayerCountInput, 10);
-                              if (isNaN(num) || num < 2) {
-                                setBatchPlayerCountInput(String(batchPlayerCount));
-                              } else {
-                                setBatchPlayerCountInput(String(Math.max(2, Math.min(100, num))));
-                              }
-                            }}
-                            className="w-14 px-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-center font-mono text-gold-400 text-xs"
-                          />
-                        </div>
-                      </div>
-                      {batchPairingType !== 'single_elimination' && (
-                        <div className="space-y-1">
-                          <label className="text-xs text-slate-500">{isEnglish ? 'Rounds' : '轮次'}</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="range" min="1" max="20"
-                              value={batchRounds}
-                              onChange={e => setBatchRounds(parseInt(e.target.value))}
-                              className="flex-1 accent-gold-500"
-                            />
-                            <input
-                              type="text" inputMode="numeric" pattern="[0-9]*"
-                              value={batchRoundsInput}
-                              onChange={e => {
-                                const raw = e.target.value;
-                                if (raw === '') {
-                                  setBatchRoundsInput('');
-                                  return;
-                                }
-                                if (!/^\d+$/.test(raw)) return;
-                                const num = parseInt(raw, 10);
-                                if (isNaN(num)) return;
-                                const v = Math.max(1, Math.min(20, num));
-                                setBatchRoundsInput(String(v));
-                                setBatchRounds(v);
-                              }}
-                              onBlur={() => {
-                                const num = parseInt(batchRoundsInput, 10);
-                                if (isNaN(num) || num < 1) {
-                                  setBatchRoundsInput(String(batchRounds));
-                                } else {
-                                  setBatchRoundsInput(String(Math.max(1, Math.min(20, num))));
-                                }
-                              }}
-                              className="w-14 px-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-center font-mono text-gold-400 text-xs"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {batchPairingType === 'single_elimination' && (
-                        <div className="space-y-1">
-                          <label className="text-xs text-slate-500">{isEnglish ? 'Rounds (auto-calculated)' : '轮次（自动计算）'}</label>
-                          <div className="px-3 py-2 bg-slate-800/30 rounded text-sm text-slate-400">
-                            {isEnglish
-                              ? `Auto-calculated from ${batchPlayerCount} players`
-                              : (
-                                <>
-                                  根据 <span className="font-mono text-gold-400 font-bold">{batchPlayerCount}</span>
-                                  {' '}人自动计算
-                                </>
-                              )}
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => setBatchPairingType('swiss')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchPairingType === 'swiss'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            {isEnglish ? 'Swiss' : '瑞士轮'}
-                          </button>
-                          <button
-                            onClick={() => setBatchPairingType('single_elimination')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchPairingType === 'single_elimination'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            {isEnglish ? 'Single elimination' : '单败淘汰'}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-slate-500">{isEnglish ? 'Match length' : '比赛局数'}</label>
-                        <div className="grid grid-cols-4 gap-2">
-                          <button
-                            onClick={() => setBatchGameType('bo1')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchGameType === 'bo1'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            BO1
-                          </button>
-                          <button
-                            onClick={() => setBatchGameType('bo3')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchGameType === 'bo3'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            BO3
-                          </button>
-                          <button
-                            onClick={() => setBatchGameType('bo5')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchGameType === 'bo5'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            BO5
-                          </button>
-                          <button
-                            onClick={() => setBatchGameType('bo7')}
-                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                              batchGameType === 'bo7'
-                                ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                            }`}
-                          >
-                            BO7
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 单败淘汰每轮赛制单独设置 */}
-                      {batchPairingType === 'single_elimination' && (() => {
-                        const computedRounds = getSingleEliminationRounds(batchPlayerCount);
-                        // 长度变化时同步 batchRoundGameTypes（不足补默认 gameType，超出截断）
-                        const synced = batchRoundGameTypes.length === computedRounds
-                          ? batchRoundGameTypes
-                          : (() => {
-                              const arr = [...batchRoundGameTypes];
-                              while (arr.length < computedRounds) arr.push(batchGameType);
-                              arr.length = computedRounds;
-                              return arr;
-                            })();
-                        return (
-                          <div className="space-y-1.5">
-                            <label className="text-xs text-slate-500">
-                              {isEnglish ? 'Match length per round' : '每轮比赛局数'}
-                              <span className="ml-1 text-slate-600">{isEnglish ? `(Total ${computedRounds} rounds, based on ${batchPlayerCount} players)` : `（共 ${computedRounds} 轮，按 ${batchPlayerCount} 人计算）`}</span>
-                            </label>
-                            <div className="space-y-1.5">
-                              {Array.from({ length: computedRounds }, (_, i) => i + 1).map(round => (
-                                <div key={round} className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500 w-10 shrink-0">{formatText(t.roundNShort, { round })}</span>
-                                  <div className="flex-1 grid grid-cols-4 gap-1.5">
-                                    {(['bo1', 'bo3', 'bo5', 'bo7'] as GameType[]).map(gt => (
-                                      <button
-                                        key={gt}
-                                        onClick={() => {
-                                          const next = [...synced];
-                                          next[round - 1] = gt;
-                                          setBatchRoundGameTypes(next);
-                                        }}
-                                        className={`py-1 rounded text-[10px] font-medium transition-colors ${
-                                          synced[round - 1] === gt
-                                            ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                                            : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                                        }`}
-                                      >
-                                        {gt.toUpperCase()}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      <button
-                        onClick={() => {
-                          batchSetGroupConfig(
-                            batchPlayerCount,
-                            batchRounds,
-                            batchGameType,
-                            batchPairingType,
-                            batchPairingType === 'single_elimination' ? batchRoundGameTypes : undefined
-                          );
-                          setShowBatchSettings(false);
-                        }}
-                        className="w-full py-2 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 border border-gold-500/30 text-sm font-medium transition-colors"
-                      >
-                        {isEnglish ? 'Apply to all groups' : '应用至所有小组'}
-                      </button>
-                    </div>
-                  )}
+                  <button
+                    onClick={() => applyDraftConfiguration('all')}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                  >
+                    {isEnglish ? 'Apply to all groups' : '适用于全部小组'}
+                  </button>
                 </div>
               </div>
             )}
@@ -970,7 +816,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           {isSetup && currentGroup.players.length >= 2 && (
             <div className="space-y-2">
               <button
-                onClick={() => startTournament(currentGroup.totalRounds)}
+                onClick={() => setStartConfirmTarget('single')}
                 className="w-full py-2.5 rounded-lg bg-gold-500/15 text-gold-400 hover:bg-gold-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/25"
               >
                 <Play className="w-4 h-4" />
@@ -978,7 +824,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               </button>
               {competition.groups.length > 1 && competition.groups.some(g => g.status === 'setup' && g.players.length >= 2) && (
                 <button
-                  onClick={() => startAllGroups()}
+                  onClick={() => setStartConfirmTarget('all')}
                   className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
                 >
                   <Play className="w-4 h-4" />
@@ -1137,6 +983,83 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         confirmText={t.undoNow}
         onConfirm={() => undoLastRound()}
       />
+
+      {/* 开赛前赛事信息确认 */}
+      <ConfirmDialog
+        isOpen={startConfirmTarget !== null}
+        onClose={() => setStartConfirmTarget(null)}
+        title={isEnglish ? 'Confirm tournament information' : '确认赛事信息'}
+        message={isEnglish
+          ? 'Review the event information below. Confirming locks the roster and generates the first-round pairings.'
+          : '请确认以下赛事信息。确认后将锁定选手档案并生成第一轮对阵。'}
+        confirmText={isEnglish ? 'Confirm and start' : '确认并开始比赛'}
+        onConfirm={() => {
+          if (startConfirmTarget === 'all') {
+            startAllGroups();
+          } else {
+            startTournament(currentGroup.totalRounds);
+          }
+        }}
+      >
+        <div className="space-y-3 pb-2">
+          <div className="rounded-lg border border-slate-700/60 bg-slate-900/45 p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+              {isEnglish ? 'Tournament' : '赛事名称'}
+            </div>
+            <div className="mt-1 text-sm font-medium text-slate-100">{competition.name}</div>
+          </div>
+
+          <div className="space-y-2">
+            {groupsForStart.map(group => {
+              const roundTypes = fitRoundGameTypes(
+                group.roundGameTypes,
+                group.totalRounds,
+                group.gameType
+              );
+              const uniformGameType = roundTypes.every(type => type === roundTypes[0]);
+              const tiebreakLabel = group.tiebreakTemplate === 'standard_bo1'
+                ? (isEnglish ? 'Standard BO1' : '标准 BO1')
+                : group.tiebreakTemplate === 'custom'
+                  ? (isEnglish ? 'Custom' : '自定义')
+                  : (isEnglish ? 'Standard multi-game' : '标准多局');
+
+              return (
+                <div
+                  key={group.id}
+                  className="rounded-lg border border-slate-700/60 bg-slate-900/35 p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-slate-100">{group.name}</span>
+                    <span className="text-xs text-slate-400">
+                      {group.players.length}{isEnglish ? ' players' : '人'}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+                      {group.pairingType === 'swiss'
+                        ? (isEnglish ? 'Swiss' : '瑞士轮')
+                        : (isEnglish ? 'Single elimination' : '单败淘汰')}
+                    </span>
+                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+                      {group.totalRounds}{isEnglish ? ' rounds' : '轮'}
+                    </span>
+                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+                      {uniformGameType
+                        ? roundTypes[0]?.toUpperCase()
+                        : roundTypes.map(type => type.toUpperCase()).join(' / ')}
+                    </span>
+                    {group.pairingType === 'swiss' && (
+                      <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+                        {isEnglish ? 'Tiebreak: ' : '破分链：'}{tiebreakLabel}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </ConfirmDialog>
 
       {/* 备份管理面板 */}
       <BackupManager

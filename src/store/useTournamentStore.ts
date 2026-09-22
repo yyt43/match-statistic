@@ -53,7 +53,18 @@ export interface CompetitionState {
   addGroup: () => void;
   removeGroup: (index: number) => void;
   setGroupCount: (count: number) => void;
-  batchSetGroupConfig: (playerCount: number, rounds: number, gameType: GameType, pairingType: PairingType, roundGameTypes?: GameType[]) => void;
+  applyGroupConfiguration: (
+    config: {
+      playerCount: number;
+      rounds: number;
+      gameType: GameType;
+      pairingType: PairingType;
+      roundGameTypes?: GameType[];
+      tiebreakTemplate?: TiebreakTemplate;
+      tiebreakRules?: TiebreakRule[];
+    },
+    target?: 'current' | 'all'
+  ) => void;
   updateGroupName: (index: number, name: string) => void;
 
   // 小组级别操作（操作当前 group）

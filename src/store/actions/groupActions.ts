@@ -21,13 +21,36 @@ type GroupActionKey =
   | 'addGroup'
   | 'removeGroup'
   | 'setGroupCount'
-  | 'batchSetGroupConfig'
+  | 'applyGroupConfiguration'
   | 'updateGroupName'
   | 'setTotalRounds'
   | 'setGameType'
   | 'setPairingType'
   | 'setRoundGameType'
   | 'setTiebreakTemplate';
+
+function resizePlayers(players: Player[], count: number): Player[] {
+  if (count === players.length) return players;
+  if (count < players.length) return players.slice(0, count);
+
+  const added = Array.from({ length: count - players.length }, (_, index) => ({
+    id: generateId(),
+    name: `选手${String(players.length + index + 1).padStart(3, '0')}`,
+    points: 0,
+    wins: 0,
+    losses: 0,
+    totalGames: 0,
+    wonGames: 0,
+    winRate: 0,
+    opponentWinRate: 0,
+    opponentOpponentWinRate: 0,
+    gameWinRate: 0,
+    opponentGameWinRate: 0,
+    playedAgainst: [],
+    dropped: false,
+  }));
+  return [...players, ...added];
+}
 
 export function createGroupActions(
   set: StoreSet,
@@ -138,61 +161,55 @@ export function createGroupActions(
       }, '调整小组数量');
     },
 
-    batchSetGroupConfig: (
-      playerCount: number,
-      rounds: number,
-      gameType: GameType,
-      pairingType: PairingType,
-      roundGameTypes?: GameType[]
+    applyGroupConfiguration: (
+      config: {
+        playerCount: number;
+        rounds: number;
+        gameType: GameType;
+        pairingType: PairingType;
+        roundGameTypes?: GameType[];
+        tiebreakTemplate?: TiebreakTemplate;
+        tiebreakRules?: TiebreakRule[];
+      },
+      target: 'current' | 'all' = 'all'
     ) => {
       const { competition } = get();
-      let startIndex = 1;
-      const groups = competition.groups.map(group => {
+      const groups = competition.groups.map((group, index) => {
+        if (target === 'current' && index !== competition.currentGroupIndex) return group;
         if (group.status !== 'setup') {
-          startIndex += group.players.length;
           return group;
         }
-        const count = Math.max(2, Math.min(200, playerCount));
-        const players: Player[] = Array.from({ length: count }, (_, index) => ({
-          id: generateId(),
-          name: `选手${String(startIndex + index).padStart(3, '0')}`,
-          points: 0,
-          wins: 0,
-          losses: 0,
-          totalGames: 0,
-          wonGames: 0,
-          winRate: 0,
-          opponentWinRate: 0,
-          opponentOpponentWinRate: 0,
-          gameWinRate: 0,
-          opponentGameWinRate: 0,
-          playedAgainst: [],
-          dropped: false,
-        }));
-        startIndex += count;
-        const totalRounds = pairingType === 'single_elimination'
+        const count = Math.max(2, Math.min(200, config.playerCount));
+        const players = resizePlayers(group.players, count);
+        const totalRounds = config.pairingType === 'single_elimination'
           ? getSingleEliminationRounds(count)
-          : Math.max(1, Math.min(20, rounds));
-        const finalRoundGameTypes = pairingType === 'single_elimination'
-          && roundGameTypes
-          && roundGameTypes.length === totalRounds
-          ? [...roundGameTypes]
-          : new Array(totalRounds).fill(gameType);
-        const template = group.tiebreakTemplate ?? getDefaultTiebreakTemplate(gameType);
+          : Math.max(1, Math.min(20, config.rounds));
+        const finalRoundGameTypes = config.roundGameTypes
+          && config.roundGameTypes.length === totalRounds
+          ? [...config.roundGameTypes]
+          : new Array(totalRounds).fill(config.gameType);
+        const template = config.tiebreakTemplate
+          ?? (group.tiebreakTemplate === 'custom'
+            ? 'custom'
+            : getDefaultTiebreakTemplate(config.gameType));
+        const rules = template === 'custom'
+          ? normalizeTiebreakRules(config.tiebreakRules ?? group.tiebreakRules, config.gameType)
+          : getDefaultTiebreakRules(template === 'standard_bo1' ? 'bo1' : config.gameType);
         return {
           ...group,
           players,
           totalRounds,
-          gameType,
-          pairingType,
-          tiebreakTemplate: template === 'custom' ? template : getDefaultTiebreakTemplate(gameType),
-          tiebreakRules: template === 'custom'
-            ? normalizeTiebreakRules(group.tiebreakRules, gameType)
-            : getDefaultTiebreakRules(gameType),
+          gameType: config.gameType,
+          pairingType: config.pairingType,
+          tiebreakTemplate: template,
+          tiebreakRules: rules,
           roundGameTypes: finalRoundGameTypes,
         };
       });
-      persist({ ...competition, groups }, '批量设置小组');
+      persist(
+        { ...competition, groups },
+        target === 'current' ? '应用本组赛制' : '应用全部小组赛制'
+      );
     },
 
     updateGroupName: (index: number, name: string) => {
