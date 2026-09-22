@@ -195,8 +195,11 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
     draftGameType
   );
   const groupsForStart = startConfirmTarget === 'all'
-    ? competition.groups.filter(group => group.status === 'setup' && group.players.length >= 2)
+    ? competition.groups
     : [currentGroup];
+  const startableGroupCount = competition.groups.filter(group =>
+    group.status === 'setup' && group.players.length >= 2
+  ).length;
 
   const handleDraftGameTypeChange = (gameType: GameType) => {
     setDraftGameType(gameType);
@@ -813,47 +816,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
 
         {/* 比赛控制 */}
         <div className="space-y-3">
-          {isSetup && currentGroup.players.length >= 2 && (
-            <div className="space-y-2">
-              <button
-                onClick={() => setStartConfirmTarget('single')}
-                className="w-full py-2.5 rounded-lg bg-gold-500/15 text-gold-400 hover:bg-gold-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/25"
-              >
-                <Play className="w-4 h-4" />
-                {isEnglish ? `Start this group (${currentGroup.totalRounds} rounds total)` : `开始本组比赛 (共${currentGroup.totalRounds}轮)`}
-              </button>
-              {competition.groups.length > 1 && competition.groups.some(g => g.status === 'setup' && g.players.length >= 2) && (
-                <button
-                  onClick={() => setStartConfirmTarget('all')}
-                  className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
-                >
-                  <Play className="w-4 h-4" />
-                  {isEnglish ? 'Start all groups' : '全部小组同时开赛'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {hasAnyRound && (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowQuickScore(true)}
-                className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
-              >
-                <Swords className="w-4 h-4" />
-                {isEnglish ? 'Quick score entry' : '快速录分'}
-              </button>
-              <button
-                onClick={() => setShowResultImport(true)}
-                className="w-full py-2.5 rounded-lg bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-sky-500/30"
-              >
-                <FileUp className="w-4 h-4" />
-                {isEnglish ? 'Import results' : '导入赛果'}
-              </button>
-            </div>
-          )}
-
-
           {isInProgress && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -897,38 +859,38 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          <div className="pt-2 border-t border-slate-700/40 space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5 border-t border-slate-700/40 pt-2">
             <button
               onClick={() => setShowStorageHealth(true)}
-              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-800/30 py-1.5 text-[11px] text-slate-500 transition-colors hover:bg-emerald-500/5 hover:text-emerald-400"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               {isEnglish ? 'Storage health' : '存储体检'}
             </button>
             <button
               onClick={() => setShowBackupManager(true)}
-              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-sky-400 hover:bg-sky-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-800/30 py-1.5 text-[11px] text-slate-500 transition-colors hover:bg-sky-500/5 hover:text-sky-400"
             >
               <History className="w-3.5 h-3.5" />
               {isEnglish ? 'Backup manager' : '备份管理'}
             </button>
             <button
               onClick={() => setShowAuditLog(true)}
-              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-800/30 py-1.5 text-[11px] text-slate-500 transition-colors hover:bg-indigo-500/5 hover:text-indigo-400"
             >
               <History className="w-3.5 h-3.5" />
               {t.auditLog}
             </button>
             <button
               onClick={() => setShowHistoryManager(true)}
-              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-violet-400 hover:bg-violet-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-800/30 py-1.5 text-[11px] text-slate-500 transition-colors hover:bg-violet-500/5 hover:text-violet-400"
             >
               <History className="w-3.5 h-3.5" />
               {isEnglish ? 'Operation history' : '操作历史'}
             </button>
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="w-full py-1.5 rounded-md bg-slate-800/30 text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-colors text-xs flex items-center justify-center gap-1.5"
+              className="col-span-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-800/30 py-1.5 text-[11px] text-slate-500 transition-colors hover:bg-rose-500/5 hover:text-rose-400"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {isEnglish ? 'Reset tournament' : '重置比赛'}
@@ -937,29 +899,75 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         </div>
       </div>
 
-      {/* 底部固定操作区：生成下一轮按钮（始终可见，不被滚动隐藏） */}
-      {isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds && (
-        <div className="shrink-0 p-3 border-t border-slate-700/50 bg-slate-800/60 space-y-2">
-          <button
-            onClick={onShowConfirm}
-            className="w-full py-2.5 rounded-lg bg-gold-500/20 text-gold-400 hover:bg-gold-500/30 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-gold-500/40"
-          >
-            <Play className="w-4 h-4" />
-            {t.generateNextRound}
-          </button>
-          {competition.groups.length > 1 && competition.groups.some(g => {
-            if (g.status !== 'in_progress') return false;
-            if (g.currentRound >= g.totalRounds) return false;
-            const matches = g.matches.filter(m => m.round === g.currentRound);
-            return matches.length > 0 && matches.every(m => m.result !== 'pending');
-          }) && (
+      {/* 底部固定操作区：开赛、录分、导入结果和生成下一轮始终可见 */}
+      {(
+        (isSetup && currentGroup.players.length >= 2)
+        || hasAnyRound
+        || (isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds)
+      ) && (
+        <div className="shrink-0 space-y-2 border-t border-slate-700/50 bg-slate-800/60 p-3">
+          {isSetup && currentGroup.players.length >= 2 && (
             <button
-              onClick={() => { onShowConfirmAll?.(); }}
-              className="w-full py-2 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/25"
+              onClick={() => setStartConfirmTarget('single')}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-gold-500/25 bg-gold-500/15 py-2.5 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/25"
             >
               <Play className="w-4 h-4" />
-              {t.allGroupsNextRound}
+              {isEnglish ? `Start this group (${currentGroup.totalRounds} rounds total)` : `开始本组比赛 (共${currentGroup.totalRounds}轮)`}
             </button>
+          )}
+          {isSetup && currentGroup.players.length >= 2 && competition.groups.length > 1 && (
+            <button
+              onClick={() => setStartConfirmTarget('all')}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/15 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+            >
+              <Play className="w-4 h-4" />
+              {isEnglish ? 'Start all groups' : '全部小组同时开赛'}
+            </button>
+          )}
+
+          {hasAnyRound && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowQuickScore(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 py-2.5 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25"
+              >
+                <Swords className="w-4 h-4" />
+                {isEnglish ? 'Quick score entry' : '快速录分'}
+              </button>
+              <button
+                onClick={() => setShowResultImport(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/15 py-2.5 text-sm font-medium text-sky-300 transition-colors hover:bg-sky-500/25"
+              >
+                <FileUp className="w-4 h-4" />
+                {isEnglish ? 'Import results' : '导入赛果'}
+              </button>
+            </div>
+          )}
+
+          {isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds && (
+            <>
+              <button
+                onClick={onShowConfirm}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 py-2.5 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30"
+              >
+                <Play className="w-4 h-4" />
+                {t.generateNextRound}
+              </button>
+              {competition.groups.length > 1 && competition.groups.some(group => {
+                if (group.status !== 'in_progress') return false;
+                if (group.currentRound >= group.totalRounds) return false;
+                const matches = group.matches.filter(match => match.round === group.currentRound);
+                return matches.length > 0 && matches.every(match => match.result !== 'pending');
+              }) && (
+                <button
+                  onClick={() => { onShowConfirmAll?.(); }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/15 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                >
+                  <Play className="w-4 h-4" />
+                  {t.allGroupsNextRound}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -1010,12 +1018,27 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           </div>
 
           <div className="space-y-2">
+            {startConfirmTarget === 'all' && (
+              <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-[11px] text-slate-400">
+                {isEnglish
+                  ? `${competition.groups.length} groups total, ${startableGroupCount} ready to start.`
+                  : `共 ${competition.groups.length} 个小组，其中 ${startableGroupCount} 个将开始比赛。`}
+              </div>
+            )}
             {groupsForStart.map(group => {
               const roundTypes = fitRoundGameTypes(
                 group.roundGameTypes,
                 group.totalRounds,
                 group.gameType
               );
+              const willStart = group.status === 'setup' && group.players.length >= 2;
+              const statusLabel = group.status === 'setup'
+                ? willStart
+                  ? (isEnglish ? 'Will start' : '将开赛')
+                  : (isEnglish ? 'Needs at least 2 players' : '人数不足，无法开赛')
+                : group.status === 'in_progress'
+                  ? (isEnglish ? 'Already started' : '已经开赛')
+                  : (isEnglish ? 'Completed' : '已完成');
               const uniformGameType = roundTypes.every(type => type === roundTypes[0]);
               const tiebreakLabel = group.tiebreakTemplate === 'standard_bo1'
                 ? (isEnglish ? 'Standard BO1' : '标准 BO1')
@@ -1026,15 +1049,26 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
               return (
                 <div
                   key={group.id}
-                  className="rounded-lg border border-slate-700/60 bg-slate-900/35 p-3"
+                  className={`rounded-lg border p-3 ${
+                    willStart
+                      ? 'border-slate-700/60 bg-slate-900/35'
+                      : 'border-slate-700/40 bg-slate-900/20 opacity-70'
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-medium text-slate-100">{group.name}</span>
-                    <span className="text-xs text-slate-400">
-                      {group.players.length}{isEnglish ? ' players' : '人'}
+                    <span className={`rounded px-2 py-1 text-[10px] ${
+                      willStart
+                        ? 'bg-emerald-500/10 text-emerald-300'
+                        : 'bg-slate-700/40 text-slate-400'
+                    }`}>
+                      {statusLabel}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+                      {group.players.length}{isEnglish ? ' players' : '人'}
+                    </span>
                     <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
                       {group.pairingType === 'swiss'
                         ? (isEnglish ? 'Swiss' : '瑞士轮')
