@@ -115,7 +115,7 @@ export function RosterProfilePanel() {
   ] as const;
 
   return (
-    <div className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-900/25 p-3">
+    <div className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-900/25 p-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -123,16 +123,26 @@ export function RosterProfilePanel() {
             className="hidden"
             onChange={event => void handleFile(event.target.files?.[0])}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={locked}
-            className="w-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
-          >
-            <Upload className="mr-1 inline h-3.5 w-3.5" />
-            {isEnglish ? 'Import player workbook' : '导入选手信息表'}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={locked}
+              className="w-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
+            >
+              <Upload className="mr-1 inline h-3.5 w-3.5" />
+              {isEnglish ? 'Import roster' : '导入选手信息表'}
+            </button>
+            <button
+              onClick={handleLock}
+              disabled={locked}
+              className="w-full rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
+            >
+              <Lock className="mr-1 inline h-3.5 w-3.5" />
+              {isEnglish ? 'Validate and lock' : '校验并锁定'}
+            </button>
+          </div>
 
-          <div className="max-h-64 space-y-3 overflow-y-auto overscroll-contain pr-1">
+          <div className="max-h-52 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {headers.length > 0 && !locked && (
               <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-800/35 p-2">
               {selectOptions.map(([key, label]) => (
@@ -163,17 +173,6 @@ export function RosterProfilePanel() {
               </button>
               </div>
             )}
-
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                onClick={handleLock}
-                disabled={locked}
-                className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
-              >
-                <Lock className="mr-1 inline h-3.5 w-3.5" />
-                {isEnglish ? 'Validate and lock' : '校验并锁定'}
-              </button>
-            </div>
 
             {message && (
               <div className="rounded-lg border border-slate-700/60 bg-slate-800/50 px-2 py-1.5 text-[11px] text-slate-300">

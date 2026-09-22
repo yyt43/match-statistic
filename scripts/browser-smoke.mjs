@@ -101,9 +101,15 @@ try {
   await waitForText(page, 'Imported 4 player profiles.');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
-  const groupManagement = page.getByRole('button', { name: /Group management/ });
-  const formatManagement = page.getByRole('button', { name: /Format management/ });
-  const playerManagement = page.getByRole('button', { name: /Player management/ });
+  if (
+    await page.getByText('Leaderboard', { exact: true }).count() > 0
+    || await page.getByText('Match list', { exact: true }).count() > 0
+  ) {
+    throw new Error('The pre-start screen still renders ranking or match-table content.');
+  }
+  const groupManagement = page.getByRole('button', { name: /^Groups/ });
+  const formatManagement = page.getByRole('button', { name: /^Format/ });
+  const playerManagement = page.getByRole('button', { name: /^Players/ });
   await groupManagement.waitFor({ state: 'visible' });
   await formatManagement.waitFor({ state: 'visible' });
   await playerManagement.waitFor({ state: 'visible' });
@@ -129,6 +135,13 @@ try {
   if (!firstPlayerBox || firstPlayerBox.top < playerBox.y + playerBox.height) {
     throw new Error('Player rows are not positioned below the player management heading.');
   }
+  const settingsScrollerHeight = await page
+    .locator('.col-start-2.min-h-0.overflow-y-auto')
+    .first()
+    .evaluate(scroller => scroller.clientHeight);
+  if (settingsScrollerHeight < 180) {
+    throw new Error(`Player list area is too short: ${settingsScrollerHeight}px`);
+  }
   const startGroupButton = page.getByRole('button', { name: /Start this group/ });
   const startButtonInScroller = await startGroupButton.evaluate(button =>
     Boolean(button.closest('.overflow-y-auto.p-4.space-y-4'))
@@ -137,18 +150,19 @@ try {
     throw new Error('The start button is still inside the scrolling settings area.');
   }
 
-  await page.getByRole('button', { name: /Format management/ }).click();
   await page.getByRole('button', { name: 'BO3', exact: true }).click();
   const applyCurrent = page.getByRole('button', { name: 'Apply to this group' });
   const applyAll = page.getByRole('button', { name: 'Apply to all groups' });
   await applyCurrent.waitFor({ state: 'visible' });
   await applyAll.waitFor({ state: 'visible' });
   await applyCurrent.click();
-  await waitForText(page, 'Swiss · BO3');
 
   await startGroupButton.click();
   await waitForText(page, 'Confirm tournament information');
   const startDialog = page.getByRole('dialog').filter({ hasText: 'Confirm tournament information' });
+  if (!(await startDialog.innerText()).includes('BO3')) {
+    throw new Error('The applied BO3 format is missing from the start confirmation.');
+  }
   await startDialog.getByRole('button', { name: 'Confirm and start' }).click();
   await waitForText(page, 'Round 1 match list');
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();

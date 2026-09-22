@@ -1,37 +1,7 @@
-import { ChevronDown, ChevronUp, Trash2, Users } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
 import { isRosterLocked, sortPlayersByParticipantCode } from '../../utils/playerProfiles';
-
-interface PlayerManagerHeaderProps {
-  expanded: boolean;
-  onToggle: () => void;
-}
-
-export function PlayerManagerHeader({
-  expanded,
-  onToggle,
-}: PlayerManagerHeaderProps) {
-  const currentGroup = useCurrentGroup();
-  const { language } = useLanguagePreference();
-  const isEnglish = language === 'en';
-
-  return (
-    <button
-      onClick={onToggle}
-      className="flex w-full items-center justify-between text-xs font-medium text-slate-300"
-    >
-      <span className="flex items-center gap-2">
-        <Users className="w-3.5 h-3.5" />
-        {isEnglish ? 'Player management' : '选手管理'}
-        <span className="text-slate-500">
-          ({currentGroup.players.length}{isEnglish ? ' players' : '人'})
-        </span>
-      </span>
-      {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-    </button>
-  );
-}
 
 export function PlayerManagerList() {
   const currentGroup = useCurrentGroup();
