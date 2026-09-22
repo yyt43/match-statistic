@@ -246,19 +246,19 @@ export default function Home() {
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
             <div className="xl:col-span-3 order-2 xl:order-1">
-              <div className="h-[500px] xl:h-[calc(100vh-260px)] overflow-hidden">
+              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
                 <PlayerRanking />
               </div>
             </div>
 
             <div className="xl:col-span-6 order-1 xl:order-2">
-              <div className="h-[500px] xl:h-[calc(100vh-260px)] overflow-hidden">
+              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
                 <MatchList testMode={testMode} />
               </div>
             </div>
 
             <div className="xl:col-span-3 order-3">
-              <div className="h-[500px] xl:h-[calc(100vh-260px)] overflow-hidden">
+              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
                 <ControlPanel
                   onShowConfirm={() => { setConfirmType('single'); setShowConfirm(true); }}
                   onShowConfirmAll={() => { setConfirmType('all'); setShowConfirm(true); }}
