@@ -107,21 +107,18 @@ try {
   ) {
     throw new Error('The pre-start screen still renders ranking or match-table content.');
   }
-  const groupManagement = page.getByRole('button', { name: /^Groups/ });
   const formatManagement = page.getByRole('button', { name: /^Format/ });
   const playerManagement = page.getByRole('button', { name: /^Players/ });
-  await groupManagement.waitFor({ state: 'visible' });
   await formatManagement.waitFor({ state: 'visible' });
   await playerManagement.waitFor({ state: 'visible' });
-  const [groupBox, formatBox, playerBox] = await Promise.all([
-    groupManagement.boundingBox(),
+  const [formatBox, playerBox] = await Promise.all([
     formatManagement.boundingBox(),
     playerManagement.boundingBox(),
   ]);
-  if (!groupBox || !formatBox || !playerBox) {
+  if (!formatBox || !playerBox) {
     throw new Error('A management heading disappeared after roster import.');
   }
-  if (formatBox.y - groupBox.y > 60 || playerBox.y - formatBox.y > 60) {
+  if (playerBox.y - formatBox.y > 60) {
     throw new Error('Management headings have an excessive gap after roster import.');
   }
   const firstPlayerBox = await page

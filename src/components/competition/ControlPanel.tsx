@@ -93,7 +93,7 @@ export function ControlPanel({
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [showGroupManager, setShowGroupManager] = useState(setupLayout);
+  const [showLegacyGroupManager] = useState(false);
   const [showFormatManager, setShowFormatManager] = useState(setupLayout);
   const [showPlayerManager, setShowPlayerManager] = useState(true);
   const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
@@ -411,6 +411,11 @@ export function ControlPanel({
           </Suspense>
         </section>
       )}
+      {setupLayout && (
+        <section className="border-t border-slate-700/50 pt-3">
+          {systemTools}
+        </section>
+      )}
     </div>
   );
 
@@ -537,31 +542,79 @@ export function ControlPanel({
       <div className="px-4 py-2.5 border-b border-slate-700/50 bg-slate-800/20">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500 shrink-0">{isEnglish ? 'Current group' : '当前小组'}</span>
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-            {competition.groups.map((group, index) => {
-              const isActive = index === competition.currentGroupIndex;
-              return (
-                <button
-                  key={group.id}
-                  onClick={() => setCurrentGroup(index)}
-                  className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'border-gold-500/50 bg-gold-500/15 text-gold-400'
-                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                  }`}
-                >
-                  {group.name}
-                </button>
-              );
-            })}
-          </div>
+          {editingGroupIndex === competition.currentGroupIndex ? (
+            <input
+              autoFocus
+              value={editGroupNameValue}
+              onChange={event => setEditGroupNameValue(event.target.value)}
+              onBlur={() => {
+                if (editGroupNameValue.trim()) {
+                  updateGroupName(competition.currentGroupIndex, editGroupNameValue);
+                }
+                setEditingGroupIndex(null);
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter' && editGroupNameValue.trim()) {
+                  updateGroupName(competition.currentGroupIndex, editGroupNameValue);
+                  setEditingGroupIndex(null);
+                } else if (event.key === 'Escape') {
+                  setEditingGroupIndex(null);
+                }
+              }}
+              className="min-w-0 flex-1 rounded-md border border-gold-500/50 bg-slate-900/70 px-2 py-1 text-xs text-slate-200 outline-none"
+            />
+          ) : (
+            <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+              {competition.groups.map((group, index) => {
+                const isActive = index === competition.currentGroupIndex;
+                return (
+                  <button
+                    key={group.id}
+                    onClick={() => setCurrentGroup(index)}
+                    className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'border-gold-500/50 bg-gold-500/15 text-gold-400'
+                        : 'border-slate-700/60 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                    }`}
+                  >
+                    {group.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <button
+            onClick={() => addGroup()}
+            className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-1 text-emerald-300 hover:bg-emerald-500/20"
+            title={isEnglish ? 'Add group' : '添加小组'}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => {
+              setEditingGroupIndex(competition.currentGroupIndex);
+              setEditGroupNameValue(currentGroup.name);
+            }}
+            className="shrink-0 rounded-md border border-slate-700/60 bg-slate-800/50 p-1 text-slate-400 hover:text-gold-300"
+            title={isEnglish ? 'Rename current group' : '修改当前小组名称'}
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => removeGroup(competition.currentGroupIndex)}
+            disabled={competition.groups.length <= 1}
+            className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+            title={isEnglish ? 'Delete current group' : '删除当前小组'}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
           <span className="text-slate-600 shrink-0">
             {currentGroup.players.length}{isEnglish ? '' : '人'}
           </span>
         </div>
       </div>
 
-      {isSetup && (
+      {!setupLayout && isSetup && (
         <div className="border-b border-slate-700/50 px-4 py-3">
           <Suspense fallback={null}>
             <RosterProfilePanel />
@@ -570,17 +623,7 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className="grid grid-cols-[220px_340px_minmax(460px,1fr)_260px] border-b border-slate-700/50 bg-slate-800/40">
-        <button
-          onClick={() => setShowGroupManager(!showGroupManager)}
-          className={`flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors ${
-            showGroupManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span className="truncate">{isEnglish ? 'Groups' : '小组管理'}</span>
-          <span className="text-slate-500">{competition.groups.length}</span>
-        </button>
+      <div className="grid grid-cols-[340px_minmax(460px,1fr)_280px] border-b border-slate-700/50 bg-slate-800/40">
         {isSetup && (
           <button
             onClick={() => {
@@ -615,13 +658,13 @@ export function ControlPanel({
       </div>
       )}
 
-      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-[220px_340px_minmax(460px,1fr)_260px]' : 'contents'}>
+      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-[340px_minmax(460px,1fr)_280px]' : 'contents'}>
       {setupLayout && (
-        <div className="col-start-4 row-start-1 min-h-0 overflow-y-auto border-l border-slate-700/50 p-4">
+        <div className="col-start-3 row-start-1 min-h-0 overflow-y-auto border-l border-slate-700/50 p-4">
           {competitionDataContent}
         </div>
       )}
-      {setupLayout && showGroupManager && (
+      {setupLayout && showLegacyGroupManager && (
         <div className={setupLayout
           ? 'col-start-1 row-start-1 min-h-0 overflow-y-auto border-r border-slate-700/50 p-4'
           : 'border-b border-slate-700/50 px-4 py-3'}
@@ -863,7 +906,7 @@ export function ControlPanel({
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? 'col-span-2 col-start-2 row-start-1 grid min-h-0 grid-cols-[340px_minmax(460px,1fr)] overflow-hidden'
+          ? 'col-span-2 col-start-1 row-start-1 grid min-h-0 grid-cols-[340px_minmax(460px,1fr)] overflow-hidden'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理 */}
