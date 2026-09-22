@@ -170,6 +170,8 @@ Player management uses one unified player workbook. There is no separate Generic
 
 Group switching is integrated into the Current Group bar. Click Group A, B, C, or D directly to switch.
 
+The player workbook import is placed below the Current Group bar. Player rows are sorted strictly by participant code, and codes must come from the imported workbook; there is no code-generation button.
+
 The profile importer automatically recognizes columns such as:
 
 ```text
@@ -179,7 +181,7 @@ UID / Game UID / 游戏UID / 玩家UID
 QQ / QQ number / QQ号
 ```
 
-Missing A01-D32 participant codes can be generated automatically when the group structure supports it. Empty UID or QQ values do not block imports; when provided, they are validated for format and uniqueness. Once locked, participant codes and UIDs cannot be changed.
+Participant codes must be present in the imported workbook; the app does not provide automatic code generation. Empty UID or QQ values do not block imports; when provided, they are validated for format and uniqueness. Once locked, participant codes and UIDs cannot be changed.
 
 The app no longer requires a per-match confirmation or dispute flow. If a result is wrong, the referee edits or overrides it directly; imported results require a reason and preserve the override history.
 

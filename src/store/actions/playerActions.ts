@@ -6,7 +6,6 @@ import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { generateId } from '../tournamentFactory';
 import { logAudit } from '../../utils/auditLog';
 import {
-  generateParticipantCodes,
   getDefaultPlayerFields,
   getPlayerFields,
   isRosterLocked,
@@ -28,7 +27,6 @@ type PlayerActionKey =
   | 'updatePlayerProfile'
   | 'importPlayerProfiles'
   | 'setPlayerSchema'
-  | 'assignParticipantCodes'
   | 'lockRoster'
   | 'togglePlayerDropped'
   | 'setPlayerCount';
@@ -283,22 +281,12 @@ export function createPlayerActions(
       }, '切换选手模板');
     },
 
-    assignParticipantCodes: () => {
-      const { competition } = get();
-      if (isRosterLocked(competition)) return;
-      const schemaId = competition.playerSchemaId ?? 'generic';
-      if (schemaId !== 'poetryCupS2') return;
-      persist(generateParticipantCodes(competition), '生成选手编号');
-    },
-
     lockRoster: () => {
       const { competition } = get();
       if (isRosterLocked(competition)) return validateRoster(competition);
-      if ((competition.playerSchemaId ?? 'generic') === 'poetryCupS2') {
-        const validation = validateRoster(competition);
-        if (!validation.valid || validation.playerCount === 0) {
-          return validation;
-        }
+      const validation = validateRoster(competition);
+      if (!validation.valid || validation.playerCount === 0) {
+        return validation;
       }
       const updated: TournamentCompetition = {
         ...competition,

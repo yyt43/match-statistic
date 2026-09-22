@@ -1,12 +1,8 @@
 import { ChevronDown, ChevronUp, Trash2, Users } from 'lucide-react';
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
-import { isRosterLocked } from '../../utils/playerProfiles';
-
-const RosterProfilePanel = lazy(() =>
-  import('./RosterProfilePanel').then(module => ({ default: module.RosterProfilePanel }))
-);
+import { isRosterLocked, sortPlayersByParticipantCode } from '../../utils/playerProfiles';
 
 export function PlayerManager() {
   const currentGroup = useCurrentGroup();
@@ -16,12 +12,13 @@ export function PlayerManager() {
   const [expanded, setExpanded] = useState(true);
   const rosterLocked = isRosterLocked(competition);
   const showProfileColumns = true;
+  const sortedPlayers = sortPlayersByParticipantCode(currentGroup.players);
 
   return (
     <div className="space-y-2">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="sticky top-[34px] z-20 -mx-3 flex w-[calc(100%+1.5rem)] items-center justify-between border-b border-slate-700/40 bg-slate-800/95 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-sm"
+        className="sticky top-0 z-20 -mx-3 flex w-[calc(100%+1.5rem)] items-center justify-between border-b border-slate-700/40 bg-slate-800/95 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-sm"
       >
         <span className="flex items-center gap-2">
           <Users className="w-3.5 h-3.5" />
@@ -35,10 +32,6 @@ export function PlayerManager() {
 
       {expanded && (
         <div className="mt-3 space-y-3">
-          <Suspense fallback={null}>
-            <RosterProfilePanel />
-          </Suspense>
-
           <div className="space-y-1">
             <div className={`grid items-center gap-2 px-3 text-[10px] text-slate-500 ${
               showProfileColumns
@@ -53,7 +46,7 @@ export function PlayerManager() {
               <span />
             </div>
 
-            {currentGroup.players.map((player, index) => (
+            {sortedPlayers.map((player, index) => (
               <div
                 key={`${player.id}:${player.participantCode ?? ''}:${player.name}:${player.profile?.uid ?? ''}:${player.profile?.qq ?? ''}`}
                 className={`grid items-center gap-2 rounded-lg bg-slate-800/30 px-3 py-2 transition-colors hover:bg-slate-800/50 ${

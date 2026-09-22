@@ -2,6 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateCompetitionData } from '../utils/schema';
 import { useTournamentStore } from './useTournamentStore';
 
+function assignTestCodes() {
+  const competition = useTournamentStore.getState().competition;
+  useTournamentStore.setState({
+    competition: {
+      ...competition,
+      groups: competition.groups.map((group, groupIndex) => ({
+        ...group,
+        players: group.players.map((player, playerIndex) => ({
+          ...player,
+          participantCode: `${String.fromCharCode(65 + groupIndex)}${String(playerIndex + 1).padStart(2, '0')}`,
+        })),
+      })),
+    },
+  });
+}
+
 describe('bye match result protection', () => {
   beforeEach(() => {
     const data = new Map<string, string>();
@@ -12,6 +28,7 @@ describe('bye match result protection', () => {
     });
     const state = useTournamentStore.getState();
     state.initCompetition('Bye protection', 1, 3, 1, 'bo3', 'swiss');
+    assignTestCodes();
     state.startTournament(1);
   });
 
@@ -39,6 +56,7 @@ describe('bye match result protection', () => {
   it('clears existing playoffs when a regular result changes', () => {
     const state = useTournamentStore.getState();
     state.initCompetition('Playoff invalidation', 1, 4, 1, 'bo3', 'swiss');
+    assignTestCodes();
     state.startTournament(1);
 
     for (const match of useTournamentStore.getState().competition.groups[0].matches.filter(match => !match.isBye)) {
@@ -67,6 +85,7 @@ describe('bye match result protection', () => {
   it('writes a valid automatic result when batch pairing creates a bye', () => {
     const state = useTournamentStore.getState();
     state.initCompetition('Batch bye', 1, 4, 1, 'bo3', 'swiss');
+    assignTestCodes();
     state.startTournament(1);
 
     const pendingMatch = useTournamentStore.getState().competition.groups[0]

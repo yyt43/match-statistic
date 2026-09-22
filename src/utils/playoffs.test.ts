@@ -122,7 +122,21 @@ describe('真实store加赛流程与撤回', () => {
   beforeEach(() => {
     const data = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => data.set(k, v), removeItem: (k: string) => data.delete(k) });
-    const s = useTournamentStore.getState(); s.initCompetition('测试', 1, 4, 2, 'bo3', 'swiss'); s.startTournament(2);
+    const s = useTournamentStore.getState(); s.initCompetition('测试', 1, 4, 2, 'bo3', 'swiss');
+    const competition = useTournamentStore.getState().competition;
+    useTournamentStore.setState({
+      competition: {
+        ...competition,
+        groups: competition.groups.map(group => ({
+          ...group,
+          players: group.players.map((player, index) => ({
+            ...player,
+            participantCode: `A${String(index + 1).padStart(2, '0')}`,
+          })),
+        })),
+      },
+    });
+    s.startTournament(2);
     for (let r = 1; r <= 2; r++) {
       const group = useTournamentStore.getState().competition.groups[0];
       for (const match of group.matches.filter(m => m.round === r && !m.isBye)) useTournamentStore.getState().updateMatchResult(match.id, 'draw', 0, 0);

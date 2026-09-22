@@ -8,6 +8,7 @@ import type {
 export interface RosterValidationIssue {
   code:
     | 'MISSING_NAME'
+    | 'MISSING_PARTICIPANT_CODE'
     | 'DUPLICATE_PARTICIPANT_CODE'
     | 'INVALID_PARTICIPANT_CODE'
     | 'MISSING_UID'
@@ -132,22 +133,19 @@ export function getPlayerPairingLabel(player: Player): string {
   return uid ? `${codeAndName}\nUID: ${uid}` : codeAndName;
 }
 
-export function normalizeUid(value: string): string {
-  return value.replace(/[\s\u3000-]/g, '').trim();
+export function sortPlayersByParticipantCode(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const aCode = a.participantCode?.trim() ?? '';
+    const bCode = b.participantCode?.trim() ?? '';
+    if (!aCode && !bCode) return a.name.localeCompare(b.name);
+    if (!aCode) return 1;
+    if (!bCode) return -1;
+    return aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+  });
 }
 
-export function generateParticipantCodes(competition: TournamentCompetition): TournamentCompetition {
-  const groups = competition.groups.map((group, groupIndex) => {
-    const groupPrefix = String.fromCharCode(65 + groupIndex);
-    return {
-      ...group,
-      players: group.players.map((player, playerIndex) => ({
-        ...player,
-        participantCode: `${groupPrefix}${String(playerIndex + 1).padStart(2, '0')}`,
-      })),
-    };
-  });
-  return { ...competition, groups };
+export function normalizeUid(value: string): string {
+  return value.replace(/[\s\u3000-]/g, '').trim();
 }
 
 export function validateRoster(competition: TournamentCompetition): RosterValidationSummary {
@@ -190,6 +188,15 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
         } else {
           participantCodes.set(code, player.id);
         }
+      } else {
+        issues.push({
+          code: 'MISSING_PARTICIPANT_CODE',
+          message: `${group.name} / 未编号 / ${player.name} 缺少选手编号`,
+          messageEn: `${group.name} / No code / ${player.name} is missing a participant code`,
+          groupIndex,
+          playerId: player.id,
+          fieldKey: 'participantCode',
+        });
       }
     });
   });

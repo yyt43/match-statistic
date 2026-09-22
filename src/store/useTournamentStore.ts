@@ -71,7 +71,6 @@ export interface CompetitionState {
     profile?: Record<string, string>;
   }>, distributeAcrossGroups?: boolean) => RosterValidationSummary;
   setPlayerSchema: (schemaId: PlayerSchemaId) => void;
-  assignParticipantCodes: () => void;
   lockRoster: () => RosterValidationSummary;
   togglePlayerDropped: (playerId: string) => void;
   setPlayerCount: (count: number) => void;
@@ -266,8 +265,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   startTournament: (totalRounds: number) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    if ((competition.playerSchemaId ?? 'generic') === 'poetryCupS2'
-      && !validateRoster(competition).valid) return;
+    if (!validateRoster(competition).valid) return;
     let updated = startTournamentForGroup(competition, idx, totalRounds);
     updated = {
       ...updated,
@@ -284,8 +282,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   startAllGroups: () => {
     const { competition } = get();
-    if ((competition.playerSchemaId ?? 'generic') === 'poetryCupS2'
-      && !validateRoster(competition).valid) return;
+    if (!validateRoster(competition).valid) return;
     let updated = startAllGroupsInCompetition(competition);
     updated = {
       ...updated,
