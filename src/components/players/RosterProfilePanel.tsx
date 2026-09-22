@@ -1,4 +1,4 @@
-import { BadgeCheck, ChevronDown, ChevronUp, Lock, Save, Upload, UserRoundCog } from 'lucide-react';
+import { BadgeCheck, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
@@ -24,7 +24,6 @@ export function RosterProfilePanel() {
     assignParticipantCodes,
     lockRoster,
   } = useTournamentStore();
-  const [expanded, setExpanded] = useState(true);
   const [columns, setColumns] = useState<RosterColumnChoices>({ name: '' });
   const [headers, setHeaders] = useState<string[]>([]);
   const [summary, setSummary] = useState<RosterValidationSummary>(() => validateRoster(competition));
@@ -113,27 +112,7 @@ export function RosterProfilePanel() {
   ] as const;
 
   return (
-    <div className="space-y-2">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <UserRoundCog className="w-3.5 h-3.5" />
-          {isEnglish ? 'Profile import & lock' : '档案导入与锁定'}
-          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-            locked
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-          }`}>
-            {locked ? (isEnglish ? 'Locked' : '已锁定') : (isEnglish ? 'Editable' : '可编辑')}
-          </span>
-        </span>
-        {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
-
-      {expanded && (
-        <div className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-900/25 p-3">
+    <div className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-900/25 p-3">
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setPlayerSchema('generic')}
@@ -266,8 +245,6 @@ export function RosterProfilePanel() {
               {isEnglish ? 'UID and participant codes are immutable.' : 'UID 和选手编号已锁定，不可修改。'}
             </div>
           )}
-        </div>
-      )}
     </div>
   );
 }
