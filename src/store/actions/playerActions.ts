@@ -15,6 +15,7 @@ import {
 } from '../../utils/playerProfiles';
 import type {
   PlayerSchemaId,
+  TournamentGroup,
   TournamentCompetition,
 } from '../../types';
 
@@ -183,6 +184,56 @@ export function createPlayerActions(
         return next;
       });
 
+      const orderedGroupNames = Array.from(new Set(
+        players
+          .map(player => player.groupName?.trim())
+          .filter((name): name is string => !!name)
+      ));
+      if (orderedGroupNames.length > 0) {
+        const template = competition.groups[0];
+        const groups: TournamentGroup[] = orderedGroupNames.map((groupName, index) => {
+          const existing = competition.groups.find(group => group.name.trim() === groupName)
+            ?? competition.groups[index];
+          const base: TournamentGroup = existing ?? {
+            id: generateId(),
+            name: groupName,
+            currentRound: 0,
+            totalRounds: template?.totalRounds ?? 5,
+            status: 'setup',
+            players: [],
+            matches: [],
+            createdAt: new Date().toISOString(),
+            pairingType: template?.pairingType ?? 'swiss',
+            gameType: template?.gameType ?? 'bo1',
+            tiebreakTemplate: template?.tiebreakTemplate,
+            tiebreakRules: template?.tiebreakRules,
+            roundGameTypes: template?.roundGameTypes
+              ? [...template.roundGameTypes]
+              : new Array(template?.totalRounds ?? 5).fill('bo1'),
+          };
+          return {
+            ...base,
+            id: base.id || generateId(),
+            name: groupName,
+            currentRound: 0,
+            status: 'setup',
+            players: nextPlayers.filter(player =>
+              groupNameByPlayerId.get(player.id) === groupName
+            ),
+            matches: [],
+            createdAt: base.createdAt || new Date().toISOString(),
+            playoffBrackets: undefined,
+          };
+        });
+        const updated = {
+          ...competition,
+          groups,
+          currentGroupIndex: 0,
+        };
+        set({ competition: updated }, { label: '按工作表导入选手档案' });
+        return validateRoster(updated);
+      }
+
       const groups = competition.groups.map((group, index) => {
         if (!shouldDistribute) {
           return index === competition.currentGroupIndex
@@ -192,15 +243,6 @@ export function createPlayerActions(
         const hasParticipantCodes = nextPlayers.some(player =>
           /^[A-D][0-9]{2}$/.test(player.participantCode ?? '')
         );
-        const hasGroupNames = groupNameByPlayerId.size > 0;
-        if (hasGroupNames) {
-          const byGroupName = nextPlayers.filter(player =>
-            groupNameByPlayerId.get(player.id) === group.name.trim()
-          );
-          if (byGroupName.length > 0) {
-            return { ...group, players: byGroupName };
-          }
-        }
         if (hasParticipantCodes) {
           const prefix = String.fromCharCode(65 + index);
           const codedPlayers = nextPlayers.filter(player =>

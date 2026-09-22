@@ -81,9 +81,10 @@ export async function parseRosterProfilesFromWorkbook(
 ): Promise<RosterProfileImportRow[]> {
   if (!columns.name) throw new Error('必须选择昵称列');
   const sheets = await parseWorkbookFile(file);
-  const result: RosterProfileImportRow[] = [];
+  const parsedSheets: Array<{ name: string; rows: RosterProfileImportRow[] }> = [];
   for (const sheet of sheets) {
     const { rows } = rowsWithHeaders(sheet);
+    const parsedRows: RosterProfileImportRow[] = [];
     for (const row of rows) {
       const name = row[columns.name]?.trim() ?? '';
       if (!name) continue;
@@ -92,7 +93,7 @@ export async function parseRosterProfilesFromWorkbook(
       const qq = columns.qq ? row[columns.qq]?.trim() ?? '' : '';
       if (uid) profile.uid = uid;
       if (qq) profile.qq = qq;
-      result.push({
+      parsedRows.push({
         name,
         groupName: sheet.name,
         participantCode: columns.participantCode
@@ -101,6 +102,24 @@ export async function parseRosterProfilesFromWorkbook(
         profile,
       });
     }
+    if (parsedRows.length > 0) parsedSheets.push({ name: sheet.name, rows: parsedRows });
   }
-  return result;
+  const isSummarySheet = (name: string) => /全部|汇总|总表|all/i.test(name);
+  const groupedSheets = parsedSheets.filter(sheet => !isSummarySheet(sheet.name));
+  const selectedSheets = groupedSheets.length > 0 ? groupedSheets : parsedSheets;
+  const deduplicated: RosterProfileImportRow[] = [];
+  const seen = new Set<string>();
+  for (const sheet of selectedSheets) {
+    for (const row of sheet.rows) {
+      const key = row.profile?.uid
+        ? `uid:${row.profile.uid}`
+        : row.participantCode
+          ? `code:${row.participantCode.trim().toUpperCase()}`
+          : `name:${row.name.trim().toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduplicated.push(row);
+    }
+  }
+  return deduplicated;
 }
