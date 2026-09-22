@@ -119,7 +119,9 @@ export const translations = {
 
     // Excel headers & content (for excelExport.ts)
     rankCol: '排名',
+    participantCodeCol: '选手编号',
     playerCol: '选手名称',
+    uidCol: 'UID',
     player1Col: '选手1',
     player2Col: '选手2',
     titleCol: '头衔',
@@ -523,7 +525,9 @@ export const translations = {
 
     // Excel headers & content
     rankCol: 'Rank',
+    participantCodeCol: 'Participant code',
     playerCol: 'Player',
+    uidCol: 'UID',
     player1Col: 'Player 1',
     player2Col: 'Player 2',
     titleCol: 'Title',

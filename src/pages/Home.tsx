@@ -246,7 +246,7 @@ export default function Home() {
           </div>
 
           {competition.groups.every(group => group.status === 'setup') ? (
-            <div className="mx-auto max-w-6xl">
+            <div className="mx-auto max-w-7xl">
               <div className="h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px] overflow-hidden">
                 <ControlPanel
                   setupLayout
