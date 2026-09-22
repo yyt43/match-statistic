@@ -100,7 +100,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     subtitle: '专业比赛管理与成绩统计工具',
     features: '功能概览',
     featureItems: [
-      { icon: <Users className="w-5 h-5" />, title: '多小组管理', description: '支持 1-20 个小组独立配置和开赛；缺少编号时可一键补齐，已有编号不会被覆盖。' },
+      { icon: <Users className="w-5 h-5" />, title: '多小组管理', description: '支持 1-20 个小组独立配置和开赛；编号范围为 A01-Z99，缺失时可一键补齐且不覆盖已有编号。' },
       { icon: <Eye className="w-5 h-5" />, title: '选手总览', description: '开赛前集中核对名单，自动检测重名和空小组，支持搜索与复制。' },
       { icon: <UserCog className="w-5 h-5" />, title: '名单管理', description: '逐个修改选手，或从文本、Excel、CSV、TXT 批量导入。' },
       { icon: <UserCog className="w-5 h-5" />, title: '选手档案', description: '支持通用模板和诗意杯模板，分别维护选手编号、9 位 UID 和 QQ。' },
@@ -231,7 +231,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     subtitle: 'Tournament management, pairings, rankings, backups, and exports',
     features: 'Features',
     featureItems: [
-      { icon: <Users className="w-5 h-5" />, title: 'Multi-group management', description: 'Configure and run 1-20 groups. Missing participant codes can be filled without overwriting existing codes.' },
+      { icon: <Users className="w-5 h-5" />, title: 'Multi-group management', description: 'Configure and run 1-20 groups. Codes use A01-Z99, and missing codes can be filled without overwriting existing ones.' },
       { icon: <Eye className="w-5 h-5" />, title: 'Player overview', description: 'Validate every roster before play, with duplicate and empty-group detection, search, and copy tools.' },
       { icon: <UserCog className="w-5 h-5" />, title: 'Roster management', description: 'Edit players individually or import from text, Excel, CSV, and TXT files.' },
       { icon: <Swords className="w-5 h-5" />, title: 'Swiss and elimination', description: 'Use Swiss or single-elimination pairings with per-round BO1, BO3, BO5, or BO7 settings.' },

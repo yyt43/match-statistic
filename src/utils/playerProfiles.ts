@@ -33,6 +33,9 @@ export interface RosterValidationSummary {
   playerIdToUid: Map<string, string>;
 }
 
+export const PARTICIPANT_CODE_PATTERN = '^[A-Z](0[1-9]|[1-9][0-9])$';
+export const PARTICIPANT_CODE_MAX = 99;
+
 export const UNIFIED_PLAYER_FIELDS: PlayerFieldDefinition[] = [
   {
     key: 'participantCode',
@@ -44,7 +47,7 @@ export const UNIFIED_PLAYER_FIELDS: PlayerFieldDefinition[] = [
     visibility: 'public',
     searchable: true,
     showInPairings: true,
-    pattern: '^[A-D](0[1-9]|[12][0-9]|3[0-2])$',
+    pattern: PARTICIPANT_CODE_PATTERN,
     importAliases: ['选手编号', '编号', '参赛编号'],
   },
   {

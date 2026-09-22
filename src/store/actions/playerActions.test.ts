@@ -103,6 +103,24 @@ describe('player profile store actions', () => {
     expect(updated.groups[0].currentRound).toBe(0);
   });
 
+  it('continues numbering after 32 when earlier codes are already occupied', () => {
+    const competition = createNewCompetition('Profiles', 1, 34, 3, 'bo3');
+    competition.groups[0].players.forEach((player, index) => {
+      if (index < 32) {
+        player.participantCode = `A${String(index + 1).padStart(2, '0')}`;
+      }
+    });
+    useTournamentStore.setState({ competition });
+
+    const result = useTournamentStore.getState().generateMissingParticipantCodes();
+    const codes = useTournamentStore.getState().competition.groups[0].players.map(
+      player => player.participantCode
+    );
+
+    expect(result).toEqual({ assigned: 2, unresolved: 0 });
+    expect(codes.slice(-2)).toEqual(['A33', 'A34']);
+  });
+
   it('assigns workbook rows to groups matching their sheet names', () => {
     const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
     competition.groups[0].name = '甲组';

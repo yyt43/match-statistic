@@ -60,6 +60,19 @@ describe('player profile schema', () => {
     expect(normalizeUid(' 180-748-058 ')).toBe('180748058');
   });
 
+  it('accepts participant codes from A01 through Z99', () => {
+    const competition = poetryCompetition();
+    competition.groups[0].players[0].participantCode = 'A01';
+    competition.groups[0].players[1].participantCode = 'Z99';
+    competition.groups[1].players[0].participantCode = 'E35';
+    competition.groups[1].players[1].participantCode = 'T100';
+
+    const summary = validateRoster(competition);
+    expect(summary.issues.some(issue => issue.code === 'INVALID_PARTICIPANT_CODE')).toBe(true);
+    expect(summary.issues.find(issue => issue.code === 'INVALID_PARTICIPANT_CODE')?.message)
+      .toContain('T100');
+  });
+
   it('sorts players strictly by participant code', () => {
     const players = [
       { id: '3', name: 'three', participantCode: 'A10', points: 0, wins: 0, losses: 0, totalGames: 0, wonGames: 0, winRate: 0, opponentWinRate: 0, opponentOpponentWinRate: 0, gameWinRate: 0, opponentGameWinRate: 0, playedAgainst: [] },
