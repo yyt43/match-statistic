@@ -14,7 +14,12 @@ function getPlayerName(players: Player[], playerId: string, t: TranslationTable)
   if (playerId === 'bye') return '-';
   const player = players.find(p => p.id === playerId);
   if (!player) return t.unknownPlayer;
-  return player.participantCode ? `${player.participantCode} · ${player.name}` : player.name;
+  return player.name;
+}
+
+function getPlayerCode(players: Player[], playerId: string): string {
+  if (playerId === 'bye') return '';
+  return players.find(player => player.id === playerId)?.participantCode?.trim() ?? '';
 }
 
 function getPlayerUid(players: Player[], playerId: string): string {
@@ -74,9 +79,25 @@ export function getRankingTableData(group: TournamentGroup, language: AppLanguag
 
   let headers: string[];
   if (isSingleElimination) {
-    headers = [t.rankCol, t.playerCol, t.titleCol, `${t.recordCol}(W-L)`, t.eliminatedRoundCol];
+    headers = [
+      t.rankCol,
+      t.participantCodeCol,
+      t.playerCol,
+      t.uidCol,
+      t.titleCol,
+      `${t.recordCol}(W-L)`,
+      t.eliminatedRoundCol,
+    ];
   } else {
-    headers = [t.rankCol, t.playerCol, `${t.recordCol}(W-L)`, t.winRateCol, t.oppWinRateCol];
+    headers = [
+      t.rankCol,
+      t.participantCodeCol,
+      t.playerCol,
+      t.uidCol,
+      `${t.recordCol}(W-L)`,
+      t.winRateCol,
+      t.oppWinRateCol,
+    ];
     if (isMultiGame) {
       headers.push(t.gameWinRateCol, t.oppGameWinRateCol);
     } else {
@@ -88,26 +109,36 @@ export function getRankingTableData(group: TournamentGroup, language: AppLanguag
   const rows: (string | number)[][] = sortedPlayers.map((player, index) => {
     const isCompleted = group.status === 'completed';
     const isSingleElim = group.pairingType === 'single_elimination';
-    const baseDisplayName = player.participantCode
-      ? `${player.participantCode} · ${player.name}`
-      : player.name;
+    const baseDisplayName = player.name;
     const displayName = player.dropped
       ? `${baseDisplayName}${t.dropppedMark}`
       : (player.eliminated && !(isCompleted && isSingleElim))
         ? `${baseDisplayName}${t.eliminatedMark}`
         : baseDisplayName;
     const rank = index + 1;
+    const participantCode = player.participantCode?.trim() ?? '';
+    const uid = player.profile?.uid?.trim() ?? '';
 
     if (isSingleElimination) {
       const eliminatedRound = getEliminatedRound(player, group.matches);
       const eliminatedText = eliminatedRound !== null
         ? formatText(t.eliminatedRound, { round: eliminatedRound })
         : rank === 1 ? t.champion : '-';
-      return [rank, displayName, getEliminationTitleI18n(rank, group.totalRounds, language), `${player.wins}-${player.losses}`, eliminatedText];
+      return [
+        rank,
+        participantCode,
+        displayName,
+        uid,
+        getEliminationTitleI18n(rank, group.totalRounds, language),
+        `${player.wins}-${player.losses}`,
+        eliminatedText,
+      ];
     } else {
       const row: (string | number)[] = [
         rank,
+        participantCode,
         displayName,
+        uid,
         `${player.wins}-${player.losses}`,
         formatPercent(player.winRate),
         formatPercent(player.opponentWinRate),
@@ -137,37 +168,28 @@ export function getMatchTableData(group: TournamentGroup, round: number, languag
       return 0;
     });
 
-  const hasProfileColumns = group.players.some(player =>
-    !!player.participantCode || !!player.profile?.uid
-  );
-  const headers = hasProfileColumns
-    ? [
-        t.matchNoCol,
-        t.player1Col,
-        'UID',
-        t.scoreCol,
-        t.player2Col,
-        'UID',
-        t.resultCol,
-      ]
-    : [t.matchNoCol, t.player1Col, t.scoreCol, t.player2Col, t.resultCol];
-  const rows: (string | number)[][] = roundMatches.map((match, index) => hasProfileColumns
-    ? [
-        index + 1,
-        getPlayerName(group.players, match.player1Id, t),
-        getPlayerUid(group.players, match.player1Id),
-        getMatchScore(match),
-        match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
-        match.isBye ? '' : getPlayerUid(group.players, match.player2Id),
-        getMatchResultText(match, t),
-      ]
-    : [
-        index + 1,
-        getPlayerName(group.players, match.player1Id, t),
-        getMatchScore(match),
-        match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
-        getMatchResultText(match, t),
-      ]);
+  const headers = [
+    t.matchNoCol,
+    `${t.participantCodeCol} 1`,
+    `${t.playerCol} 1`,
+    `${t.uidCol} 1`,
+    t.scoreCol,
+    `${t.participantCodeCol} 2`,
+    `${t.playerCol} 2`,
+    `${t.uidCol} 2`,
+    t.resultCol,
+  ];
+  const rows: (string | number)[][] = roundMatches.map((match, index) => [
+    index + 1,
+    getPlayerCode(group.players, match.player1Id),
+    getPlayerName(group.players, match.player1Id, t),
+    getPlayerUid(group.players, match.player1Id),
+    getMatchScore(match),
+    match.isBye ? '' : getPlayerCode(group.players, match.player2Id),
+    match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
+    match.isBye ? '' : getPlayerUid(group.players, match.player2Id),
+    getMatchResultText(match, t),
+  ]);
 
   return { headers, rows };
 }

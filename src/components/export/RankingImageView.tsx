@@ -57,11 +57,11 @@ export function RankingImageView() {
 
   let colWidths: string[];
   if (isSingleElimination) {
-    colWidths = ['8%', '32%', '17%', '17%', '26%'];
+    colWidths = ['6%', '10%', '20%', '13%', '14%', '10%', '17%'];
   } else if (isMultiGame) {
-    colWidths = ['8%', '17%', '8%', '17%', '8%', '8%', '34%'];
+    colWidths = ['6%', '9%', '15%', '12%', '8%', '13%', '8%', '8%', '21%'];
   } else {
-    colWidths = ['8%', '25%', '8%', '17%', '17%', '25%'];
+    colWidths = ['6%', '10%', '18%', '14%', '8%', '14%', '14%', '16%'];
   }
 
   return (
@@ -83,27 +83,29 @@ export function RankingImageView() {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: colWidths[0] }}>{t.rankCol}</th>
-              <th style={{ ...thStyle, width: colWidths[1] }}>{t.playerCol}</th>
+              <th style={{ ...thStyle, width: colWidths[1] }}>{t.participantCodeCol}</th>
+              <th style={{ ...thStyle, width: colWidths[2] }}>{t.playerCol}</th>
+              <th style={{ ...thStyle, width: colWidths[3] }}>{t.uidCol}</th>
               {isSingleElimination ? (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.titleCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.recordCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.eliminatedRoundCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.titleCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[6] }}>{t.eliminatedRoundCol}</th>
                 </>
               ) : isMultiGame ? (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.recordCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.oppWinRateCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.gameWinRateCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.oppGameWinRateCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[6] }}>{t.historyCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.oppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[6] }}>{t.gameWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[7] }}>{t.oppGameWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[8] }}>{t.historyCol}</th>
                 </>
               ) : (
                 <>
-                  <th style={{ ...thCenter, width: colWidths[2] }}>{t.recordCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[3] }}>{t.oppWinRateCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.oppOppWinRateCol}</th>
-                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.historyCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[4] }}>{t.recordCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[5] }}>{t.oppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[6] }}>{t.oppOppWinRateCol}</th>
+                  <th style={{ ...thCenter, width: colWidths[7] }}>{t.historyCol}</th>
                 </>
               )}
             </tr>
@@ -128,6 +130,9 @@ export function RankingImageView() {
               return (
                 <tr key={player.id} style={{ background: bgColor }}>
                   <td style={{ ...tdBase, color: rankColor, fontWeight: 700 }}>{rank}</td>
+                  <td style={{ ...tdBase, color: '#facc15', fontFamily: 'monospace', fontWeight: 700 }}>
+                    {player.participantCode ?? '-'}
+                  </td>
                   <td style={{ ...tdBase, color: nameColor, fontWeight: 500 }}>
                     <span style={{
                       overflow: 'hidden',
@@ -174,6 +179,9 @@ export function RankingImageView() {
                         </span>
                       )}
                     </span>
+                  </td>
+                  <td style={{ ...tdBase, color: '#7dd3fc', fontFamily: 'monospace' }}>
+                    {player.profile?.uid ?? '-'}
                   </td>
 
                   {isSingleElimination ? (

@@ -165,6 +165,9 @@ try {
   }
   await startDialog.getByRole('button', { name: 'Confirm and start' }).click();
   await waitForText(page, 'Round 1 match list');
+  if (await page.getByRole('button', { name: /^Groups/ }).count() > 0) {
+    throw new Error('Group management is still visible after the event starts.');
+  }
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();
   await waitForText(page, 'W = Win');
 
