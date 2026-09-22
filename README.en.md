@@ -41,6 +41,7 @@ This project is suited for tournament management, club events, team activities, 
 - Consistent exports: rankings, image rankings, match tables, and summaries include participant code and UID
 - Mobile adaptation: the pre-start workspace stacks vertically and header stats/actions wrap on small screens
 - Adaptive player preview: automatically uses 1-4 columns by group count, including a stable 2x2 layout for four groups
+- Start validation: block starting while roster codes, UIDs, QQ values, or nicknames still have errors
 - Quick score entry: multi-group scoring with search, filters, feedback before advance, and keyboard shortcuts
 - Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups
@@ -175,7 +176,7 @@ Player management uses one unified player workbook. There is no separate Generic
 
 Group switching is integrated into the Current Group bar. Click Group A, B, C, or D directly to switch.
 
-The player workbook import is placed in the Event Data column on the pre-start workspace. Player rows are sorted strictly by participant code, and codes must come from the imported workbook; there is no code-generation button.
+The player workbook import is placed in the Event Data column on the pre-start workspace. Player rows are sorted strictly by participant code. If codes are missing, the one-click action fills only empty codes and never overwrites existing ones.
 
 The profile importer automatically recognizes columns such as:
 
@@ -186,7 +187,7 @@ UID / Game UID / 游戏UID / 玩家UID
 QQ / QQ number / QQ号
 ```
 
-Participant codes must be present in the imported workbook; the app does not provide automatic code generation. Empty UID or QQ values do not block imports; when provided, they are validated for format and uniqueness. Once locked, participant codes and UIDs cannot be changed.
+Participant codes are preferably imported from the workbook. The one-click action can fill empty codes by group, but never overwrites existing values. Empty UID or QQ values do not block imports; when provided, they are validated for format and uniqueness. Once locked, participant codes and UIDs cannot be changed.
 
 The app no longer requires a per-match confirmation or dispute flow. If a result is wrong, the referee edits or overrides it directly; imported results require a reason and preserve the override history.
 

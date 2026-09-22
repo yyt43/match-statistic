@@ -28,6 +28,7 @@ type PlayerActionKey =
   | 'importPlayerProfiles'
   | 'setPlayerSchema'
   | 'lockRoster'
+  | 'generateMissingParticipantCodes'
   | 'togglePlayerDropped'
   | 'setPlayerCount';
 
@@ -298,6 +299,57 @@ export function createPlayerActions(
         playerCount: updated.groups.reduce((sum, group) => sum + group.players.length, 0),
       });
       return validateRoster(updated);
+    },
+
+    generateMissingParticipantCodes: () => {
+      const { competition } = get();
+      if (isRosterLocked(competition)) {
+        return {
+          assigned: 0,
+          unresolved: competition.groups.reduce(
+            (sum, group) => sum + group.players.filter(player => !player.participantCode?.trim()).length,
+            0
+          ),
+        };
+      }
+
+      let assigned = 0;
+      let unresolved = 0;
+      const groups = competition.groups.map((group, groupIndex) => {
+        const prefix = String.fromCharCode(65 + groupIndex);
+        const usedNumbers = new Set<number>();
+        for (const existingGroup of competition.groups) {
+          for (const player of existingGroup.players) {
+            const match = player.participantCode?.trim().match(
+              new RegExp(`^${prefix}([0-9]{1,2})$`, 'i')
+            );
+            if (match) usedNumbers.add(Number(match[1]));
+          }
+        }
+
+        const players = group.players.map(player => {
+          if (player.participantCode?.trim()) return player;
+          let number = 1;
+          while (number <= 32 && usedNumbers.has(number)) number += 1;
+          if (number > 32) {
+            unresolved += 1;
+            return player;
+          }
+          usedNumbers.add(number);
+          assigned += 1;
+          return {
+            ...player,
+            participantCode: `${prefix}${String(number).padStart(2, '0')}`,
+          };
+        });
+
+        return { ...group, players };
+      });
+
+      if (assigned > 0) {
+        persist({ ...competition, groups }, '补齐缺失选手编号');
+      }
+      return { assigned, unresolved };
     },
 
     togglePlayerDropped: (playerId: string) => {
