@@ -6,7 +6,6 @@ import { ControlPanel } from '../components/competition/ControlPanel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
-import { GroupTabs } from '../components/competition/GroupTabs';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 import { OnboardingModal } from '../components/common/OnboardingModal';
 import { CommandPalette } from '../components/common/CommandPalette';
@@ -215,13 +214,6 @@ export default function Home() {
       </button>
 
       <Header lastSavedAt={lastSavedAt} />
-
-      {/* 小组切换标签 */}
-      <div className="px-4 md:px-6 pt-4">
-        <div className="max-w-7xl mx-auto">
-          <GroupTabs />
-        </div>
-      </div>
 
       <main className="flex-1 px-4 md:px-6 py-4">
         <div className="max-w-7xl mx-auto">

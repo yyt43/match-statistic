@@ -32,26 +32,12 @@ export interface RosterValidationSummary {
   playerIdToUid: Map<string, string>;
 }
 
-export const GENERIC_PLAYER_FIELDS: PlayerFieldDefinition[] = [
+export const UNIFIED_PLAYER_FIELDS: PlayerFieldDefinition[] = [
   {
     key: 'participantCode',
     label: '选手编号',
     type: 'text',
     required: false,
-    unique: true,
-    immutableAfter: 'rosterLock',
-    visibility: 'public',
-    searchable: true,
-    showInPairings: true,
-  },
-];
-
-export const POETRY_CUP_PLAYER_FIELDS: PlayerFieldDefinition[] = [
-  {
-    key: 'participantCode',
-    label: '选手编号',
-    type: 'text',
-    required: true,
     unique: true,
     immutableAfter: 'rosterLock',
     visibility: 'public',
@@ -64,7 +50,7 @@ export const POETRY_CUP_PLAYER_FIELDS: PlayerFieldDefinition[] = [
     key: 'uid',
     label: '游戏UID',
     type: 'gameUid',
-    required: true,
+    required: false,
     unique: true,
     immutableAfter: 'rosterLock',
     visibility: 'public',
@@ -77,7 +63,7 @@ export const POETRY_CUP_PLAYER_FIELDS: PlayerFieldDefinition[] = [
     key: 'qq',
     label: 'QQ号',
     type: 'qq',
-    required: true,
+    required: false,
     unique: false,
     immutableAfter: 'rosterLock',
     visibility: 'admin',
@@ -88,12 +74,16 @@ export const POETRY_CUP_PLAYER_FIELDS: PlayerFieldDefinition[] = [
   },
 ];
 
+export const GENERIC_PLAYER_FIELDS = UNIFIED_PLAYER_FIELDS;
+export const POETRY_CUP_PLAYER_FIELDS = UNIFIED_PLAYER_FIELDS;
+
 export function getPlayerSchemaId(competition: TournamentCompetition): PlayerSchemaId {
   return competition.playerSchemaId === 'poetryCupS2' ? 'poetryCupS2' : 'generic';
 }
 
 export function getDefaultPlayerFields(schemaId: PlayerSchemaId): PlayerFieldDefinition[] {
-  return (schemaId === 'poetryCupS2' ? POETRY_CUP_PLAYER_FIELDS : GENERIC_PLAYER_FIELDS)
+  void schemaId;
+  return UNIFIED_PLAYER_FIELDS
     .map(field => ({ ...field, importAliases: field.importAliases ? [...field.importAliases] : undefined }));
 }
 
@@ -162,35 +152,37 @@ export function generateParticipantCodes(competition: TournamentCompetition): To
 
 export function validateRoster(competition: TournamentCompetition): RosterValidationSummary {
   const fields = getPlayerFields(competition);
-  const schemaId = getPlayerSchemaId(competition);
   const issues: RosterValidationIssue[] = [];
   const participantCodes = new Map<string, string>();
   const uidToPlayerId = new Map<string, string>();
   const playerIdToUid = new Map<string, string>();
+  const playerGroupName = new Map<string, string>();
   let playerCount = 0;
 
   competition.groups.forEach((group, groupIndex) => {
     group.players.forEach(player => {
       playerCount += 1;
+      playerGroupName.set(player.id, group.name);
+      const code = player.participantCode?.trim() ?? '';
+      const playerLabel = `${group.name} / ${code || '未编号'} / ${player.name}`;
       if (!player.name.trim()) {
         issues.push({
           code: 'MISSING_NAME',
-          message: `${group.name} 存在空昵称`,
-          messageEn: `${group.name} contains an empty nickname`,
+          message: `${playerLabel} 缺少昵称`,
+          messageEn: `${group.name} / ${code || 'No code'} / Unnamed player is missing a nickname`,
           groupIndex,
           playerId: player.id,
           fieldKey: 'name',
         });
       }
 
-      const code = player.participantCode?.trim() ?? '';
       if (code) {
         const previous = participantCodes.get(code);
         if (previous && previous !== player.id) {
           issues.push({
             code: 'DUPLICATE_PARTICIPANT_CODE',
-            message: `选手编号 ${code} 重复`,
-            messageEn: `Participant code ${code} is duplicated`,
+            message: `${playerLabel} 的选手编号重复`,
+            messageEn: `${group.name} / ${code} / ${player.name} has a duplicated participant code`,
             groupIndex,
             playerId: player.id,
             fieldKey: 'participantCode',
@@ -202,105 +194,75 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
     });
   });
 
-  if (schemaId === 'poetryCupS2') {
-    competition.groups.forEach((group, groupIndex) => {
-      group.players.forEach(player => {
-        const code = player.participantCode?.trim() ?? '';
-        const uid = normalizeUid(player.profile?.uid ?? '');
-        const qq = player.profile?.qq?.trim() ?? '';
-        const codeField = fields.find(field => field.key === 'participantCode');
-        const uidField = fields.find(field => field.key === 'uid');
-        const qqField = fields.find(field => field.key === 'qq');
+  competition.groups.forEach((group, groupIndex) => {
+    group.players.forEach(player => {
+      const code = player.participantCode?.trim() ?? '';
+      const playerLabel = `${group.name} / ${code || '未编号'} / ${player.name}`;
+      const uid = normalizeUid(player.profile?.uid ?? '');
+      const qq = player.profile?.qq?.trim() ?? '';
+      const codeField = fields.find(field => field.key === 'participantCode');
+      const uidField = fields.find(field => field.key === 'uid');
+      const qqField = fields.find(field => field.key === 'qq');
 
-        if (!code) {
-          issues.push({
-            code: 'INVALID_PARTICIPANT_CODE',
-            message: `${player.name} 缺少选手编号`,
-            messageEn: `${player.name} is missing a participant code`,
-            groupIndex,
-            playerId: player.id,
-            fieldKey: 'participantCode',
-          });
-        } else if (codeField?.pattern && !new RegExp(codeField.pattern).test(code)) {
-          issues.push({
-            code: 'INVALID_PARTICIPANT_CODE',
-            message: `${player.name} 的选手编号 ${code} 格式错误`,
-            messageEn: `${player.name} has an invalid participant code: ${code}`,
-            groupIndex,
-            playerId: player.id,
-            fieldKey: 'participantCode',
-          });
-        }
+      if (code && codeField?.pattern && !new RegExp(codeField.pattern).test(code)) {
+        issues.push({
+          code: 'INVALID_PARTICIPANT_CODE',
+          message: `${playerLabel} 的选手编号格式错误`,
+          messageEn: `${group.name} / ${code} / ${player.name} has an invalid participant code`,
+          groupIndex,
+          playerId: player.id,
+          fieldKey: 'participantCode',
+        });
+      }
 
-        if (!uid) {
+      if (uid && uidField?.pattern && !new RegExp(uidField.pattern).test(uid)) {
+        issues.push({
+          code: 'INVALID_UID',
+          message: `${playerLabel} 的 UID ${uid} 格式错误`,
+          messageEn: `${group.name} / ${code || 'No code'} / ${player.name} has an invalid UID: ${uid}`,
+          groupIndex,
+          playerId: player.id,
+          fieldKey: 'uid',
+        });
+      } else if (uid) {
+        const previous = uidToPlayerId.get(uid);
+        if (previous && previous !== player.id) {
           issues.push({
-            code: 'MISSING_UID',
-            message: `${player.name} 缺少 UID`,
-            messageEn: `${player.name} is missing a UID`,
-            groupIndex,
-            playerId: player.id,
-            fieldKey: 'uid',
-          });
-        } else if (uidField?.pattern && !new RegExp(uidField.pattern).test(uid)) {
-          issues.push({
-            code: 'INVALID_UID',
-            message: `${player.name} 的 UID ${uid} 格式错误`,
-            messageEn: `${player.name} has an invalid UID: ${uid}`,
+            code: 'DUPLICATE_UID',
+            message: `${playerLabel} 的 UID ${uid} 重复`,
+            messageEn: `${group.name} / ${code || 'No code'} / ${player.name} has a duplicated UID: ${uid}`,
             groupIndex,
             playerId: player.id,
             fieldKey: 'uid',
           });
         } else {
-          const previous = uidToPlayerId.get(uid);
-          if (previous && previous !== player.id) {
-            issues.push({
-              code: 'DUPLICATE_UID',
-              message: `UID ${uid} 重复`,
-              messageEn: `UID ${uid} is duplicated`,
-              groupIndex,
-              playerId: player.id,
-              fieldKey: 'uid',
-            });
-          } else {
-            uidToPlayerId.set(uid, player.id);
-            playerIdToUid.set(player.id, uid);
-          }
+          uidToPlayerId.set(uid, player.id);
+          playerIdToUid.set(player.id, uid);
         }
+      }
 
-        if (!qq) {
-          issues.push({
-            code: 'MISSING_QQ',
-            message: `${player.name} 缺少 QQ`,
-            messageEn: `${player.name} is missing a QQ number`,
-            groupIndex,
-            playerId: player.id,
-            fieldKey: 'qq',
-          });
-        } else if (qqField?.pattern && !new RegExp(qqField.pattern).test(qq)) {
-          issues.push({
-            code: 'INVALID_QQ',
-            message: `${player.name} 的 QQ ${qq} 格式错误`,
-            messageEn: `${player.name} has an invalid QQ number: ${qq}`,
-            groupIndex,
-            playerId: player.id,
-            fieldKey: 'qq',
-          });
-        }
-      });
-    });
-  }
-
-  if (schemaId === 'poetryCupS2') {
-    for (const [playerId, uid] of playerIdToUid) {
-      if (uidToPlayerId.get(uid) !== playerId) {
+      if (qq && qqField?.pattern && !new RegExp(qqField.pattern).test(qq)) {
         issues.push({
-          code: 'UID_ID_MISMATCH',
-          message: `UID ${uid} 与 Player.id 映射不一致`,
-          messageEn: `UID ${uid} is not mapped one-to-one with Player.id`,
-          playerId,
-          fieldKey: 'uid',
+          code: 'INVALID_QQ',
+          message: `${playerLabel} 的 QQ ${qq} 格式错误`,
+          messageEn: `${group.name} / ${code || 'No code'} / ${player.name} has an invalid QQ number: ${qq}`,
+          groupIndex,
+          playerId: player.id,
+          fieldKey: 'qq',
         });
       }
+    });
+  });
+
+  for (const [playerId, uid] of playerIdToUid) {
+    if (uidToPlayerId.get(uid) !== playerId) {
+      issues.push({
+        code: 'UID_ID_MISMATCH',
+        message: `${playerGroupName.get(playerId) ?? '未知组别'} / ${uid} 与 Player.id 映射不一致`,
+        messageEn: `${playerGroupName.get(playerId) ?? 'Unknown group'} / ${uid} is not mapped one-to-one with Player.id`,
+        playerId,
+        fieldKey: 'uid',
+      });
     }
   }
 

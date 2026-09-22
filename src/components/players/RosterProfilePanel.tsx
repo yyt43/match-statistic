@@ -2,7 +2,6 @@ import { BadgeCheck, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
-import type { PlayerSchemaId } from '../../types';
 import {
   getRosterWorkbookColumnsFromFile,
   parseRosterProfilesFromWorkbook,
@@ -19,7 +18,6 @@ export function RosterProfilePanel() {
   const isEnglish = language === 'en';
   const {
     competition,
-    setPlayerSchema,
     importPlayerProfiles,
     assignParticipantCodes,
     lockRoster,
@@ -31,7 +29,6 @@ export function RosterProfilePanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const locked = isRosterLocked(competition);
-  const schemaId: PlayerSchemaId = competition.playerSchemaId ?? 'generic';
 
   useEffect(() => {
     setSummary(validateRoster(competition));
@@ -43,9 +40,6 @@ export function RosterProfilePanel() {
       const detected = await getRosterWorkbookColumnsFromFile(file);
       setHeaders(detected.headers);
       setColumns(detected.detected);
-      if (detected.detected.uid || detected.detected.qq) {
-        setPlayerSchema('poetryCupS2');
-      }
       if (detected.detected.name) {
         await importProfiles(file, detected.detected, true);
       } else {
@@ -113,31 +107,6 @@ export function RosterProfilePanel() {
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-900/25 p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setPlayerSchema('generic')}
-              disabled={locked || schemaId === 'generic'}
-              className={`rounded-lg border px-3 py-2 text-xs ${
-                schemaId === 'generic'
-                  ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
-                  : 'border-slate-700 bg-slate-800/40 text-slate-400'
-              } disabled:opacity-60`}
-            >
-              {isEnglish ? 'Generic' : '通用模板'}
-            </button>
-            <button
-              onClick={() => setPlayerSchema('poetryCupS2')}
-              disabled={locked || schemaId === 'poetryCupS2'}
-              className={`rounded-lg border px-3 py-2 text-xs ${
-                schemaId === 'poetryCupS2'
-                  ? 'border-gold-500/40 bg-gold-500/15 text-gold-400'
-                  : 'border-slate-700 bg-slate-800/40 text-slate-400'
-              } disabled:opacity-60`}
-            >
-              诗意杯 S2
-            </button>
-          </div>
-
           <input
             ref={fileInputRef}
             type="file"
@@ -185,16 +154,14 @@ export function RosterProfilePanel() {
             </div>
           )}
 
-          <div className={`grid gap-2 ${schemaId === 'poetryCupS2' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {schemaId === 'poetryCupS2' && (
-              <button
-                onClick={handleAssignCodes}
-                disabled={locked}
-                className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
-              >
-                {isEnglish ? 'Generate codes' : '生成 A01-D32'}
-              </button>
-            )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleAssignCodes}
+              disabled={locked}
+              className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
+            >
+              {isEnglish ? 'Generate codes' : '生成 A01-D32'}
+            </button>
             <button
               onClick={handleLock}
               disabled={locked}

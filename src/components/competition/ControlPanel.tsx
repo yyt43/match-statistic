@@ -272,9 +272,24 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
       <div className="px-4 py-2.5 border-b border-slate-700/50 bg-slate-800/20">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500 shrink-0">{isEnglish ? 'Current group' : '当前小组'}</span>
-          <span className="flex-1 truncate text-gold-400 font-medium">
-            {currentGroup.name}
-          </span>
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+            {competition.groups.map((group, index) => {
+              const isActive = index === competition.currentGroupIndex;
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => setCurrentGroup(index)}
+                  className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'border-gold-500/50 bg-gold-500/15 text-gold-400'
+                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                >
+                  {group.name}
+                </button>
+              );
+            })}
+          </div>
           <span className="text-slate-600 shrink-0">
             {currentGroup.players.length}{isEnglish ? '' : '人'}
           </span>
