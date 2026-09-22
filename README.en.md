@@ -29,6 +29,7 @@ This project is suited for tournament management, club events, team activities, 
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
 - Unified player profiles: nickname, participant code, 9-digit UID, and QQ use one import template and one editable list
+- Current group switcher: click Group A, B, C, or D directly in the Current Group bar
 - Result workbook import: match by participant code, verify code plus UID, detect conflicts, and route exceptions to referees
 - Tencent Docs compatibility: long headers, multiple sheets, screenshot filename references, and optional screenshot verification
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
@@ -166,6 +167,8 @@ This is useful when organizers keep different group rosters in separate tabs and
 ## Player Profiles and UID
 
 Player management uses one unified player workbook. There is no separate Generic or Poetry Cup profile selector. Nickname, participant code, UID, and QQ are imported and edited in the same list.
+
+Group switching is integrated into the Current Group bar. Click Group A, B, C, or D directly to switch.
 
 The profile importer automatically recognizes columns such as:
 
