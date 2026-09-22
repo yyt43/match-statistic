@@ -76,7 +76,6 @@ export function ControlPanel({
     updateCompetitionName,
     addGroup,
     removeGroup,
-    setGroupCount,
     applyGroupConfiguration,
     updateGroupName,
     importCompetition,
@@ -92,9 +91,7 @@ export function ControlPanel({
   const [showResultImport, setShowResultImport] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [showLegacyGroupManager] = useState(false);
-  const [showFormatManager, setShowFormatManager] = useState(setupLayout);
+  const [isEditingName, setIsEditingName] = useState(false);  const [showFormatManager, setShowFormatManager] = useState(setupLayout);
   const [showPlayerManager, setShowPlayerManager] = useState(true);
   const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
   const [draftGameType, setDraftGameType] = useState<GameType>(currentGroup.gameType);
@@ -110,7 +107,6 @@ export function ControlPanel({
   const [startConfirmTarget, setStartConfirmTarget] = useState<'single' | 'all' | null>(null);
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
   const [editGroupNameValue, setEditGroupNameValue] = useState('');
-  const [groupCountInput, setGroupCountInput] = useState<string>(String(competition.groups.length));
   // 数字输入框字符串缓冲（允许清空编辑中间态）
   const [playerCountInput, setPlayerCountInput] = useState<string>(String(currentGroup.players.length));
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
@@ -130,11 +126,6 @@ export function ControlPanel({
     setIsEditingName(false);
     setImportError(null);
   }, [competition.id]);
-
-  // 同步小组数量输入框与实际小组数
-  useEffect(() => {
-    setGroupCountInput(String(competition.groups.length));
-  }, [competition.groups.length]);
 
   useEffect(() => {
     setEditGroupNameValue(currentGroup.name);
@@ -185,7 +176,6 @@ export function ControlPanel({
   const isInProgress = currentGroup.status === 'in_progress';
   const isCompleted = currentGroup.status === 'completed';
   // 任一小组已开始比赛时，禁止调整小组数量
-  const hasAnyStarted = competition.groups.some(g => g.status !== 'setup');
   const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
   const draftPlayerCount = Math.max(
     2,
@@ -664,245 +654,6 @@ export function ControlPanel({
           {competitionDataContent}
         </div>
       )}
-      {setupLayout && showLegacyGroupManager && (
-        <div className={setupLayout
-          ? 'col-start-1 row-start-1 min-h-0 overflow-y-auto border-r border-slate-700/50 p-4'
-          : 'border-b border-slate-700/50 px-4 py-3'}
-        >
-          <div className={setupLayout
-            ? 'space-y-2'
-            : 'max-h-40 space-y-2 overflow-y-auto overscroll-contain pr-1'}
-          >
-            {setupLayout ? (
-              <div className="space-y-2">
-                <label className="text-xs text-slate-500">
-                  {isEnglish ? 'Current group name' : '当前小组名称'}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={editGroupNameValue}
-                    onChange={event => setEditGroupNameValue(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter' && editGroupNameValue.trim()) {
-                        updateGroupName(competition.currentGroupIndex, editGroupNameValue);
-                      }
-                    }}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-700/70 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-gold-500/50"
-                  />
-                  <button
-                    onClick={() => {
-                      if (editGroupNameValue.trim()) {
-                        updateGroupName(competition.currentGroupIndex, editGroupNameValue);
-                      }
-                    }}
-                    className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] text-emerald-300 transition-colors hover:bg-emerald-500/20"
-                  >
-                    {isEnglish ? 'Save' : '保存'}
-                  </button>
-                </div>
-                <div className="space-y-2 border-t border-slate-700/50 pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">
-                      {isEnglish ? 'Group overview' : '小组概览'}
-                    </span>
-                    <span className="text-[10px] text-slate-600">
-                      {competition.groups.length}{isEnglish ? ' groups' : ' 组'}
-                    </span>
-                  </div>
-                  <div className="max-h-48 space-y-1 overflow-y-auto">
-                    {competition.groups.map((group, index) => (
-                      <div
-                        key={group.id}
-                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-[11px] ${
-                          index === competition.currentGroupIndex
-                            ? 'border border-gold-500/30 bg-gold-500/10 text-gold-300'
-                            : 'bg-slate-800/30 text-slate-400'
-                        }`}
-                      >
-                        <span className="truncate">{group.name}</span>
-                        <span className="shrink-0 text-slate-500">
-                          {group.players.length}{isEnglish ? 'p' : '人'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => addGroup()}
-                      className="flex items-center justify-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 py-1.5 text-[10px] text-emerald-300 hover:bg-emerald-500/20"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {isEnglish ? 'Add group' : '添加小组'}
-                    </button>
-                    <button
-                      onClick={() => removeGroup(competition.currentGroupIndex)}
-                      disabled={competition.groups.length <= 1}
-                      className="flex items-center justify-center gap-1 rounded-md border border-rose-500/25 bg-rose-500/10 py-1.5 text-[10px] text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                      {isEnglish ? 'Remove group' : '删除当前组'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-            {hasAnyStarted && (
-              <div className="px-2 py-1.5 rounded-md bg-amber-500/10 text-amber-400 text-[11px] flex items-center gap-1.5 border border-amber-500/20">
-                <AlertTriangle className="w-3 h-3 shrink-0" />
-                {isEnglish ? 'The tournament has started. Group count cannot be changed.' : '比赛已开始，小组数量不可调整'}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">{isEnglish ? 'Add / remove groups' : '添加 / 移除小组'}</span>
-              <button
-                onClick={() => addGroup()}
-                disabled={hasAnyStarted}
-                className="p-1 rounded hover:bg-slate-700 text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                title={hasAnyStarted ? t.addGroupBlocked : t.addGroup}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* 手动设置小组数量 */}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-500">{isEnglish ? 'Group count' : '小组数量'}</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range" min="1" max="20"
-                  value={parseInt(groupCountInput) || 1}
-                  disabled={hasAnyStarted}
-                  onChange={e => {
-                    const v = parseInt(e.target.value);
-                    setGroupCountInput(String(v));
-                    setGroupCount(v);
-                  }}
-                  className="flex-1 accent-gold-500 disabled:opacity-30 disabled:cursor-not-allowed"
-                />
-                <input
-                  type="text" inputMode="numeric" pattern="[0-9]*"
-                  value={groupCountInput}
-                  disabled={hasAnyStarted}
-                  onChange={e => {
-                    const raw = e.target.value;
-                    // 仅允许数字或空字符串
-                    if (raw === '') {
-                      setGroupCountInput('');
-                      return;
-                    }
-                    if (!/^\d+$/.test(raw)) return;
-                    const num = parseInt(raw, 10);
-                    if (isNaN(num)) return;
-                    const v = Math.max(1, Math.min(20, num));
-                    setGroupCountInput(String(v));
-                    setGroupCount(v);
-                  }}
-                  onBlur={() => {
-                    const num = parseInt(groupCountInput, 10);
-                    if (isNaN(num) || num < 1) {
-                      setGroupCountInput(String(competition.groups.length));
-                    } else {
-                      // 失焦时同步规范化显示
-                      setGroupCountInput(String(Math.max(1, Math.min(20, num))));
-                    }
-                  }}
-                  className="w-14 px-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-center font-mono text-gold-400 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {competition.groups.map((group, index) => (
-                <div
-                  key={group.id}
-                  onClick={() => {
-                    if (editingGroupIndex !== index) {
-                      setCurrentGroup(index);
-                    }
-                  }}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                    index === competition.currentGroupIndex
-                      ? 'bg-gold-500/10 text-gold-400 border border-gold-500/30'
-                      : 'bg-slate-800/30 text-slate-400 hover:bg-slate-800/50'
-                  }`}
-                >
-                  {editingGroupIndex === index ? (
-                    <input
-                      autoFocus
-                      value={editGroupNameValue}
-                      onChange={e => setEditGroupNameValue(e.target.value)}
-                      onClick={e => e.stopPropagation()}
-                      onBlur={() => {
-                        if (editGroupNameValue.trim()) {
-                          updateGroupName(index, editGroupNameValue);
-                        }
-                        setEditingGroupIndex(null);
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          if (editGroupNameValue.trim()) {
-                            updateGroupName(index, editGroupNameValue);
-                          }
-                          setEditingGroupIndex(null);
-                        } else if (e.key === 'Escape') {
-                          setEditingGroupIndex(null);
-                        }
-                      }}
-                      className="flex-1 bg-slate-900 text-slate-200 text-xs px-1 py-0.5 rounded border border-gold-500/50 outline-none"
-                    />
-                  ) : (
-                    <span
-                      className="flex-1 truncate"
-                      onDoubleClick={e => {
-                        e.stopPropagation();
-                        setEditingGroupIndex(index);
-                        setEditGroupNameValue(group.name);
-                      }}
-                      title={t.clickToSwitchDblclickEdit}
-                    >
-                      {group.name}
-                    </span>
-                  )}
-                  <span className="text-slate-500">
-                    {formatText(t.playersCount, { count: group.players.length })}
-                  </span>
-                  {editingGroupIndex !== index && (
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        setEditingGroupIndex(index);
-                        setEditGroupNameValue(group.name);
-                      }}
-                      className="p-0.5 rounded hover:bg-slate-700 text-slate-500 hover:text-gold-400 transition-colors"
-                      title={t.editGroupName}
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                  )}
-                  {competition.groups.length > 1 && group.status === 'setup' && (
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        removeGroup(index);
-                      }}
-                      className="p-0.5 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-colors"
-                      title={t.deleteGroup}
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-              </>
-            )}
-            {setupLayout && <div className="pt-3">{systemTools}</div>}
-        </div>
-        </div>
-      )}
-
       <div
         ref={controlScrollRef}
         className={setupLayout
