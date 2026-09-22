@@ -18,7 +18,6 @@ import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManager } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
-import { hasUnresolvedRankingDisputesForGroup } from '../../utils/matchStatus';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -151,7 +150,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   // 任一小组已开始比赛时，禁止调整小组数量
   const hasAnyStarted = competition.groups.some(g => g.status !== 'setup');
   const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
-  const hasBlockingResults = hasUnresolvedRankingDisputesForGroup(currentGroup);
 
   return (
     <div className="h-full flex flex-col bg-slate-800/40 border border-slate-700/40 rounded-2xl overflow-hidden">
@@ -965,14 +963,6 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
             </div>
           )}
 
-          {hasBlockingResults && (
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-              {isEnglish
-                ? 'Unverified or disputed results block next-round generation.'
-                : '存在未核验截图或争议结果，下一轮对阵已暂停生成。'}
-            </div>
-          )}
 
           {isInProgress && (
             <div className="space-y-2">

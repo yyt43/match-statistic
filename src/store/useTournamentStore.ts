@@ -34,9 +34,6 @@ import {
 } from './competitionHistory';
 import type { CompetitionHistoryEntry } from './historyTypes';
 import { validateRoster, type RosterValidationSummary } from '../utils/playerProfiles';
-import {
-  hasUnresolvedRankingDisputesForGroup,
-} from '../utils/matchStatus';
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -115,13 +112,6 @@ export interface CompetitionState {
     status: EvidenceVerificationStatus,
     note?: string
   ) => boolean;
-  announceRoundResults: (
-    groupIndex: number,
-    round: number,
-    confirmationDeadlineAt?: string
-  ) => number;
-  markResultDisputed: (matchId: string, note?: string) => boolean;
-  finalizeDefaultConfirmations: (groupIndex: number, round: number) => number;
   overrideMatchResult: (
     matchId: string,
     result: Exclude<MatchResult, 'pending'>,
@@ -331,7 +321,6 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const group = competition.groups[groupIdx];
     if (!group || group.status !== 'in_progress') return;
-    if (hasUnresolvedRankingDisputesForGroup(group)) return;
 
     const nextRound = group.currentRound + 1;
     if (nextRound > group.totalRounds) return;

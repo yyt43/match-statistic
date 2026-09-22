@@ -9,7 +9,6 @@ import type {
 import { getRoundGameType } from '../swissPairing';
 import { normalizeUid } from '../playerProfiles';
 import { parseWorkbookFile, type ParsedWorkbookSheet } from './playerImport';
-export { hasUnresolvedRankingDisputes } from '../matchStatus';
 
 export type MatchImportPhase =
   | 'group'
@@ -460,7 +459,7 @@ export function generateRoundAnnouncement(
     '',
     ...lines,
     '',
-    '以上结果已由裁判核验截图。',
-    '有异议请立即回复，22:00 将发布本轮最终汇总。',
+    '以上结果已由裁判录入。',
+    '如发现明显录入错误，请联系裁判，由裁判直接修正。',
   ].join('\n');
 }

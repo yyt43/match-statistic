@@ -181,6 +181,8 @@ QQ / QQ number / QQ号
 
 When the file contains UID and QQ columns, the app switches to the Poetry Cup profile. Missing A01-D32 participant codes can be generated automatically when the group structure supports it. Once locked, participant codes and UIDs cannot be changed.
 
+The app no longer requires a per-match confirmation or dispute flow. If a result is wrong, the referee edits or overrides it directly; imported results require a reason and preserve the override history.
+
 ## Result Workbook Import
 
 The result importer accepts Tencent Docs exports and detects headers such as:

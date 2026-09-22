@@ -3,7 +3,6 @@ import { createNewCompetition } from '../../store/tournamentFactory';
 import { getDefaultPlayerFields } from '../playerProfiles';
 import {
   buildMatchImportPreview,
-  hasUnresolvedRankingDisputes,
   normalizeSubmissionRows,
   type MatchSubmissionRow,
 } from './matchResultImport';
@@ -139,17 +138,4 @@ describe('match result import', () => {
     expect(crossPlayer.issues.some(issue => issue.code === 'UID_CODE_MISMATCH')).toBe(true);
   });
 
-  it('blocks next-round generation while evidence is unverified or disputed', () => {
-    const competition = competitionWithMatch();
-    competition.groups[0].matches[0] = {
-      ...competition.groups[0].matches[0],
-      result: 'player1',
-      player1Games: 2,
-      player2Games: 1,
-      evidenceVerificationStatus: 'not_required',
-    };
-    expect(hasUnresolvedRankingDisputes(competition)).toBe(false);
-    competition.groups[0].matches[0].publicResultStatus = 'disputed';
-    expect(hasUnresolvedRankingDisputes(competition)).toBe(true);
-  });
 });

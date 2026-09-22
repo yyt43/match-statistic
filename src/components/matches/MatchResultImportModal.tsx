@@ -48,9 +48,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const {
     competition,
     applyImportedMatchResults,
-    markResultDisputed,
-    announceRoundResults,
-    finalizeDefaultConfirmations,
   } = useTournamentStore();
   const [phase, setPhase] = useState<MatchImportContext['phase']>('group');
   const [groupIndex, setGroupIndex] = useState(competition.currentGroupIndex);
@@ -62,7 +59,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const [verification, setVerification] = useState<Record<number, EvidenceVerificationStatus>>({});
   const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string>>({});
   const [announcement, setAnnouncement] = useState('');
-  const [lastApplied, setLastApplied] = useState<Array<{ matchId: string; label: string }>>([]);
   const workbookInputRef = useRef<HTMLInputElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,7 +90,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
         candidate.evidenceVerificationStatus ?? 'not_required',
       ])));
       setAnnouncement('');
-      setLastApplied([]);
       setMessage(isEnglish
         ? `Parsed ${next.rows.length} row(s).`
         : `已解析 ${next.rows.length} 行。`);
@@ -151,10 +146,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
         ? generateRoundAnnouncement(nextCompetition, groupIndex, round)
         : generateRoundAnnouncement(nextCompetition, groupIndex, round)
     );
-    setLastApplied(appliableCandidates.map(candidate => ({
-      matchId: candidate.matchId,
-      label: `${candidate.participantCode} ${candidate.canonicalScore}`,
-    })));
     setMessage(isEnglish
       ? `Applied ${appliableCandidates.length} result(s).`
       : `已写入 ${appliableCandidates.length} 场结果。`);
@@ -448,35 +439,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                 {isEnglish ? 'Copy announcement' : '复制公示文本'}
               </button>
 
-              <button
-                onClick={() => {
-                  const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-                  const count = announceRoundResults(groupIndex, round, deadline);
-                  setMessage(isEnglish
-                    ? `Announced ${count} verified result(s).`
-                    : `已公示 ${count} 场已核验结果。`);
-                }}
-                disabled={phase !== 'group'}
-                className="w-full rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
-              >
-                <Check className="mr-1 inline h-3.5 w-3.5" />
-                {isEnglish ? 'Mark round as announced' : '标记本轮已公示'}
-              </button>
-
-              <button
-                onClick={() => {
-                  const count = finalizeDefaultConfirmations(groupIndex, round);
-                  setMessage(isEnglish
-                    ? `Default-confirmed ${count} result(s).`
-                    : `已将 ${count} 场无异议结果标记为默认确认。`);
-                }}
-                disabled={phase !== 'group'}
-                className="w-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
-              >
-                <Check className="mr-1 inline h-3.5 w-3.5" />
-                {isEnglish ? 'Finalize non-disputed results' : '完成无异议结果确认'}
-              </button>
-
               {announcement && (
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-[11px] text-slate-300">
                   {announcement}
@@ -491,29 +453,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                     : '证据不符或图片不清时暂停；缺少截图本身不阻止结果写入。'}
                 </span>
               </div>
-
-              {lastApplied.length > 0 && (
-                <div className="space-y-1">
-                  <div className="text-[10px] text-slate-500">
-                    {isEnglish ? 'Applied matches' : '已写入比赛'}
-                  </div>
-                  {lastApplied.map(item => (
-                    <button
-                      key={item.matchId}
-                      onClick={() => {
-                        markResultDisputed(item.matchId, 'Manual review required');
-                        setMessage(isEnglish
-                          ? `${item.label} marked as disputed.`
-                          : `${item.label} 已标记为有异议。`);
-                      }}
-                      className="flex w-full items-center justify-between rounded border border-rose-500/15 bg-rose-500/5 px-2 py-1 text-[10px] text-rose-300"
-                    >
-                      <span>{item.label}</span>
-                      <span>{isEnglish ? 'Dispute' : '标记异议'}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
 
               {message && (
                 <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-[11px] text-slate-300">

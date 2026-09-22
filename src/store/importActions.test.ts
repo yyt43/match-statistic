@@ -81,26 +81,6 @@ describe('import store actions', () => {
     expect(match.evidenceRefs).toEqual(['A-R1-01_01.png']);
   });
 
-  it('marks and finalizes default confirmations without overriding disputes', () => {
-    const competition = competitionWithPendingMatch();
-    useTournamentStore.setState({ competition });
-    const store = useTournamentStore.getState();
-
-    store.applyImportedMatchResults([{
-      matchId: 'm1',
-      groupIndex: 0,
-      result: 'player2',
-      player1Games: 0,
-      player2Games: 2,
-      evidenceVerificationStatus: 'verified',
-    }]);
-    store.markResultDisputed('m1', 'score differs');
-    const count = store.finalizeDefaultConfirmations(0, 1);
-    expect(count).toBe(0);
-    expect(useTournamentStore.getState().competition.groups[0].matches[0].publicResultStatus)
-      .toBe('disputed');
-  });
-
   it('invalidates unplayed later Swiss rounds on referee override', () => {
     const competition = competitionWithPendingMatch();
     const group = competition.groups[0];
