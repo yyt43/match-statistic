@@ -40,6 +40,7 @@ This project is suited for tournament management, club events, team activities, 
 - Configurable tiebreak chains: BO1 / multi-game presets plus custom metric ordering
 - Consistent exports: rankings, image rankings, match tables, and summaries include participant code and UID
 - Mobile adaptation: the pre-start workspace stacks vertically and header stats/actions wrap on small screens
+- Adaptive player preview: automatically uses 1-4 columns by group count, including a stable 2x2 layout for four groups
 - Quick score entry: multi-group scoring with search, filters, feedback before advance, and keyboard shortcuts
 - Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups

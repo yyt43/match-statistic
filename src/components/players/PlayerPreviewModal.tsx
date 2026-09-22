@@ -6,6 +6,7 @@ import { useLanguagePreference } from '../../i18n/context';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { VirtualizedList } from '../common/VirtualizedList';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
+import { getPreviewLayout } from './playerPreviewLayout';
 
 interface PlayerPreviewModalProps {
   isOpen: boolean;
@@ -82,12 +83,13 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
   if (!isOpen) return null;
 
   const hasProgress = competition.groups.some(g => g.status !== 'setup');
+  const previewLayout = getPreviewLayout(filteredGroups.length);
 
   return (
     <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1} className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className={`mx-auto px-3 py-4 sm:px-6 sm:py-8 ${previewLayout.containerClass}`}>
         {/* 顶部栏 */}
-        <div className="flex items-center justify-between mb-6 sticky top-0 bg-slate-900/80 backdrop-blur-sm py-3 -mx-6 px-6 z-10 border-b border-slate-800">
+        <div className="-mx-3 mb-4 flex flex-col gap-3 border-b border-slate-800 bg-slate-900/80 px-3 py-3 backdrop-blur-sm sticky top-0 z-10 sm:-mx-6 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex items-center gap-3">
             <Users className="w-6 h-6 text-gold-400" />
             <div>
@@ -151,7 +153,7 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
         )}
 
         {/* 小组选手网格 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={`grid gap-3 sm:gap-4 ${previewLayout.gridClass}`}>
           {filteredGroups.map(group => (
             <div
               key={group.id}
@@ -218,7 +220,7 @@ export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps)
         )}
 
         {/* 底部提示 */}
-        <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4 text-xs text-slate-500">
           <span>
             {hasProgress
               ? (isEnglish ? 'Some groups have started; only the current roster is shown.' : '部分小组已开始比赛，仅展示当前选手名单')
