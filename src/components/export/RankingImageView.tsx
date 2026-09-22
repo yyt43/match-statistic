@@ -135,13 +135,12 @@ export function RankingImageView() {
                   </td>
                   <td style={{ ...tdBase, color: nameColor, fontWeight: 500 }}>
                     <span style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-block',
-                      maxWidth: '100%',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      display: 'block',
                       verticalAlign: 'middle',
-                      lineHeight: '28px',
+                      lineHeight: '20px',
                       paddingBottom: '4px',
                       textDecoration: player.dropped ? 'line-through' : 'none',
                     }}>
