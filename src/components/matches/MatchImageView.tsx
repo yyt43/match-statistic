@@ -68,20 +68,39 @@ export function MatchImageView() {
 
         <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           {matches.map((match) => (
-            <div key={match.id} className="bg-slate-800/60 rounded-lg overflow-hidden">
+            <div key={match.id} className="bg-slate-800/60 rounded-lg">
               <div className="px-3 py-1.5 bg-slate-700/30 text-[11px] text-slate-400 text-right">
                 {isSingleElimination
                   ? `${t.singleElimination} ${roundGameType.toUpperCase()}`
                   : roundGameType.toUpperCase()}
               </div>
 
-              <div className="flex items-stretch">
-                <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
-                  <span className="text-sm font-medium text-white truncate min-w-0">
+              <div className="flex items-stretch" style={{ minHeight: 56 }}>
+                <div className="flex-1 px-3 py-2.5 flex flex-col justify-center min-w-0">
+                  <span
+                    className="text-sm font-medium text-white min-w-0"
+                    style={{
+                      display: 'block',
+                      lineHeight: '18px',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
                     {getPlayerName(match.player1Id)}
                   </span>
                   {getPlayerUid(match.player1Id) && (
-                    <span className="truncate font-mono text-[9px] text-sky-400/80">
+                    <span
+                      className="font-mono text-[9px] text-sky-400/80"
+                      style={{
+                        display: 'block',
+                        minHeight: '14px',
+                        lineHeight: '14px',
+                        paddingBottom: '1px',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-all',
+                      }}
+                    >
                       UID {getPlayerUid(match.player1Id)}
                     </span>
                   )}
@@ -94,13 +113,32 @@ export function MatchImageView() {
                 </div>
               </div>
 
-              <div className="flex items-stretch">
-                <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
-                  <span className="text-sm font-medium text-white truncate min-w-0">
+              <div className="flex items-stretch" style={{ minHeight: 56 }}>
+                <div className="flex-1 px-3 py-2.5 flex flex-col justify-center min-w-0">
+                  <span
+                    className="text-sm font-medium text-white min-w-0"
+                    style={{
+                      display: 'block',
+                      lineHeight: '18px',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
                     {getPlayerName(match.player2Id)}
                   </span>
                   {getPlayerUid(match.player2Id) && (
-                    <span className="truncate font-mono text-[9px] text-sky-400/80">
+                    <span
+                      className="font-mono text-[9px] text-sky-400/80"
+                      style={{
+                        display: 'block',
+                        minHeight: '14px',
+                        lineHeight: '14px',
+                        paddingBottom: '1px',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-all',
+                      }}
+                    >
                       UID {getPlayerUid(match.player2Id)}
                     </span>
                   )}
