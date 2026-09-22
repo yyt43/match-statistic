@@ -14,7 +14,6 @@ import type { EvidenceVerificationStatus } from '../../types';
 import {
   generateRoundAnnouncement,
   parseMatchResultsWorkbook,
-  type MatchImportContext,
   type MatchImportPreview,
 } from '../../utils/import/matchResultImport';
 import { getRoundGameType } from '../../utils/swissPairing';
@@ -49,11 +48,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
     competition,
     applyImportedMatchResults,
   } = useTournamentStore();
-  const [phase, setPhase] = useState<MatchImportContext['phase']>('group');
-  const [groupIndex, setGroupIndex] = useState(competition.currentGroupIndex);
-  const [round, setRound] = useState(
-    Math.max(1, competition.groups[competition.currentGroupIndex]?.currentRound ?? 1)
-  );
   const [preview, setPreview] = useState<MatchImportPreview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [verification, setVerification] = useState<Record<number, EvidenceVerificationStatus>>({});
@@ -62,28 +56,16 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const workbookInputRef = useRef<HTMLInputElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setGroupIndex(competition.currentGroupIndex);
-    setRound(Math.max(1, competition.groups[competition.currentGroupIndex]?.currentRound ?? 1));
-  }, [competition.currentGroupIndex, competition.groups, isOpen]);
-
   useEffect(() => () => {
     Object.values(evidenceUrls).forEach(url => URL.revokeObjectURL(url));
   }, [evidenceUrls]);
 
   if (!isOpen) return null;
 
-  const context: MatchImportContext = {
-    phase,
-    groupIndex: phase === 'group' ? groupIndex : undefined,
-    round: phase === 'group' ? round : undefined,
-  };
-
   const handleWorkbook = async (file?: File) => {
     if (!file) return;
     try {
-      const next = await parseMatchResultsWorkbook(file, competition, context);
+      const next = await parseMatchResultsWorkbook(file, competition);
       setPreview(next);
       setVerification(Object.fromEntries(next.ready.map(candidate => [
         candidate.rowNumber,
@@ -141,10 +123,19 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
       isEnglish ? 'Import verified match results' : '导入已核验比赛结果'
     );
     const nextCompetition = useTournamentStore.getState().competition;
+    const affectedRounds = Array.from(new Set(
+      appliableCandidates.map(candidate => `${candidate.groupIndex}:${candidate.round}`)
+    )).map(value => {
+      const [affectedGroupIndex, affectedRound] = value.split(':').map(Number);
+      return { groupIndex: affectedGroupIndex, round: affectedRound };
+    });
     setAnnouncement(
-      phase === 'group'
-        ? generateRoundAnnouncement(nextCompetition, groupIndex, round)
-        : generateRoundAnnouncement(nextCompetition, groupIndex, round)
+      affectedRounds
+        .map(({ groupIndex: affectedGroupIndex, round: affectedRound }) =>
+          generateRoundAnnouncement(nextCompetition, affectedGroupIndex, affectedRound)
+        )
+        .filter(Boolean)
+        .join('\n\n')
     );
     setMessage(isEnglish
       ? `Applied ${appliableCandidates.length} result(s).`
@@ -158,14 +149,9 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   };
 
   const downloadTemplate = async () => {
-    const group = competition.groups[groupIndex];
-    const gameType = phase === 'group'
-      ? getRoundGameType(group, round)
-      : phase === 'r16'
-        ? 'bo3'
-        : phase === 'final'
-          ? 'bo7'
-          : 'bo5';
+    const group = competition.groups[competition.currentGroupIndex];
+    const currentRound = Math.max(1, group.currentRound);
+    const gameType = getRoundGameType(group, currentRound);
     const options = gameType === 'bo3'
       ? ['我以 2-0 获胜', '我以 2-1 获胜']
       : gameType === 'bo5'
@@ -212,70 +198,26 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
           </button>
         </div>
 
-        <div className="grid gap-2 border-b border-slate-700/60 px-5 py-3 md:grid-cols-[140px_1fr_140px_auto]">
-          <label className="text-[11px] text-slate-500">
-            <span className="mb-1 block">{isEnglish ? 'Phase' : '阶段'}</span>
-            <select
-              value={phase}
-              onChange={event => setPhase(event.target.value as MatchImportContext['phase'])}
-              className="w-full rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
-            >
-              <option value="group">{isEnglish ? 'Group stage' : '小组赛'}</option>
-              <option value="r16">{isEnglish ? 'Round of 16' : '16进8'}</option>
-              <option value="quarterfinal">{isEnglish ? 'Quarterfinal' : '8进4'}</option>
-              <option value="semifinal">{isEnglish ? 'Semifinal' : '半决赛'}</option>
-              <option value="final">{isEnglish ? 'Final' : '决赛'}</option>
-            </select>
-          </label>
-
-          {phase === 'group' && (
-            <>
-              <label className="text-[11px] text-slate-500">
-                <span className="mb-1 block">{isEnglish ? 'Group' : '小组'}</span>
-                <select
-                  value={groupIndex}
-                  onChange={event => {
-                    const nextIndex = Number(event.target.value);
-                    setGroupIndex(nextIndex);
-                    setRound(Math.max(1, competition.groups[nextIndex]?.currentRound ?? 1));
-                  }}
-                  className="w-full rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
-                >
-                  {competition.groups.map((group, index) => (
-                    <option key={group.id} value={index}>{group.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-[11px] text-slate-500">
-                <span className="mb-1 block">{isEnglish ? 'Round' : '轮次'}</span>
-                <select
-                  value={round}
-                  onChange={event => setRound(Number(event.target.value))}
-                  className="w-full rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
-                >
-                  {Array.from({ length: competition.groups[groupIndex]?.totalRounds ?? 5 }, (_, index) => index + 1)
-                    .map(value => <option key={value} value={value}>{value}</option>)}
-                </select>
-              </label>
-            </>
-          )}
-
-          <div className="flex items-end">
-            <input
-              ref={workbookInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={event => void handleWorkbook(event.target.files?.[0])}
-            />
-            <button
-              onClick={() => workbookInputRef.current?.click()}
-              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300"
-            >
-              <FileSpreadsheet className="mr-1 inline h-3.5 w-3.5" />
-              {isEnglish ? 'Select XLSX' : '选择 XLSX'}
-            </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/60 px-5 py-3">
+          <div className="text-[11px] text-slate-400">
+            {isEnglish
+              ? 'Results are matched automatically across all groups by participant code, using each group’s current round.'
+              : '系统会按选手编号跨全部小组自动匹配，并优先使用各小组当前轮次。'}
           </div>
+          <input
+            ref={workbookInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={event => void handleWorkbook(event.target.files?.[0])}
+          />
+          <button
+            onClick={() => workbookInputRef.current?.click()}
+            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300"
+          >
+            <FileSpreadsheet className="mr-1 inline h-3.5 w-3.5" />
+            {isEnglish ? 'Select XLSX' : '选择 XLSX'}
+          </button>
         </div>
 
         <div className="grid min-h-0 flex-1 md:grid-cols-[1fr_330px]">
