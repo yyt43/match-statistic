@@ -10,6 +10,8 @@ import type {
   PairingType,
   TiebreakRule,
   TiebreakTemplate,
+  PlayerSchemaId,
+  EvidenceVerificationStatus,
 } from '../types';
 import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { saveSnapshot } from '../utils/storage/snapshot';
@@ -22,6 +24,7 @@ import { createCompetitionActions } from './actions/competitionActions';
 import { createSnapshotActions } from './actions/snapshotActions';
 import { createGroupActions } from './actions/groupActions';
 import { createPlayerActions } from './actions/playerActions';
+import { createImportActions } from './actions/importActions';
 import { logAudit } from '../utils/auditLog';
 import {
   cloneCompetition,
@@ -30,6 +33,10 @@ import {
   HISTORY_LIMIT,
 } from './competitionHistory';
 import type { CompetitionHistoryEntry } from './historyTypes';
+import { validateRoster, type RosterValidationSummary } from '../utils/playerProfiles';
+import {
+  hasUnresolvedRankingDisputesForGroup,
+} from '../utils/matchStatus';
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -58,6 +65,16 @@ export interface CompetitionState {
   replacePlayers: (names: string[]) => void;
   removePlayer: (playerId: string) => void;
   updatePlayerName: (playerId: string, name: string) => void;
+  updatePlayerProfile: (playerId: string, changes: Record<string, string>) => boolean;
+  importPlayerProfiles: (players: Array<{
+    id?: string;
+    name: string;
+    participantCode?: string;
+    profile?: Record<string, string>;
+  }>, distributeAcrossGroups?: boolean) => RosterValidationSummary;
+  setPlayerSchema: (schemaId: PlayerSchemaId) => void;
+  assignParticipantCodes: () => void;
+  lockRoster: () => RosterValidationSummary;
   togglePlayerDropped: (playerId: string) => void;
   setPlayerCount: (count: number) => void;
   setTotalRounds: (rounds: number) => void;
@@ -79,6 +96,39 @@ export interface CompetitionState {
   updateMatchPlayers: (matchId: string, player1Id: string, player2Id: string) => void;
   batchUpdateRoundMatches: (round: number, updates: { matchId: string; player1Id: string; player2Id: string; isBye?: boolean }[]) => void;
   reorderMatches: (round: number, fromMatchId: string, toMatchId: string) => void;
+  applyImportedMatchResults: (candidates: Array<{
+    matchId: string;
+    groupIndex: number;
+    result: Exclude<MatchResult, 'pending'>;
+    identityVerified?: boolean;
+    player1Games?: number;
+    player2Games?: number;
+    evidenceRefs?: string[];
+    evidenceHash?: string;
+    evidenceVerificationStatus?: EvidenceVerificationStatus;
+    sourceSubmissionId?: string;
+    sourceSubmittedAt?: string;
+  }>, label?: string) => void;
+  verifyMatchEvidence: (
+    matchId: string,
+    status: EvidenceVerificationStatus,
+    note?: string
+  ) => boolean;
+  announceRoundResults: (
+    groupIndex: number,
+    round: number,
+    confirmationDeadlineAt?: string
+  ) => number;
+  markResultDisputed: (matchId: string, note?: string) => boolean;
+  finalizeDefaultConfirmations: (groupIndex: number, round: number) => number;
+  overrideMatchResult: (
+    matchId: string,
+    result: Exclude<MatchResult, 'pending'>,
+    player1Games: number | undefined,
+    player2Games: number | undefined,
+    reason: string,
+    evidenceRefs?: string[]
+  ) => boolean;
   restoreFromSnapshot: (snapshotId: string) => Promise<boolean>;
   createSnapshot: (label?: string) => Promise<void>;
 
@@ -147,6 +197,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   ...createSnapshotActions(set, get),
   ...createGroupActions(set, get),
   ...createPlayerActions(set, get),
+  ...createImportActions(set, get),
 
   undo: () => {
     const state = get();
@@ -224,7 +275,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   startTournament: (totalRounds: number) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
+    if ((competition.playerSchemaId ?? 'generic') === 'poetryCupS2'
+      && !validateRoster(competition).valid) return;
     let updated = startTournamentForGroup(competition, idx, totalRounds);
+    updated = {
+      ...updated,
+      rosterLockedAt: updated.rosterLockedAt ?? new Date().toISOString(),
+    };
     set({ competition: updated }, { label: '开始比赛' });
 
     updated = generateNextRoundForCompetition(updated, idx);
@@ -236,7 +293,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   startAllGroups: () => {
     const { competition } = get();
+    if ((competition.playerSchemaId ?? 'generic') === 'poetryCupS2'
+      && !validateRoster(competition).valid) return;
     let updated = startAllGroupsInCompetition(competition);
+    updated = {
+      ...updated,
+      rosterLockedAt: updated.rosterLockedAt ?? new Date().toISOString(),
+    };
     set({ competition: updated }, { label: '开始全部小组' });
 
     for (let i = 0; i < updated.groups.length; i++) {
@@ -267,6 +330,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const group = competition.groups[groupIdx];
     if (!group || group.status !== 'in_progress') return;
+    if (hasUnresolvedRankingDisputesForGroup(group)) return;
 
     const nextRound = group.currentRound + 1;
     if (nextRound > group.totalRounds) return;
@@ -454,6 +518,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const storedMatch = storedGroup.matches[matchIndex];
     if (storedMatch.isBye) return;
+    if (storedMatch.result !== 'pending'
+      && (storedMatch.resultSource === 'import' || storedMatch.resultSource === 'referee_override')
+      && (storedMatch.result !== result
+        || storedMatch.player1Games !== player1Games
+        || storedMatch.player2Games !== player2Games)) {
+      return;
+    }
 
     if (storedMatch.isPlayoff) {
       const updated = updateGroupAtIndex(competition, idx, currentGroup => recordPlayoffResult(currentGroup, matchId, result, player1Games, player2Games));
@@ -482,7 +553,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     }
 
     const updatedMatches = [...group.matches];
-    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
+    updatedMatches[matchIndex] = {
+      ...match,
+      result,
+      player1Games,
+      player2Games,
+      preDrop: !!preDrop,
+      resultSource: match.resultSource ?? 'manual',
+    };
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
@@ -566,6 +644,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const storedMatch = storedGroup.matches[matchIndex];
     if (storedMatch.isBye) return;
+    if (storedMatch.result !== 'pending'
+      && (storedMatch.resultSource === 'import' || storedMatch.resultSource === 'referee_override')
+      && (storedMatch.result !== result
+        || storedMatch.player1Games !== player1Games
+        || storedMatch.player2Games !== player2Games)) {
+      return;
+    }
     if (storedMatch.isPlayoff) {
       const groups = [...competition.groups];
       groups[groupIdx] = recordPlayoffResult(storedGroup, matchId, result, player1Games, player2Games);
@@ -595,7 +680,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     }
 
     const updatedMatches = [...group.matches];
-    updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
+    updatedMatches[matchIndex] = {
+      ...match,
+      result,
+      player1Games,
+      player2Games,
+      preDrop: !!preDrop,
+      resultSource: match.resultSource ?? 'manual',
+    };
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);

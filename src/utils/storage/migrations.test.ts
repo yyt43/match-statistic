@@ -80,4 +80,19 @@ describe('storage migrations', () => {
     expect(() => migrateCompetitionData(legacyCompetition(), CURRENT_STORAGE_VERSION + 1))
       .toThrow(/newer than supported/);
   });
+
+  it('adds player profiles and locks a competition that has already started', () => {
+    const competition = createNewCompetition('Version 5', 1, 4, 3, 'bo3');
+    delete competition.playerSchemaId;
+    delete competition.playerFields;
+    delete competition.rosterLockedAt;
+    competition.groups[0].currentRound = 1;
+    competition.groups[0].status = 'in_progress';
+
+    const migrated = migrateCompetitionData(competition, 5);
+    expect(migrated.playerSchemaId).toBe('generic');
+    expect(migrated.playerFields?.length).toBeGreaterThan(0);
+    expect(migrated.rosterLockedAt).toBeTruthy();
+    expect(migrated.groups[0].players[0].profile).toEqual({});
+  });
 });

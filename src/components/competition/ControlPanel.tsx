@@ -18,9 +18,13 @@ import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManager } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
+import { hasUnresolvedRankingDisputesForGroup } from '../../utils/matchStatus';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
+);
+const MatchResultImportModal = lazy(() =>
+  import('../matches/MatchResultImportModal').then(module => ({ default: module.MatchResultImportModal }))
 );
 const StorageHealthModal = lazy(() =>
   import('../data/StorageHealthModal').then(module => ({ default: module.StorageHealthModal }))
@@ -68,6 +72,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [showStorageHealth, setShowStorageHealth] = useState(false);
   const [showHistoryManager, setShowHistoryManager] = useState(false);
   const [showQuickScore, setShowQuickScore] = useState(false);
+  const [showResultImport, setShowResultImport] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -146,6 +151,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   // 任一小组已开始比赛时，禁止调整小组数量
   const hasAnyStarted = competition.groups.some(g => g.status !== 'setup');
   const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
+  const hasBlockingResults = hasUnresolvedRankingDisputesForGroup(currentGroup);
 
   return (
     <div className="h-full flex flex-col bg-slate-800/40 border border-slate-700/40 rounded-2xl overflow-hidden">
@@ -941,13 +947,31 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           )}
 
           {hasAnyRound && (
-            <button
-              onClick={() => setShowQuickScore(true)}
-              className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
-            >
-              <Swords className="w-4 h-4" />
-              {isEnglish ? 'Quick score entry' : '快速录分'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowQuickScore(true)}
+                className="w-full py-2.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-emerald-500/30"
+              >
+                <Swords className="w-4 h-4" />
+                {isEnglish ? 'Quick score entry' : '快速录分'}
+              </button>
+              <button
+                onClick={() => setShowResultImport(true)}
+                className="w-full py-2.5 rounded-lg bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 transition-colors text-sm font-medium flex items-center justify-center gap-2 border border-sky-500/30"
+              >
+                <FileUp className="w-4 h-4" />
+                {isEnglish ? 'Import results' : '导入赛果'}
+              </button>
+            </div>
+          )}
+
+          {hasBlockingResults && (
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+              {isEnglish
+                ? 'Unverified or disputed results block next-round generation.'
+                : '存在未核验截图或争议结果，下一轮对阵已暂停生成。'}
+            </div>
           )}
 
           {isInProgress && (
@@ -1097,6 +1121,10 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         <QuickScoreModal
           isOpen={showQuickScore}
           onClose={() => setShowQuickScore(false)}
+        />
+        <MatchResultImportModal
+          isOpen={showResultImport}
+          onClose={() => setShowResultImport(false)}
         />
       </Suspense>
       <AuditLogManager

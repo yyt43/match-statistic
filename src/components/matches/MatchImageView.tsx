@@ -2,6 +2,7 @@ import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentSt
 import type { Match } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
+import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 export function MatchImageView() {
   const currentGroup = useCurrentGroup();
@@ -16,7 +17,13 @@ export function MatchImageView() {
 
   const getPlayerName = (id: string) => {
     if (id === 'bye') return t.bye;
-    return playerMap.get(id)?.name || t.unknownPlayer;
+    const player = playerMap.get(id);
+    return player ? getPlayerDisplayName(player) : t.unknownPlayer;
+  };
+
+  const getPlayerUid = (id: string) => {
+    if (id === 'bye') return '';
+    return playerMap.get(id)?.profile?.uid ?? '';
   };
 
   const getScore = (match: Match, playerNum: 1 | 2) => {
@@ -69,10 +76,15 @@ export function MatchImageView() {
               </div>
 
               <div className="flex items-stretch">
-                <div className="flex-1 p-3 flex items-center min-w-0">
-                  <span className="text-sm font-medium text-white truncate min-w-0" style={{ lineHeight: '28px', paddingBottom: '4px' }}>
+                <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
+                  <span className="text-sm font-medium text-white truncate min-w-0">
                     {getPlayerName(match.player1Id)}
                   </span>
+                  {getPlayerUid(match.player1Id) && (
+                    <span className="truncate font-mono text-[9px] text-sky-400/80">
+                      UID {getPlayerUid(match.player1Id)}
+                    </span>
+                  )}
                 </div>
                 <div className={`
                   ${isMultiGame ? 'w-16' : 'w-12'} flex items-center justify-center text-xl font-bold text-white leading-none shrink-0
@@ -83,10 +95,15 @@ export function MatchImageView() {
               </div>
 
               <div className="flex items-stretch">
-                <div className="flex-1 p-3 flex items-center min-w-0">
-                  <span className="text-sm font-medium text-white truncate min-w-0" style={{ lineHeight: '28px', paddingBottom: '4px' }}>
+                <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
+                  <span className="text-sm font-medium text-white truncate min-w-0">
                     {getPlayerName(match.player2Id)}
                   </span>
+                  {getPlayerUid(match.player2Id) && (
+                    <span className="truncate font-mono text-[9px] text-sky-400/80">
+                      UID {getPlayerUid(match.player2Id)}
+                    </span>
+                  )}
                 </div>
                 <div className={`
                   ${isMultiGame ? 'w-16' : 'w-12'} flex items-center justify-center text-xl font-bold text-white leading-none shrink-0

@@ -15,6 +15,13 @@ export type AuditAction =
   | 'tournament-import'
   | 'player-drop'
   | 'player-restore'
+  | 'roster-lock'
+  | 'match-result-import'
+  | 'evidence-verification'
+  | 'round-results-announced'
+  | 'match-disputed'
+  | 'round-results-default-confirmed'
+  | 'match-result-override'
   | 'snapshot-restore'
   | 'conflict-resolve';
 

@@ -15,6 +15,24 @@ const TIEBREAK_RULES = new Set([
   'points',
   'playoffWins',
 ]);
+const PLAYER_SCHEMA_IDS = new Set(['generic', 'poetryCupS2']);
+const PLAYER_FIELD_TYPES = new Set(['text', 'gameUid', 'qq', 'select']);
+const PLAYER_FIELD_VISIBILITIES = new Set(['public', 'admin']);
+const EVIDENCE_VERIFICATION_STATUSES = new Set([
+  'not_required',
+  'pending',
+  'verified',
+  'mismatch',
+  'unreadable',
+  'missing',
+]);
+const PUBLIC_RESULT_STATUSES = new Set([
+  'not_announced',
+  'announced',
+  'default_confirmed',
+  'disputed',
+]);
+const RESULT_SOURCES = new Set(['manual', 'import', 'referee_override']);
 
 export type CompetitionSchemaResult =
   | { success: true; data: TournamentCompetition }
@@ -28,6 +46,13 @@ export function validateCompetitionData(value: unknown): CompetitionSchemaResult
   requireString(competition, 'id', 'root.id', errors);
   requireString(competition, 'name', 'root.name', errors);
   requireString(competition, 'createdAt', 'root.createdAt', errors);
+  if (competition.playerSchemaId !== undefined) {
+    requireEnum(competition, 'playerSchemaId', PLAYER_SCHEMA_IDS, 'root.playerSchemaId', errors);
+  }
+  if (competition.playerFields !== undefined) {
+    validatePlayerFields(competition.playerFields, 'root.playerFields', errors);
+  }
+  optionalString(competition, 'rosterLockedAt', 'root.rosterLockedAt', errors);
 
   if (!Array.isArray(competition.groups) || competition.groups.length === 0) {
     errors.push('root.groups: expected a non-empty array');
@@ -42,12 +67,89 @@ export function validateCompetitionData(value: unknown): CompetitionSchemaResult
       errors
     );
     validateUniqueIds(competition.groups, 'root.groups', errors);
+    validateCompetitionPlayerIdentifiers(competition, errors);
   }
 
   return errors.length > 0 ? failure(errors.slice(0, 8).join('; ')) : {
     success: true,
     data: competition as unknown as TournamentCompetition,
   };
+}
+
+function validateCompetitionPlayerIdentifiers(
+  competition: Record<string, unknown>,
+  errors: string[]
+): void {
+  if (!Array.isArray(competition.groups)) return;
+  const codes = new Set<string>();
+  const uids = new Set<string>();
+  for (let groupIndex = 0; groupIndex < competition.groups.length; groupIndex += 1) {
+    const group = asRecord(competition.groups[groupIndex]);
+    if (!group || !Array.isArray(group.players)) continue;
+    for (let playerIndex = 0; playerIndex < group.players.length; playerIndex += 1) {
+      const player = asRecord(group.players[playerIndex]);
+      if (!player) continue;
+      const code = typeof player.participantCode === 'string' ? player.participantCode.trim() : '';
+      if (code) {
+        if (codes.has(code)) {
+          errors.push(`groups.${groupIndex}.players.${playerIndex}.participantCode: duplicate "${code}"`);
+        } else {
+          codes.add(code);
+        }
+      }
+      const profile = asRecord(player.profile);
+      const uid = typeof profile?.uid === 'string' ? profile.uid.trim() : '';
+      if (uid) {
+        if (uids.has(uid)) {
+          errors.push(`groups.${groupIndex}.players.${playerIndex}.profile.uid: duplicate "${uid}"`);
+        } else {
+          uids.add(uid);
+        }
+      }
+    }
+  }
+}
+
+function validatePlayerFields(value: unknown, path: string, errors: string[]): void {
+  if (!Array.isArray(value)) {
+    errors.push(`${path}: expected array`);
+    return;
+  }
+  const keys = new Set<string>();
+  value.forEach((entry, index) => {
+    const field = asRecord(entry);
+    if (!field) {
+      errors.push(`${path}.${index}: expected object`);
+      return;
+    }
+    requireString(field, 'key', `${path}.${index}.key`, errors);
+    requireString(field, 'label', `${path}.${index}.label`, errors);
+    requireEnum(field, 'type', PLAYER_FIELD_TYPES, `${path}.${index}.type`, errors);
+    requireBoolean(field, 'required', `${path}.${index}.required`, errors);
+    requireBoolean(field, 'unique', `${path}.${index}.unique`, errors);
+    requireEnum(
+      field,
+      'visibility',
+      PLAYER_FIELD_VISIBILITIES,
+      `${path}.${index}.visibility`,
+      errors
+    );
+    requireBoolean(field, 'searchable', `${path}.${index}.searchable`, errors);
+    requireBoolean(field, 'showInPairings', `${path}.${index}.showInPairings`, errors);
+    optionalString(field, 'pattern', `${path}.${index}.pattern`, errors);
+    if (field.immutableAfter !== undefined
+      && field.immutableAfter !== 'never'
+      && field.immutableAfter !== 'rosterLock') {
+      errors.push(`${path}.${index}.immutableAfter: invalid value`);
+    }
+    if (Array.isArray(field.importAliases)
+      && !field.importAliases.every(alias => typeof alias === 'string')) {
+      errors.push(`${path}.${index}.importAliases: expected string array`);
+    }
+    const key = typeof field.key === 'string' ? field.key : '';
+    if (key && keys.has(key)) errors.push(`${path}.${index}.key: duplicate "${key}"`);
+    if (key) keys.add(key);
+  });
 }
 
 function validateGroup(value: unknown, path: string, errors: string[]): void {
@@ -177,6 +279,19 @@ function validatePlayer(value: unknown, path: string, errors: string[]): void {
 
   requireString(player, 'id', `${path}.id`, errors);
   requireString(player, 'name', `${path}.name`, errors);
+  optionalString(player, 'participantCode', `${path}.participantCode`, errors);
+  if (player.profile !== undefined) {
+    const profile = asRecord(player.profile);
+    if (!profile) {
+      errors.push(`${path}.profile: expected object`);
+    } else {
+      for (const [key, value] of Object.entries(profile)) {
+        if (typeof value !== 'string') {
+          errors.push(`${path}.profile.${key}: expected string`);
+        }
+      }
+    }
+  }
   for (const field of [
     'points', 'wins', 'losses', 'totalGames', 'wonGames', 'winRate',
     'opponentWinRate', 'opponentOpponentWinRate', 'gameWinRate', 'opponentGameWinRate',
@@ -220,6 +335,39 @@ function validateMatch(value: unknown, path: string, errors: string[]): void {
   optionalBoolean(match, 'preDrop', `${path}.preDrop`, errors);
   optionalBoolean(match, 'isPlayoff', `${path}.isPlayoff`, errors);
   optionalString(match, 'playoffBracketId', `${path}.playoffBracketId`, errors);
+  if (match.resultSource !== undefined) {
+    requireEnum(match, 'resultSource', RESULT_SOURCES, `${path}.resultSource`, errors);
+  }
+  optionalString(match, 'sourceSubmissionId', `${path}.sourceSubmissionId`, errors);
+  optionalString(match, 'sourceSubmittedAt', `${path}.sourceSubmittedAt`, errors);
+  optionalString(match, 'evidenceHash', `${path}.evidenceHash`, errors);
+  optionalString(match, 'evidenceVerifiedBy', `${path}.evidenceVerifiedBy`, errors);
+  optionalString(match, 'evidenceVerifiedAt', `${path}.evidenceVerifiedAt`, errors);
+  optionalString(match, 'announcedAt', `${path}.announcedAt`, errors);
+  optionalString(match, 'confirmationDeadlineAt', `${path}.confirmationDeadlineAt`, errors);
+  optionalString(match, 'disputedAt', `${path}.disputedAt`, errors);
+  if (match.evidenceRefs !== undefined
+    && (!Array.isArray(match.evidenceRefs) || !match.evidenceRefs.every(value => typeof value === 'string'))) {
+    errors.push(`${path}.evidenceRefs: expected string array`);
+  }
+  if (match.evidenceVerificationStatus !== undefined) {
+    requireEnum(
+      match,
+      'evidenceVerificationStatus',
+      EVIDENCE_VERIFICATION_STATUSES,
+      `${path}.evidenceVerificationStatus`,
+      errors
+    );
+  }
+  if (match.publicResultStatus !== undefined) {
+    requireEnum(
+      match,
+      'publicResultStatus',
+      PUBLIC_RESULT_STATUSES,
+      `${path}.publicResultStatus`,
+      errors
+    );
+  }
   if (match.playoffStage !== undefined && match.playoffStage !== 1 && match.playoffStage !== 2) {
     errors.push(`${path}.playoffStage: expected 1 or 2`);
   }
@@ -261,6 +409,10 @@ function validateArray(
 
 function requireString(object: Record<string, unknown>, key: string, path: string, errors: string[]): void {
   if (typeof object[key] !== 'string') errors.push(`${path}: expected string`);
+}
+
+function requireBoolean(object: Record<string, unknown>, key: string, path: string, errors: string[]): void {
+  if (typeof object[key] !== 'boolean') errors.push(`${path}: expected boolean`);
 }
 
 function optionalString(object: Record<string, unknown>, key: string, path: string, errors: string[]): void {

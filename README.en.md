@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.3.1
+Current version: v0.4.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.3.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.3.1)
+[![Release](https://img.shields.io/badge/Release-v0.4.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.0)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -28,6 +28,9 @@ This project is suited for tournament management, club events, team activities, 
 - Swiss / single-elimination support: common tournament flow and knockout structures
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
+- Player profile templates: generic and Poetry Cup profiles with participant code, 9-digit UID, QQ, and immutable lock rules
+- Result workbook import: match by participant code, verify code plus UID, detect conflicts, and route exceptions to referees
+- Tencent Docs compatibility: long headers, multiple sheets, screenshot filename references, and optional screenshot verification
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
 - Persistent operation history: the latest 30 tournament changes survive refresh and can be undone, redone, or restored
 - Single-writer protection: the first tab edits while other tabs become read-only
@@ -50,7 +53,7 @@ This project is suited for tournament management, club events, team activities, 
 - `src/store/actions`: competition lifecycle and snapshot actions
 - `src/utils/storage`: IndexedDB, localStorage, snapshots, cross-tab sync, and writer locking
 - `src/utils/export`: Excel, image, and JSON export
-- `src/utils/import`: Excel, CSV, and TXT player import
+- `src/utils/import`: player profile, result workbook, and field auto-detection
 - `src/utils/schema.ts`: import and persistence data validation
 
 ### Open and reusable
@@ -114,6 +117,8 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - [Features](#features)
 - [Bulk player import from Excel](#bulk-player-import-from-excel)
 - [Multi-sheet Excel import](#multi-sheet-excel-import)
+- [Player profiles and UID](#player-profiles-and-uid)
+- [Result workbook import](#result-workbook-import)
 - [Quick start](#quick-start)
 - [Deploy to GitHub Pages](#deploy-to-github-pages)
 - [Pairing rules](#pairing-rules)
@@ -154,6 +159,43 @@ When an Excel file contains multiple worksheets, the app creates a group for eac
 - A single-sheet workbook follows the standard single-group flow
 
 This is useful when organizers keep different group rosters in separate tabs and upload them together.
+
+## Player Profiles and UID
+
+Player management includes optional tournament-specific profiles:
+
+- `generic`: nickname only, suitable for ordinary events.
+- `poetryCupS2`: participant code, 9-digit game UID, and QQ.
+
+The profile importer automatically recognizes columns such as:
+
+```text
+Nickname / Player / Name / 游戏昵称 / 昵称
+Participant code / 选手编号 / 参赛编号
+UID / Game UID / 游戏UID / 玩家UID
+QQ / QQ number / QQ号
+```
+
+When the file contains UID and QQ columns, the app switches to the Poetry Cup profile. Missing A01-D32 participant codes can be generated automatically when the group structure supports it. Once locked, participant codes and UIDs cannot be changed.
+
+## Result Workbook Import
+
+The result importer accepts Tencent Docs exports and detects headers such as:
+
+```text
+Participant code: 我的选手编号 / 选手编号 / 参赛编号 / 编号
+UID: 你的原神UID / 游戏UID / 玩家UID / UID
+Result: 比赛结果 / 胜方比分 / 你获胜的比分是
+Screenshot: 结算截图 / 小王子对局截图 / 截图 / 证据引用
+```
+
+Example:
+
+| Participant code | Game UID | Result | Screenshot |
+| --- | --- | --- | --- |
+| A05 | 180748058 | 我以 2-1 获胜 | A-R1-03_01.jpg |
+
+The importer supports multiple sheets, flexible column order, descriptive long headers, winner-perspective results, optional screenshots, conflict detection, and code-plus-UID identity verification. Code and UID mismatches are held for referee review.
 
 ### Pairing and ranking
 

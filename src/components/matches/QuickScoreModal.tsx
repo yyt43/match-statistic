@@ -7,6 +7,7 @@ import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { getRoundGameType } from '../../utils/swissPairing';
 import { ResultButtons } from './ResultButtons';
+import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface QuickScoreModalProps {
   isOpen: boolean;
@@ -49,7 +50,10 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
     competition.groups.forEach((group, groupIndex) => {
       if (group.currentRound <= 0) return;
       const roundMatches = group.matches.filter(
-        match => match.round === group.currentRound && !match.isBye
+        match => match.round === group.currentRound
+          && !match.isBye
+          && match.resultSource !== 'import'
+          && match.resultSource !== 'referee_override'
       );
       roundMatches.forEach((match, matchIndex) => {
         entries.push({
@@ -86,13 +90,17 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
 
       const resolveName = (id: string) => {
         if (id === 'bye') return isEnglish ? 'Bye' : '轮空';
-        return entry.group.players.find(player => player.id === id)?.name
-          ?? (isEnglish ? 'Unknown player' : '未知选手');
+        const player = entry.group.players.find(item => item.id === id);
+        return player ? getPlayerDisplayName(player) : (isEnglish ? 'Unknown player' : '未知选手');
       };
       return (
         entry.group.name.toLowerCase().includes(keyword)
         || resolveName(entry.match.player1Id).toLowerCase().includes(keyword)
         || resolveName(entry.match.player2Id).toLowerCase().includes(keyword)
+        || [entry.match.player1Id, entry.match.player2Id].some(id => {
+          const player = entry.group.players.find(item => item.id === id);
+          return player?.profile?.uid?.toLowerCase().includes(keyword);
+        })
         || `#${entry.matchNumber}`.includes(keyword)
       );
     });
@@ -160,8 +168,13 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
 
   const playerName = (entry: QuickMatchEntry, id: string) => {
     if (id === 'bye') return isEnglish ? 'Bye' : '轮空';
-    return entry.group.players.find(player => player.id === id)?.name
-      ?? (isEnglish ? 'Unknown player' : '未知选手');
+    const player = entry.group.players.find(item => item.id === id);
+    return player ? getPlayerDisplayName(player) : (isEnglish ? 'Unknown player' : '未知选手');
+  };
+
+  const playerUid = (entry: QuickMatchEntry, id: string) => {
+    if (id === 'bye') return '';
+    return entry.group.players.find(player => player.id === id)?.profile?.uid ?? '';
   };
 
   const applyResult = (
@@ -465,6 +478,11 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                   <div className="mt-1 truncate text-lg font-semibold">
                     {playerName(selectedEntry, selectedEntry.match.player1Id)}
                   </div>
+                  {playerUid(selectedEntry, selectedEntry.match.player1Id) && (
+                    <div className="mt-0.5 font-mono text-[10px] opacity-70">
+                      UID {playerUid(selectedEntry, selectedEntry.match.player1Id)}
+                    </div>
+                  )}
                   <div className="mt-2 text-xs opacity-80">{isEnglish ? 'Press 1 to win' : '按 1 判胜'}</div>
                 </button>
                 <button
@@ -484,6 +502,11 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                   <div className="mt-1 truncate text-lg font-semibold">
                     {playerName(selectedEntry, selectedEntry.match.player2Id)}
                   </div>
+                  {playerUid(selectedEntry, selectedEntry.match.player2Id) && (
+                    <div className="mt-0.5 font-mono text-[10px] opacity-70">
+                      UID {playerUid(selectedEntry, selectedEntry.match.player2Id)}
+                    </div>
+                  )}
                   <div className="mt-2 text-xs opacity-80">{isEnglish ? 'Press 2 to win' : '按 2 判胜'}</div>
                 </button>
               </div>

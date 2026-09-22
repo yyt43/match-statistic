@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.3.1
+当前版本：v0.4.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.3.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.3.1)
+[![Release](https://img.shields.io/badge/Release-v0.4.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.0)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -28,6 +28,9 @@
 - 瑞士轮 / 单败淘汰双赛制：支持常见比赛流程与淘汰结构
 - Excel 一键导入：支持文本、CSV、TXT、XLSX 批量导入选手名单
 - 多表格工作簿导入：按 sheet 名自动识别小组，批量分组录入
+- 选手档案模板：支持通用模板和诗意杯模板，维护选手编号、9 位 UID、QQ 和锁定规则
+- 赛果表导入：按选手编号匹配比赛，支持编号与 UID 双重确认、冲突检测和裁判异常队列
+- 腾讯文档适配：支持长表头、多个工作表和截图文件名引用，截图核验可选
 - 赛前弃赛 / 赛后弃赛 / 轮空规则：覆盖日常比赛边界情况
 - 持久化操作历史：最近 30 个赛事操作保存在本地，刷新后可继续撤销、重做或跳转
 - 单写者保护：多个标签页打开时仅一个可编辑，其余自动只读
@@ -50,7 +53,7 @@
 - `src/store/actions`：从主 Store 拆出的赛事生命周期与快照动作
 - `src/utils/storage`：IndexedDB、localStorage、快照、跨标签页同步和单写者锁
 - `src/utils/export`：Excel、图片和 JSON 导出
-- `src/utils/import`：Excel、CSV、TXT 选手导入
+- `src/utils/import`：选手档案、赛果 XLSX 导入和字段识别
 - `src/utils/schema.ts`：导入与持久化数据结构校验
 
 ### 开放与复用
@@ -117,6 +120,10 @@
 
 - [多表格 Excel 导入](#多表格-excel-导入)
 
+- [选手档案与 UID](#选手档案与-uid)
+
+- [赛果表导入](#赛果表导入)
+
 - [快速开始](#快速开始)
 
 - [部署到 GitHub Pages](#部署到-github-pages)
@@ -173,6 +180,54 @@
 - 若只有一个 sheet，则按传统单组名单导入行为处理
 
 这种方式很适合赛前把不同组别名单分表保存、统一上传、减少重复录入。
+
+## 选手档案与 UID
+
+选手管理包含可选的赛事选手档案模板：
+
+- `generic`：只要求昵称，适合普通比赛。
+- `poetryCupS2`：要求选手编号、9 位游戏 UID 和 QQ。
+
+上传报名信息表后，系统会自动识别以下列：
+
+```text
+游戏昵称 / 昵称 / 姓名 / Name
+选手编号 / 参赛编号 / 编号
+UID / 玩家UID / 游戏UID
+QQ / QQ号
+```
+
+当表格没有选手编号时，系统可以在满足 A01-D32 分组规模时自动生成编号。检测到 UID 和 QQ 列时，系统会自动切换到诗意杯模板。
+
+选手档案锁定后，UID、选手编号和内部 Player.id 的映射不可修改。结果导入时会同时检查选手编号和 UID，二者不一致时进入裁判异常队列。
+
+## 赛果表导入
+
+腾讯文档导出的赛果表可以直接上传。系统会查找表头并自动识别：
+
+```text
+我的选手编号 / 选手编号 / 参赛编号 / 编号
+你的原神UID / 游戏UID / 玩家UID / UID
+比赛结果 / 胜方比分 / 你获胜的比分是
+结算截图 / 小王子对局截图 / 截图 / 证据引用
+提交者 / 提交时间 / 备注
+```
+
+小组赛 BO3 的示例：
+
+| 我的选手编号 | 你的原神UID | 比赛结果 | 结算截图 |
+| --- | --- | --- | --- |
+| A05 | 180748058 | 我以 2-1 获胜 | A-R1-03_01.jpg |
+
+系统支持：
+
+- 多个工作表。
+- 列顺序调整。
+- 表头前后带说明文字。
+- 胜负比分自动转换为双方方向化比分。
+- 截图未显示在 XLSX 时只保存文件名或引用。
+- 截图核验可选，缺图不阻止结果写入。
+- 编号和 UID 不一致、冲突比分和未知选手进入异常队列。
 
 ### 配对与排名
 

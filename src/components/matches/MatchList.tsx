@@ -7,13 +7,14 @@ import { useMemo, useState, useEffect } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { ResultButtons } from './ResultButtons';
 import { RoundEditor } from './RoundEditor';
+import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface MatchListProps {
   testMode?: boolean;
 }
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress } = useTournamentStore();
+  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, markResultDisputed, overrideMatchResult } = useTournamentStore();
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   // 拖拽改序状态
@@ -26,6 +27,13 @@ export function MatchList({ testMode = false }: MatchListProps) {
     message: '',
     onConfirm: () => {},
   });
+  const [overrideRequest, setOverrideRequest] = useState<{
+    matchId: string;
+    result: Exclude<MatchResult, 'pending'>;
+    player1Games?: number;
+    player2Games?: number;
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
 
   useEffect(() => {
     if (currentGroup.currentRound === 0) {
@@ -49,7 +57,13 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const getPlayerName = (id: string) => {
     if (id === 'bye') return isEnglish ? 'Bye' : '轮空';
-    return playerMap.get(id)?.name || (isEnglish ? 'Unknown player' : '未知选手');
+    const player = playerMap.get(id);
+    return player ? getPlayerDisplayName(player) : (isEnglish ? 'Unknown player' : '未知选手');
+  };
+
+  const getPlayerUid = (id: string) => {
+    if (id === 'bye') return '';
+    return playerMap.get(id)?.profile?.uid ?? '';
   };
 
   const getPlayerRank = (id: string) => {
@@ -85,6 +99,44 @@ export function MatchList({ testMode = false }: MatchListProps) {
   };
 
   const isDraw = (match: Match) => match.result === 'draw';
+
+  const getEvidenceStatusLabel = (status: Match['evidenceVerificationStatus']) => {
+    const labels = isEnglish
+      ? {
+          not_required: 'Optional',
+          pending: 'Pending',
+          verified: 'Verified',
+          mismatch: 'Mismatch',
+          unreadable: 'Unreadable',
+          missing: 'Missing',
+        }
+      : {
+          not_required: '无需核验',
+          pending: '待核验',
+          verified: '已核验',
+          mismatch: '证据不符',
+          unreadable: '图片不清',
+          missing: '缺少截图',
+        };
+    return status ? labels[status] : '';
+  };
+
+  const getPublicStatusLabel = (status: Match['publicResultStatus']) => {
+    const labels = isEnglish
+      ? {
+          not_announced: 'Not announced',
+          announced: 'Announced',
+          default_confirmed: 'Confirmed',
+          disputed: 'Disputed',
+        }
+      : {
+          not_announced: '未公示',
+          announced: '已公示',
+          default_confirmed: '默认确认',
+          disputed: '有异议',
+        };
+    return status ? labels[status] : '';
+  };
 
   const getRankIcon = (rank: number | undefined) => {
     if (!rank) return null;
@@ -132,6 +184,29 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const match = currentGroup.matches.find(m => m.id === matchId);
+    if (match && match.result !== 'pending'
+      && (match.resultSource === 'import' || match.resultSource === 'referee_override')
+      && (match.result !== result || match.player1Games !== player1Games || match.player2Games !== player2Games)) {
+      if (result === 'pending') {
+        setConfirmState({
+          open: true,
+          title: isEnglish ? 'Reset imported result' : '重置导入结果',
+          message: isEnglish
+            ? 'Imported results cannot be reset directly. Use the referee override path with a new result.'
+            : '导入结果不能直接清空，请通过裁判改判写入新的正式结果。',
+          onConfirm: () => {},
+        });
+        return;
+      }
+      setOverrideRequest({
+        matchId,
+        result: result as Exclude<MatchResult, 'pending'>,
+        player1Games,
+        player2Games,
+      });
+      setOverrideReason('');
+      return;
+    }
     if (match?.playoffStage === 1 && result !== match.result && currentGroup.matches.some(m => m.playoffBracketId === match.playoffBracketId && m.playoffStage === 2)) {
       setConfirmState({
         open: true,
@@ -422,6 +497,11 @@ export function MatchList({ testMode = false }: MatchListProps) {
                             {getRankIcon(getPlayerRank(match.player1Id))}
                             <span className="truncate text-sm">{getPlayerName(match.player1Id)}</span>
                           </div>
+                          {getPlayerUid(match.player1Id) && (
+                            <div className="truncate text-[9px] font-mono opacity-65">
+                              UID {getPlayerUid(match.player1Id)}
+                            </div>
+                          )}
                           {match.player1Id !== 'bye' && (
                             <div className="text-[10px] opacity-70">
                               {getPlayerRecord(match.player1Id)}
@@ -458,6 +538,11 @@ export function MatchList({ testMode = false }: MatchListProps) {
                             {getRankIcon(getPlayerRank(match.player2Id))}
                             <span className="truncate text-sm">{getPlayerName(match.player2Id)}</span>
                           </div>
+                          {getPlayerUid(match.player2Id) && (
+                            <div className="truncate text-[9px] font-mono opacity-65">
+                              UID {getPlayerUid(match.player2Id)}
+                            </div>
+                          )}
                           {match.player2Id !== 'bye' && (
                             <div className="text-[10px] opacity-70">
                               {getPlayerRecord(match.player2Id)}
@@ -475,6 +560,38 @@ export function MatchList({ testMode = false }: MatchListProps) {
                     {isExpanded && canEditMatch && (
                       <div className="px-3 pb-3">
                         <div className="p-2.5 bg-slate-900/40 rounded-lg space-y-2.5">
+                          {(match.evidenceVerificationStatus || match.publicResultStatus || match.resultSource) && (
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 text-[9px]">
+                              {match.resultSource && (
+                                <span className="rounded border border-sky-500/25 bg-sky-500/10 px-1.5 py-0.5 text-sky-300">
+                                  {match.resultSource === 'import' ? '导入结果' : match.resultSource === 'referee_override' ? '裁判改判' : '手工录入'}
+                                </span>
+                              )}
+                              {match.evidenceVerificationStatus && (
+                                <span className={`rounded border px-1.5 py-0.5 ${
+                                  match.evidenceVerificationStatus === 'verified'
+                                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                                    : 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+                                }`}>
+                                  {isEnglish ? 'Evidence' : '截图'}：{getEvidenceStatusLabel(match.evidenceVerificationStatus)}
+                                </span>
+                              )}
+                              {match.publicResultStatus && (
+                                <span className={`rounded border px-1.5 py-0.5 ${
+                                  match.publicResultStatus === 'disputed'
+                                    ? 'border-rose-500/25 bg-rose-500/10 text-rose-300'
+                                    : 'border-slate-600 bg-slate-700/40 text-slate-300'
+                                }`}>
+                                  {isEnglish ? 'Publication' : '公示'}：{getPublicStatusLabel(match.publicResultStatus)}
+                                </span>
+                              )}
+                              {match.evidenceRefs?.[0] && (
+                                <span className="max-w-full truncate rounded border border-slate-700 bg-slate-800/70 px-1.5 py-0.5 font-mono text-slate-400">
+                                  {match.evidenceRefs[0]}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div>
                             <div className="text-[10px] text-slate-400 mb-2 text-center">{match.isPlayoff
                               ? (isEnglish
@@ -492,6 +609,14 @@ export function MatchList({ testMode = false }: MatchListProps) {
                             <div className="text-[10px] text-rose-300 text-center bg-rose-500/10 border border-rose-500/20 rounded-md py-1.5">
                               {isEnglish ? 'This match is marked as a pre-drop; it does not count toward opponent win rate. Choose any normal score above to clear this flag.' : '当前标记为赛前弃赛（该场不计入对手胜率）。选择上方任意"正常比分"按钮即可取消标记。'}
                             </div>
+                          )}
+                          {match.result !== 'pending' && !match.preDrop && (
+                            <button
+                              onClick={() => markResultDisputed(match.id, 'Referee marked from match list')}
+                              className="w-full rounded-md border border-rose-500/20 bg-rose-500/5 py-1.5 text-[10px] text-rose-300"
+                            >
+                              {isEnglish ? 'Mark result as disputed' : '标记本场结果有异议'}
+                            </button>
                           )}
                         </div>
                       </div>
@@ -515,6 +640,63 @@ export function MatchList({ testMode = false }: MatchListProps) {
           setConfirmState(s => ({ ...s, open: false }));
         }}
       />
+
+      {overrideRequest && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-white">
+              {isEnglish ? 'Referee result override' : '裁判改判'}
+            </h3>
+            <p className="mt-1 text-xs text-slate-400">
+              {isEnglish
+                ? 'This match came from an import. A reason is required, and unplayed later rounds will be invalidated.'
+                : '该场来自结果导入。必须填写改判原因；尚未开赛的后续轮次会失效并重新计算。'}
+            </p>
+            <textarea
+              value={overrideReason}
+              onChange={event => setOverrideReason(event.target.value)}
+              className="mt-3 h-24 w-full resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-rose-500/40"
+              placeholder={isEnglish ? 'Reason and evidence reference...' : '填写改判原因和证据引用...'}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setOverrideRequest(null)}
+                className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-slate-300"
+              >
+                {isEnglish ? 'Cancel' : '取消'}
+              </button>
+              <button
+                disabled={!overrideReason.trim()}
+                onClick={() => {
+                  const targetMatch = currentGroup.matches.find(item => item.id === overrideRequest.matchId);
+                  const applied = overrideMatchResult(
+                    overrideRequest.matchId,
+                    overrideRequest.result,
+                    overrideRequest.player1Games,
+                    overrideRequest.player2Games,
+                    overrideReason,
+                    targetMatch?.evidenceRefs
+                  );
+                  if (!applied) {
+                    setConfirmState({
+                      open: true,
+                      title: isEnglish ? 'Cannot override' : '无法改判',
+                      message: isEnglish
+                        ? 'Later rounds already contain played matches. Manual tournament-director handling is required.'
+                        : '后续轮次已经有已开赛结果，不能自动重排，需要赛事总负责人处理。',
+                      onConfirm: () => {},
+                    });
+                  }
+                  setOverrideRequest(null);
+                }}
+                className="rounded-lg border border-rose-500/30 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+              >
+                {isEnglish ? 'Confirm override' : '确认改判'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
