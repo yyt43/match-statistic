@@ -27,6 +27,7 @@ export default function Home() {
   useWriterLock();
 
   const {
+    competition,
     initCompetition,
     startTournament,
     updateMatchResult,
@@ -244,28 +245,40 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-3 order-2 xl:order-1">
-              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
-                <PlayerRanking />
-              </div>
-            </div>
-
-            <div className="xl:col-span-6 order-1 xl:order-2">
-              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
-                <MatchList testMode={testMode} />
-              </div>
-            </div>
-
-            <div className="xl:col-span-3 order-3">
-              <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
+          {competition.groups.every(group => group.status === 'setup') ? (
+            <div className="mx-auto max-w-6xl">
+              <div className="h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px] overflow-hidden">
                 <ControlPanel
+                  setupLayout
                   onShowConfirm={() => { setConfirmType('single'); setShowConfirm(true); }}
                   onShowConfirmAll={() => { setConfirmType('all'); setShowConfirm(true); }}
                 />
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+              <div className="xl:col-span-3 order-2 xl:order-1">
+                <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
+                  <PlayerRanking />
+                </div>
+              </div>
+
+              <div className="xl:col-span-6 order-1 xl:order-2">
+                <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
+                  <MatchList testMode={testMode} />
+                </div>
+              </div>
+
+              <div className="xl:col-span-3 order-3">
+                <div className="h-[700px] xl:h-[calc(100vh-260px)] xl:min-h-[700px] overflow-hidden">
+                  <ControlPanel
+                    onShowConfirm={() => { setConfirmType('single'); setShowConfirm(true); }}
+                    onShowConfirmAll={() => { setConfirmType('all'); setShowConfirm(true); }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
