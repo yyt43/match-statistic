@@ -83,6 +83,7 @@ export interface CompetitionState {
   }>, distributeAcrossGroups?: boolean) => RosterValidationSummary;
   setPlayerSchema: (schemaId: PlayerSchemaId) => void;
   lockRoster: () => RosterValidationSummary;
+  generateMissingParticipantCodes: () => { assigned: number; unresolved: number };
   togglePlayerDropped: (playerId: string) => void;
   setPlayerCount: (count: number) => void;
   setTotalRounds: (rounds: number) => void;

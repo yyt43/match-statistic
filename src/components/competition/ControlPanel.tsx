@@ -12,6 +12,7 @@ import type { GameType, PairingType, TiebreakRule, TiebreakTemplate } from '../.
 import { exportCompetitionToFile, importCompetitionFromFile } from '../../utils/export/fileStorage';
 import { downloadErrorReport } from '../../utils/errorReport';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
+import { validateRoster } from '../../utils/playerProfiles';
 import {
   getDefaultTiebreakRules,
   getDefaultTiebreakTemplate,
@@ -193,6 +194,7 @@ export function ControlPanel({
     draftEffectiveRounds,
     draftGameType
   );
+  const rosterValidation = validateRoster(competition);
   const groupsForStart = startConfirmTarget === 'all'
     ? competition.groups
     : [currentGroup];
@@ -373,10 +375,18 @@ export function ControlPanel({
           <div className="text-xs font-medium text-slate-300">
             {isEnglish ? 'Start event' : '开始比赛'}
           </div>
+          {!rosterValidation.valid && (
+            <div className="rounded-md border border-rose-500/25 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+              {isEnglish
+                ? `${rosterValidation.issues.length} roster issues must be resolved before starting.`
+                : `还有 ${rosterValidation.issues.length} 项选手档案异常，处理后才能开赛。`}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setStartConfirmTarget('single')}
-              className="flex items-center justify-center gap-1 rounded-lg border border-gold-500/30 bg-gold-500/15 px-2 py-2 text-[10px] font-medium text-gold-400 transition-colors hover:bg-gold-500/25"
+              disabled={!rosterValidation.valid}
+              className="flex items-center justify-center gap-1 rounded-lg border border-gold-500/30 bg-gold-500/15 px-2 py-2 text-[10px] font-medium text-gold-400 transition-colors hover:bg-gold-500/25 disabled:cursor-not-allowed disabled:opacity-30"
             >
               <Play className="h-3.5 w-3.5" />
               {isEnglish ? 'Start group' : '本组开赛'}
@@ -384,7 +394,8 @@ export function ControlPanel({
             {competition.groups.length > 1 && (
               <button
                 onClick={() => setStartConfirmTarget('all')}
-                className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                disabled={!rosterValidation.valid}
+                className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Play className="h-3.5 w-3.5" />
                 {isEnglish ? 'Start all' : '全部开赛'}

@@ -68,6 +68,41 @@ describe('player profile store actions', () => {
     expect(updated.groups[1].players.map(player => player.name)).toEqual(['C', 'D']);
   });
 
+  it('fills only missing participant codes and preserves existing codes', () => {
+    const competition = createNewCompetition('Profiles', 2, 3, 3, 'bo3');
+    competition.groups[0].players[0].participantCode = 'A01';
+    competition.groups[0].players[2].participantCode = 'A03';
+    competition.groups[1].players[0].participantCode = 'B02';
+    useTournamentStore.setState({ competition });
+
+    const result = useTournamentStore.getState().generateMissingParticipantCodes();
+    const updated = useTournamentStore.getState().competition;
+
+    expect(result).toEqual({ assigned: 3, unresolved: 0 });
+    expect(updated.groups[0].players.map(player => player.participantCode)).toEqual([
+      'A01',
+      'A02',
+      'A03',
+    ]);
+    expect(updated.groups[1].players.map(player => player.participantCode)).toEqual([
+      'B02',
+      'B01',
+      'B03',
+    ]);
+  });
+
+  it('does not start a tournament while roster validation fails', () => {
+    const competition = createNewCompetition('Profiles', 1, 2, 3, 'bo3');
+    competition.groups[0].players[0].participantCode = '';
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().startTournament(3);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups[0].status).toBe('setup');
+    expect(updated.groups[0].currentRound).toBe(0);
+  });
+
   it('assigns workbook rows to groups matching their sheet names', () => {
     const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
     competition.groups[0].name = '甲组';

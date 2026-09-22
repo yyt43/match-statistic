@@ -1,4 +1,4 @@
-import { BadgeCheck, Lock, Save, Upload } from 'lucide-react';
+import { BadgeCheck, ListPlus, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
@@ -18,6 +18,7 @@ export function RosterProfilePanel() {
   const isEnglish = language === 'en';
   const {
     competition,
+    generateMissingParticipantCodes,
     importPlayerProfiles,
     lockRoster,
   } = useTournamentStore();
@@ -29,6 +30,9 @@ export function RosterProfilePanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const locked = isRosterLocked(competition);
+  const missingCodeCount = summary.issues.filter(
+    issue => issue.code === 'MISSING_PARTICIPANT_CODE'
+  ).length;
 
   useEffect(() => {
     setSummary(validateRoster(competition));
@@ -70,11 +74,6 @@ export function RosterProfilePanel() {
         ? 'No player rows were found. Current players, groups, and format settings were kept unchanged.'
         : '没有从表格中读取到选手数据，当前选手、分组和赛制数据已保留。');
     }
-    if (rows.some(row => !row.participantCode?.trim())) {
-      throw new Error(isEnglish
-        ? 'The workbook must contain a participant code for every player.'
-        : '信息表中每名选手都必须包含选手编号。');
-    }
     const result = importPlayerProfiles(rows);
     const finalCompetition = useTournamentStore.getState().competition;
     const finalSummary = validateRoster(finalCompetition);
@@ -107,6 +106,22 @@ export function RosterProfilePanel() {
       : (isEnglish ? 'Roster validation failed.' : '选手档案校验未通过。'));
   };
 
+  const handleGenerateMissingCodes = () => {
+    const result = generateMissingParticipantCodes();
+    const nextCompetition = useTournamentStore.getState().competition;
+    setSummary(validateRoster(nextCompetition));
+    setHasImported(true);
+    if (result.assigned > 0) {
+      setMessage(isEnglish
+        ? `Filled ${result.assigned} missing participant codes. Existing codes were preserved.${result.unresolved > 0 ? ` ${result.unresolved} player(s) still need manual codes.` : ''}`
+        : `已补齐 ${result.assigned} 个缺失编号，原有编号未被修改。${result.unresolved > 0 ? `另有 ${result.unresolved} 名选手因可用编号不足需要手动处理。` : ''}`);
+    } else {
+      setMessage(isEnglish
+        ? 'No missing participant codes were found.'
+        : '没有需要补齐的选手编号。');
+    }
+  };
+
   const selectOptions = [
     ['name', isEnglish ? 'Nickname' : '游戏昵称'],
     ['participantCode', isEnglish ? 'Participant code' : '选手编号'],
@@ -133,14 +148,27 @@ export function RosterProfilePanel() {
               {isEnglish ? 'Import roster' : '导入选手信息表'}
             </button>
             <button
-              onClick={handleLock}
-              disabled={locked}
-              className="w-full rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
+              onClick={handleGenerateMissingCodes}
+              disabled={locked || missingCodeCount === 0}
+              className="w-full rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
+              title={
+                missingCodeCount === 0
+                  ? (isEnglish ? 'All players already have codes.' : '所有选手都已有编号。')
+                  : (isEnglish ? 'Fill missing codes only; existing codes are preserved.' : '仅补齐空编号，不覆盖已有编号。')
+              }
             >
-              <Lock className="mr-1 inline h-3.5 w-3.5" />
-              {isEnglish ? 'Validate and lock' : '校验并锁定'}
+              <ListPlus className="mr-1 inline h-3.5 w-3.5" />
+              {isEnglish ? `Fill missing codes (${missingCodeCount})` : `一键编号 (${missingCodeCount})`}
             </button>
           </div>
+          <button
+            onClick={handleLock}
+            disabled={locked}
+            className="w-full rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
+          >
+            <Lock className="mr-1 inline h-3.5 w-3.5" />
+            {isEnglish ? 'Validate and lock' : '校验并锁定'}
+          </button>
 
           <div className="max-h-52 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {headers.length > 0 && !locked && (
