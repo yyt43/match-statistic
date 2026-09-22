@@ -130,7 +130,19 @@ try {
     throw new Error('Player rows are not positioned below the player management heading.');
   }
 
+  await page.getByRole('button', { name: /Format management/ }).click();
+  await page.getByRole('button', { name: 'BO3', exact: true }).click();
+  const applyCurrent = page.getByRole('button', { name: 'Apply to this group' });
+  const applyAll = page.getByRole('button', { name: 'Apply to all groups' });
+  await applyCurrent.waitFor({ state: 'visible' });
+  await applyAll.waitFor({ state: 'visible' });
+  await applyCurrent.click();
+  await waitForText(page, 'Swiss · BO3');
+
   await page.getByRole('button', { name: /Start this group/ }).click();
+  await waitForText(page, 'Confirm tournament information');
+  const startDialog = page.getByRole('dialog').filter({ hasText: 'Confirm tournament information' });
+  await startDialog.getByRole('button', { name: 'Confirm and start' }).click();
   await waitForText(page, 'Round 1 match list');
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();
   await waitForText(page, 'W = Win');

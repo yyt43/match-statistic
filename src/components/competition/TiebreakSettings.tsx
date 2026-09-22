@@ -2,16 +2,15 @@ import { ArrowDown, ArrowUp, ListOrdered } from 'lucide-react';
 import type { TiebreakRule, TiebreakTemplate } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { TIEBREAK_RULES, getDefaultTiebreakRules, getDefaultTiebreakTemplate, normalizeTiebreakRules } from '../../utils/tiebreak';
-import { useTournamentStore } from '../../store/useTournamentStore';
 
 interface TiebreakSettingsProps {
   gameType: 'bo1' | 'bo3' | 'bo5' | 'bo7';
   template?: TiebreakTemplate;
   rules?: TiebreakRule[];
+  onChange: (template: TiebreakTemplate, rules: TiebreakRule[]) => void;
 }
 
-export function TiebreakSettings({ gameType, template, rules }: TiebreakSettingsProps) {
-  const setTiebreakTemplate = useTournamentStore(state => state.setTiebreakTemplate);
+export function TiebreakSettings({ gameType, template, rules, onChange }: TiebreakSettingsProps) {
   const { language, t } = useLanguagePreference();
   const activeTemplate = template ?? getDefaultTiebreakTemplate(gameType);
   const activeRules = normalizeTiebreakRules(rules, gameType);
@@ -30,7 +29,7 @@ export function TiebreakSettings({ gameType, template, rules }: TiebreakSettings
       ? [...activeRules, rule]
       : activeRules.filter(item => item !== rule);
     if (next.length === 0) return;
-    setTiebreakTemplate('custom', next);
+    onChange('custom', next);
   };
 
   const moveRule = (index: number, direction: -1 | 1) => {
@@ -38,7 +37,7 @@ export function TiebreakSettings({ gameType, template, rules }: TiebreakSettings
     if (target < 0 || target >= activeRules.length) return;
     const next = [...activeRules];
     [next[index], next[target]] = [next[target], next[index]];
-    setTiebreakTemplate('custom', next);
+    onChange('custom', next);
   };
 
   const presets: Array<{ value: TiebreakTemplate; label: string }> = [
@@ -61,11 +60,11 @@ export function TiebreakSettings({ gameType, template, rules }: TiebreakSettings
             key={preset.value}
             type="button"
             onClick={() => {
-              setTiebreakTemplate(
+              onChange(
                 preset.value,
                 preset.value === 'custom'
                   ? activeRules
-                  : getDefaultTiebreakRules(preset.value === 'standard_bo1' ? 'bo1' : 'bo3')
+                  : getDefaultTiebreakRules(preset.value === 'standard_bo1' ? 'bo1' : gameType)
               );
             }}
             className={`rounded-md px-2 py-1.5 text-[11px] transition-colors ${
