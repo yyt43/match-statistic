@@ -9,8 +9,12 @@ import {
   getDefaultTiebreakTemplate,
   normalizeTiebreakRules,
 } from '../tiebreak';
+import {
+  getDefaultPlayerFields,
+  getPlayerSchemaId,
+} from '../playerProfiles';
 
-export const CURRENT_STORAGE_VERSION = 5;
+export const CURRENT_STORAGE_VERSION = 6;
 
 type Migration = (competition: TournamentCompetition) => TournamentCompetition;
 
@@ -50,6 +54,22 @@ const migrations: Record<number, Migration> = {
       tiebreakRules: normalizeTiebreakRules(group.tiebreakRules, group.gameType),
     })),
   }),
+
+  5: competition => {
+    const playerSchemaId = getPlayerSchemaId(competition);
+    return {
+      ...competition,
+      playerSchemaId,
+      playerFields: competition.playerFields?.length
+        ? competition.playerFields
+        : getDefaultPlayerFields(playerSchemaId),
+      rosterLockedAt: competition.rosterLockedAt
+        ?? (competition.groups.some(group => group.status !== 'setup' || group.currentRound > 0)
+          ? competition.createdAt
+          : undefined),
+      groups: competition.groups.map(migrateGroup),
+    };
+  },
 };
 
 export function migrateCompetitionData(
@@ -84,6 +104,7 @@ function migrateGroup(group: TournamentGroup): TournamentGroup {
 
   const players: Player[] = (group.players ?? []).map(player => ({
     ...player,
+    profile: player.profile && typeof player.profile === 'object' ? player.profile : {},
     downMatchCount: player.downMatchCount ?? 0,
     upMatchCount: player.upMatchCount ?? 0,
     hasDownPriority: player.hasDownPriority ?? false,

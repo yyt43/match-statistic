@@ -363,7 +363,7 @@ export async function parsePlayerGroupsFromExcel(file: File, selectedColumns?: R
   return groups;
 }
 
-async function parseWorkbookFile(file: File): Promise<ParsedWorkbookSheet[]> {
+export async function parseWorkbookFile(file: File): Promise<ParsedWorkbookSheet[]> {
   if (typeof Worker === 'undefined') {
     throw new Error('Web Worker is not available in this environment.');
   }

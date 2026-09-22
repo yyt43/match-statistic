@@ -13,7 +13,13 @@ function formatPercent(value: number): string {
 function getPlayerName(players: Player[], playerId: string, t: TranslationTable): string {
   if (playerId === 'bye') return '-';
   const player = players.find(p => p.id === playerId);
-  return player ? player.name : t.unknownPlayer;
+  if (!player) return t.unknownPlayer;
+  return player.participantCode ? `${player.participantCode} · ${player.name}` : player.name;
+}
+
+function getPlayerUid(players: Player[], playerId: string): string {
+  if (playerId === 'bye') return '';
+  return players.find(player => player.id === playerId)?.profile?.uid?.trim() ?? '';
 }
 
 function getMatchScore(match: Match): string {
@@ -82,11 +88,14 @@ export function getRankingTableData(group: TournamentGroup, language: AppLanguag
   const rows: (string | number)[][] = sortedPlayers.map((player, index) => {
     const isCompleted = group.status === 'completed';
     const isSingleElim = group.pairingType === 'single_elimination';
+    const baseDisplayName = player.participantCode
+      ? `${player.participantCode} · ${player.name}`
+      : player.name;
     const displayName = player.dropped
-      ? `${player.name}${t.dropppedMark}`
+      ? `${baseDisplayName}${t.dropppedMark}`
       : (player.eliminated && !(isCompleted && isSingleElim))
-        ? `${player.name}${t.eliminatedMark}`
-        : player.name;
+        ? `${baseDisplayName}${t.eliminatedMark}`
+        : baseDisplayName;
     const rank = index + 1;
 
     if (isSingleElimination) {
@@ -128,14 +137,37 @@ export function getMatchTableData(group: TournamentGroup, round: number, languag
       return 0;
     });
 
-  const headers = [t.matchNoCol, t.player1Col, t.scoreCol, t.player2Col, t.resultCol];
-  const rows: (string | number)[][] = roundMatches.map((match, index) => [
-    index + 1,
-    getPlayerName(group.players, match.player1Id, t),
-    getMatchScore(match),
-    match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
-    getMatchResultText(match, t),
-  ]);
+  const hasProfileColumns = group.players.some(player =>
+    !!player.participantCode || !!player.profile?.uid
+  );
+  const headers = hasProfileColumns
+    ? [
+        t.matchNoCol,
+        t.player1Col,
+        'UID',
+        t.scoreCol,
+        t.player2Col,
+        'UID',
+        t.resultCol,
+      ]
+    : [t.matchNoCol, t.player1Col, t.scoreCol, t.player2Col, t.resultCol];
+  const rows: (string | number)[][] = roundMatches.map((match, index) => hasProfileColumns
+    ? [
+        index + 1,
+        getPlayerName(group.players, match.player1Id, t),
+        getPlayerUid(group.players, match.player1Id),
+        getMatchScore(match),
+        match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
+        match.isBye ? '' : getPlayerUid(group.players, match.player2Id),
+        getMatchResultText(match, t),
+      ]
+    : [
+        index + 1,
+        getPlayerName(group.players, match.player1Id, t),
+        getMatchScore(match),
+        match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
+        getMatchResultText(match, t),
+      ]);
 
   return { headers, rows };
 }

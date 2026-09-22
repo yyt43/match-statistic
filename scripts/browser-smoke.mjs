@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
+import * as XLSX from 'xlsx';
 import { findBrowser } from './browserPath.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -20,6 +21,23 @@ if (!existsSync(join(root, 'dist', 'index.html'))) {
 }
 
 const browserDataDir = mkdtempSync(join(tmpdir(), 'match-statistic-smoke-'));
+const rosterFile = join(browserDataDir, 'roster.xlsx');
+const rosterWorkbook = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(
+  rosterWorkbook,
+  XLSX.utils.aoa_to_sheet([
+    ['游戏昵称', '选手编号', 'UID', 'QQ'],
+    ['Alice', 'A01', '180748058', '2957815893'],
+    ['Bob', 'A02', '338916899', '1615852778'],
+    ['Charlie', 'A03', '346732256', '2133152813'],
+    ['Diana', 'A04', '283093920', '639177928'],
+  ]),
+  '选手档案'
+);
+writeFileSync(
+  rosterFile,
+  XLSX.write(rosterWorkbook, { type: 'buffer', bookType: 'xlsx' })
+);
 const server = spawn(process.execPath, [
   join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
   'preview',
@@ -79,11 +97,12 @@ try {
   }
   await waitForText(page, 'Poetic · Tournament Results System');
 
-  await page.getByRole('button', { name: /Player management/ }).click();
-  await page.getByRole('button', { name: 'Bulk import' }).click();
-  await page.locator('textarea').fill('Alice\nBob\nCharlie\nDiana');
-  await page.getByRole('button', { name: /Import 4 players/ }).click();
-  await waitForText(page, '4 players');
+  await page.getByRole('button', { name: '诗意杯 S2' }).click();
+  await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
+  await waitForText(page, 'Imported 4 player profiles.');
+  await waitForText(page, 'Alice');
+  await waitForText(page, 'UID 180748058');
+  await page.getByRole('button', { name: 'Generic' }).click();
 
   await page.getByRole('button', { name: /Group management/ }).click();
   await page.getByTitle('Add group').click();
@@ -91,6 +110,11 @@ try {
   await waitForText(page, 'Round 1 match list');
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();
   await waitForText(page, 'W = Win');
+
+  await page.getByRole('button', { name: 'Import results' }).click();
+  await waitForText(page, 'Import and verify match results');
+  const importResultDialog = page.getByRole('dialog').filter({ hasText: 'Import and verify match results' });
+  await importResultDialog.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Quick score entry' }).click();
   await waitForText(page, 'Quick score entry');
@@ -170,7 +194,7 @@ try {
   await page.getByTitle('Switch to Chinese').click();
   await waitForText(page, '诗意 · 比赛战绩统计系统');
 
-  console.log('Browser smoke test passed: create roster, start event, export Excel and PNG, reload persistence, switch language.');
+  console.log('Browser smoke test passed: import player profiles with UID/QQ, start event, open result import, export Excel and PNG, reload persistence, switch language.');
 } finally {
   await browser?.close();
   server.kill();

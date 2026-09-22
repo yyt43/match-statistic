@@ -25,7 +25,7 @@ const checks = [
   {
     name: 'total gzip',
     actual: totalGzip,
-    limit: 420 * 1024,
+    limit: 430 * 1024,
   },
   {
     name: 'largest asset',

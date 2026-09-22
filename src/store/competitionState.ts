@@ -1,6 +1,7 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus } from '../types';
 import { calculateAllWinRates, getRankedPlayers } from '../utils/swissPairing';
 import { getDefaultTiebreakTemplate, normalizeTiebreakRules } from '../utils/tiebreak';
+import { getDefaultPlayerFields, getPlayerSchemaId } from '../utils/playerProfiles';
 
 export function buildRankedGroup(group: TournamentGroup): TournamentGroup {
   const updatedPlayers = calculateAllWinRates(group.players, group.matches, group.gameType);
@@ -35,9 +36,20 @@ export function evaluateGroupStatus(group: TournamentGroup): TournamentStatus {
 }
 
 export function normalizeCompetitionGroups(competition: TournamentCompetition): TournamentCompetition {
+  const playerSchemaId = getPlayerSchemaId(competition);
   return {
     ...competition,
-    groups: competition.groups.map(group => buildRankedGroup(group)),
+    playerSchemaId,
+    playerFields: competition.playerFields?.length
+      ? competition.playerFields
+      : getDefaultPlayerFields(playerSchemaId),
+    groups: competition.groups.map(group => buildRankedGroup({
+      ...group,
+      players: group.players.map(player => ({
+        ...player,
+        profile: player.profile ?? {},
+      })),
+    })),
   };
 }
 
