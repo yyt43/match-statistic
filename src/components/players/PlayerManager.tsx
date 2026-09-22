@@ -15,7 +15,7 @@ export function PlayerManager() {
   const { competition, removePlayer, updatePlayerProfile } = useTournamentStore();
   const [expanded, setExpanded] = useState(true);
   const rosterLocked = isRosterLocked(competition);
-  const showProfileColumns = (competition.playerSchemaId ?? 'generic') === 'poetryCupS2';
+  const showProfileColumns = true;
 
   return (
     <div className="space-y-2">

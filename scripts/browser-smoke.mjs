@@ -32,7 +32,7 @@ XLSX.utils.book_append_sheet(
     ['Charlie', 'A03', '346732256', '2133152813'],
     ['Diana', 'A04', '283093920', '639177928'],
   ]),
-  '选手档案'
+  '小组01'
 );
 writeFileSync(
   rosterFile,
@@ -97,12 +97,10 @@ try {
   }
   await waitForText(page, 'Poetic · Tournament Results System');
 
-  await page.getByRole('button', { name: '诗意杯 S2' }).click();
   await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
   await waitForText(page, 'Imported 4 player profiles.');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
-  await page.getByRole('button', { name: 'Generic' }).click();
 
   await page.getByRole('button', { name: /Group management/ }).click();
   await page.getByTitle('Add group').click();

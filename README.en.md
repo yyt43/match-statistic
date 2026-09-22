@@ -28,7 +28,7 @@ This project is suited for tournament management, club events, team activities, 
 - Swiss / single-elimination support: common tournament flow and knockout structures
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
-- Player profile templates: generic and Poetry Cup profiles with participant code, 9-digit UID, QQ, and immutable lock rules
+- Unified player profiles: nickname, participant code, 9-digit UID, and QQ use one import template and one editable list
 - Result workbook import: match by participant code, verify code plus UID, detect conflicts, and route exceptions to referees
 - Tencent Docs compatibility: long headers, multiple sheets, screenshot filename references, and optional screenshot verification
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
@@ -165,10 +165,7 @@ This is useful when organizers keep different group rosters in separate tabs and
 
 ## Player Profiles and UID
 
-Player management includes optional tournament-specific profiles:
-
-- `generic`: nickname only, suitable for ordinary events.
-- `poetryCupS2`: participant code, 9-digit game UID, and QQ.
+Player management uses one unified player workbook. There is no separate Generic or Poetry Cup profile selector. Nickname, participant code, UID, and QQ are imported and edited in the same list.
 
 The profile importer automatically recognizes columns such as:
 
@@ -179,7 +176,7 @@ UID / Game UID / 游戏UID / 玩家UID
 QQ / QQ number / QQ号
 ```
 
-When the file contains UID and QQ columns, the app switches to the Poetry Cup profile. Missing A01-D32 participant codes can be generated automatically when the group structure supports it. Once locked, participant codes and UIDs cannot be changed.
+Missing A01-D32 participant codes can be generated automatically when the group structure supports it. Empty UID or QQ values do not block imports; when provided, they are validated for format and uniqueness. Once locked, participant codes and UIDs cannot be changed.
 
 The app no longer requires a per-match confirmation or dispute flow. If a result is wrong, the referee edits or overrides it directly; imported results require a reason and preserve the override history.
 
