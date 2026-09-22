@@ -458,7 +458,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
           <div className="space-y-2">
             <button
               onClick={() => setShowFormatManager(!showFormatManager)}
-              className="w-full flex items-center justify-between text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
+              className="sticky top-0 z-10 -mx-3 flex w-[calc(100%+1.5rem)] items-center justify-between border-b border-slate-700/40 bg-slate-800/95 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-sm"
             >
               <span className="flex items-center gap-2">
                 <Settings className="w-3.5 h-3.5" />
