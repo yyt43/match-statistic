@@ -4,6 +4,7 @@ import { normalizeUid } from '../playerProfiles';
 export interface RosterProfileImportRow {
   id?: string;
   name: string;
+  groupName?: string;
   participantCode?: string;
   profile?: Record<string, string>;
 }
@@ -93,6 +94,7 @@ export async function parseRosterProfilesFromWorkbook(
       if (qq) profile.qq = qq;
       result.push({
         name,
+        groupName: sheet.name,
         participantCode: columns.participantCode
           ? row[columns.participantCode]?.trim() ?? ''
           : '',

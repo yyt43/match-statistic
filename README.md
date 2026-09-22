@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.4.0
+当前版本：v0.4.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.0)
+[![Release](https://img.shields.io/badge/Release-v0.4.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.1)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -106,7 +106,7 @@
 
 如果你希望更轻量，也可以直接使用 `main` + `feature/*` 的方式，适合小型开源项目。
 
-其中，Excel 导入支持文本粘贴、单表名单导入和多表格工作簿导入；当工作簿中存在多个 sheet 时，系统会按表名自动识别为多个小组，并按每个 sheet 的内容分别导入选手名单。
+选手信息统一通过一个 Excel / CSV 导入入口读取。当工作簿中存在多个 sheet 时，系统会按表名匹配已有小组。
 
 ## 目录
 
@@ -116,7 +116,7 @@
 
 - [功能特性](#功能特性)
 
-- [Excel 批量录入选手](#excel-批量录入选手)
+- [统一选手信息表导入](#统一选手信息表导入)
 
 - [多表格 Excel 导入](#多表格-excel-导入)
 
@@ -158,15 +158,18 @@
 
 - **选手整体预览**：比赛开始前可一键预览全部小组的选手名单，自动检测重名与空小组
 
-- **选手名单管理**：支持手动逐个编辑、粘贴多行名单、Excel / CSV / TXT 批量导入；通过「批量设置所有小组」统一配置各组人数、轮次、赛制后一键应用
+- **选手名单管理**：选手管理内只有一个“导入选手信息表”入口，自动读取昵称、选手编号、UID、QQ；同一列表可直接编辑，多工作表可按表名映射小组
 
-## Excel 批量录入选手
+## 统一选手信息表导入
 
-应用支持三种快速录入方式：
+选手管理内保留一个统一的“导入选手信息表”入口：
 
-1. 文本粘贴：在「选手管理」中直接粘贴名单，每行一个姓名，或用逗号 / 分号分隔。
-2. Excel 批量导入：上传 `.xlsx` / `.xls` / `.csv` / `.txt` 文件，系统会自动识别各 sheet 的表头，并优先读取包含 `姓名` / `Name` / `Player` 等字段的列；若表头不明确，用户也可手动选择需要作为选手名称的列。
-3. 多表格 Excel 导入：如果工作簿中含有多个 sheet，每个 sheet 名称会被当作一个小组名，系统会按表名自动拆分成多个小组并批量导入，适合一份 Excel 文件中同时保存多个组别名单。
+1. 上传 `.xlsx` / `.xls` / `.csv` 文件。
+2. 系统自动识别昵称、选手编号、UID、QQ 等列。
+3. 如果工作簿包含多个 sheet，会优先按 sheet 名称匹配已有小组。
+4. 如果表头不明确，可以在导入预览中手动调整列映射。
+
+旧版单独的名称批量导入、文本粘贴和第二套导入按钮已经移除，避免重复列表与重复操作。
 
 录入过程会自动去除空白、重复项、表头字段（例如 `姓名` / `name`）以及非姓名列中的数字/备注，避免名单中出现空值和重复选手，适合大规模赛前报名、比赛名单整理和跨表格迁移。
 

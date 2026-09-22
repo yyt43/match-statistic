@@ -69,6 +69,7 @@ export interface CompetitionState {
   importPlayerProfiles: (players: Array<{
     id?: string;
     name: string;
+    groupName?: string;
     participantCode?: string;
     profile?: Record<string, string>;
   }>, distributeAcrossGroups?: boolean) => RosterValidationSummary;

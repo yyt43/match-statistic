@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.4.0
+Current version: v0.4.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.0)
+[![Release](https://img.shields.io/badge/Release-v0.4.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.1)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -115,7 +115,7 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - [Technical Architecture](docs/ARCHITECTURE.md)
 
 - [Features](#features)
-- [Bulk player import from Excel](#bulk-player-import-from-excel)
+- [Unified player workbook import](#unified-player-workbook-import)
 - [Multi-sheet Excel import](#multi-sheet-excel-import)
 - [Player profiles and UID](#player-profiles-and-uid)
 - [Result workbook import](#result-workbook-import)
@@ -137,15 +137,18 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 
 - Multi-group tournament support: create multiple groups inside one event (1–20 groups)
 - Overview of all players: preview all group rosters before the event starts and detect duplicate names or empty groups
-- Player management: manually edit names, paste multi-line lists, or bulk-import from Excel / CSV / TXT; apply group-wide settings in one click
+- Player management: one unified workbook import for nickname, participant code, UID, and QQ, followed by direct editing in the same list
 
-## Bulk Player Import from Excel
+## Unified Player Workbook Import
 
-The app supports three quick import methods:
+Player management now has one unified workbook import:
 
-1. Text paste: paste names into the player management panel, one name per line or separated by commas / semicolons.
-2. Excel bulk import: upload `.xlsx`, `.xls`, `.csv`, or `.txt` files. The app automatically detects header rows and prefers columns such as `Name`, `Player`, or `姓名`.
-3. Multi-sheet Excel import: if the workbook includes several sheets, each sheet name becomes a group name, and players are split into matching groups automatically.
+1. Upload `.xlsx`, `.xls`, or `.csv`.
+2. The app detects nickname, participant code, UID, and QQ columns.
+3. Multi-sheet workbooks match sheet names to existing group names.
+4. Column mapping can be adjusted before importing when headers are ambiguous.
+
+The previous name-only import, text-paste panel, and second import button have been removed.
 
 The import process automatically removes blank rows, duplicate names, header-like labels, and irrelevant numeric / note columns to avoid empty names and duplicate entries.
 
