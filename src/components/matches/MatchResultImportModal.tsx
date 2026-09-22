@@ -29,6 +29,19 @@ function fileNameFromRef(value: string): string {
   return value.split(/[\\/]/).pop()?.trim().toLowerCase() ?? '';
 }
 
+function sanitizeEvidenceUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value, window.location.href);
+    if (url.protocol !== 'blob:' || url.origin !== window.location.origin) {
+      return undefined;
+    }
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
 export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportModalProps) {
   const { language } = useLanguagePreference();
   const isEnglish = language === 'en';
@@ -301,7 +314,7 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                   {preview.ready.map(candidate => {
                     const status = verification[candidate.rowNumber] ?? 'not_required';
                     const evidenceUrl = getEvidenceUrl(candidate.evidenceRef);
-                    const safeEvidenceUrl = evidenceUrl?.startsWith('blob:') ? evidenceUrl : undefined;
+                    const safeEvidenceUrl = sanitizeEvidenceUrl(evidenceUrl);
                     return (
                       <div key={`${candidate.matchId}-${candidate.rowNumber}`} className="rounded-lg border border-slate-700/60 bg-slate-800/35 p-3">
                         <div className="flex items-start gap-3">
