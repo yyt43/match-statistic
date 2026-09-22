@@ -102,9 +102,7 @@ try {
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
 
-  await page.getByRole('button', { name: /Group management/ }).click();
-  await page.getByTitle('Add group').click();
-  await page.getByRole('button', { name: 'Start all groups' }).click();
+  await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();
   await waitForText(page, 'W = Win');
@@ -116,9 +114,9 @@ try {
 
   await page.getByRole('button', { name: 'Quick score entry' }).click();
   await waitForText(page, 'Quick score entry');
-  await waitForText(page, '2 groups');
+  await waitForText(page, '1 groups');
   await page.keyboard.press('1');
-  await waitForText(page, '17 pending');
+  await waitForText(page, '1 pending');
   const quickScoreDialog = page.getByRole('dialog').filter({ hasText: 'Quick score entry' });
   await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
 

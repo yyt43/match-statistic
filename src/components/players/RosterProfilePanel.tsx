@@ -19,7 +19,6 @@ export function RosterProfilePanel() {
   const {
     competition,
     importPlayerProfiles,
-    assignParticipantCodes,
     lockRoster,
   } = useTournamentStore();
   const [columns, setColumns] = useState<RosterColumnChoices>({ name: '' });
@@ -41,7 +40,7 @@ export function RosterProfilePanel() {
       setHeaders(detected.headers);
       setColumns(detected.detected);
       if (detected.detected.name) {
-        await importProfiles(file, detected.detected, true);
+        await importProfiles(file, detected.detected);
       } else {
         setMessage(isEnglish
           ? 'Columns detected, but no nickname column was found.'
@@ -54,24 +53,21 @@ export function RosterProfilePanel() {
 
   const importProfiles = async (
     file: File,
-    selectedColumns: RosterColumnChoices,
-    autoAssignCodes = false
+    selectedColumns: RosterColumnChoices
   ) => {
     const rows = await parseRosterProfilesFromWorkbook(file, selectedColumns);
-    const result = importPlayerProfiles(rows);
-    const hasCodes = rows.some(row => !!row.participantCode?.trim());
-    const nextCompetition = useTournamentStore.getState().competition;
-    const canGenerateCodes = nextCompetition.groups.length <= 4
-      && nextCompetition.groups.every(group => group.players.length <= 32);
-    if (autoAssignCodes && !hasCodes && canGenerateCodes) {
-      assignParticipantCodes();
+    if (rows.some(row => !row.participantCode?.trim())) {
+      throw new Error(isEnglish
+        ? 'The workbook must contain a participant code for every player.'
+        : '信息表中每名选手都必须包含选手编号。');
     }
+    const result = importPlayerProfiles(rows);
     const finalCompetition = useTournamentStore.getState().competition;
     const finalSummary = validateRoster(finalCompetition);
     setSummary(finalSummary);
     setMessage(isEnglish
-      ? `Imported ${result.playerCount} player profiles${autoAssignCodes && !hasCodes && canGenerateCodes ? ' and generated participant codes' : ''}.`
-      : `已自动导入 ${result.playerCount} 名选手档案${autoAssignCodes && !hasCodes && canGenerateCodes ? '，并生成选手编号' : ''}。`);
+      ? `Imported ${result.playerCount} player profiles.`
+      : `已自动导入 ${result.playerCount} 名选手档案。`);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -83,11 +79,6 @@ export function RosterProfilePanel() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
-  };
-
-  const handleAssignCodes = () => {
-    assignParticipantCodes();
-    setMessage(isEnglish ? 'Participant codes generated.' : '选手编号已生成。');
   };
 
   const handleLock = () => {
@@ -154,14 +145,7 @@ export function RosterProfilePanel() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleAssignCodes}
-              disabled={locked}
-              className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
-            >
-              {isEnglish ? 'Generate codes' : '生成 A01-D32'}
-            </button>
+          <div className="grid grid-cols-1 gap-2">
             <button
               onClick={handleLock}
               disabled={locked}

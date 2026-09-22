@@ -19,12 +19,11 @@ describe('player profile store actions', () => {
     const store = useTournamentStore.getState();
     store.setPlayerSchema('poetryCupS2');
     store.importPlayerProfiles([
-      { name: 'A', profile: { uid: '180748058', qq: '2957815893' } },
-      { name: 'B', profile: { uid: '338916899', qq: '1615852778' } },
-      { name: 'C', profile: { uid: '346732256', qq: '2133152813' } },
-      { name: 'D', profile: { uid: '283093920', qq: '639177928' } },
+      { name: 'A', participantCode: 'A01', profile: { uid: '180748058', qq: '2957815893' } },
+      { name: 'B', participantCode: 'A02', profile: { uid: '338916899', qq: '1615852778' } },
+      { name: 'C', participantCode: 'B01', profile: { uid: '346732256', qq: '2133152813' } },
+      { name: 'D', participantCode: 'B02', profile: { uid: '283093920', qq: '639177928' } },
     ], true);
-    store.assignParticipantCodes();
 
     const updated = useTournamentStore.getState().competition;
     expect(updated.groups[0].players.map(player => player.name)).toEqual(['A', 'B']);

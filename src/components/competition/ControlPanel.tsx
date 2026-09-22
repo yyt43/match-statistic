@@ -25,6 +25,9 @@ const QuickScoreModal = lazy(() =>
 const MatchResultImportModal = lazy(() =>
   import('../matches/MatchResultImportModal').then(module => ({ default: module.MatchResultImportModal }))
 );
+const RosterProfilePanel = lazy(() =>
+  import('../players/RosterProfilePanel').then(module => ({ default: module.RosterProfilePanel }))
+);
 const StorageHealthModal = lazy(() =>
   import('../data/StorageHealthModal').then(module => ({ default: module.StorageHealthModal }))
 );
@@ -94,6 +97,7 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
   const [importError, setImportError] = useState<string | null>(null);
   const [importErrorFile, setImportErrorFile] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const controlScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setNameInput(competition.name);
@@ -296,6 +300,14 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         </div>
       </div>
 
+      {isSetup && (
+        <div className="border-b border-slate-700/50 px-4 py-3">
+          <Suspense fallback={null}>
+            <RosterProfilePanel />
+          </Suspense>
+        </div>
+      )}
+
       {/* 小组管理 */}
       <div className="p-4 border-b border-slate-700/50">
         <button
@@ -465,24 +477,31 @@ export function ControlPanel({ onShowConfirm, onShowConfirmAll }: ControlPanelPr
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {isSetup && (
+        <div className="border-b border-slate-700/50 bg-slate-800/40 px-4 py-2">
+          <button
+            onClick={() => {
+              setShowFormatManager(!showFormatManager);
+              controlScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex w-full items-center justify-between text-xs font-medium text-slate-300"
+          >
+            <span className="flex items-center gap-2">
+              <Settings className="w-3.5 h-3.5" />
+              {isEnglish ? 'Format management' : '赛制管理'}
+              <span className="text-slate-500">
+                ({currentGroup.pairingType === 'swiss' ? (isEnglish ? 'Swiss' : '瑞士轮') : (isEnglish ? 'Elimination' : '淘汰')} · {currentGroup.gameType.toUpperCase()})
+              </span>
+            </span>
+            {showFormatManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      )}
+
+      <div ref={controlScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* 赛制管理 */}
         {isSetup && (
           <div className="space-y-2">
-            <button
-              onClick={() => setShowFormatManager(!showFormatManager)}
-              className="sticky top-0 z-10 -mx-3 flex w-[calc(100%+1.5rem)] items-center justify-between border-b border-slate-700/40 bg-slate-800/95 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-sm"
-            >
-              <span className="flex items-center gap-2">
-                <Settings className="w-3.5 h-3.5" />
-                {isEnglish ? 'Format management' : '赛制管理'}
-                <span className="text-slate-500">
-                  ({currentGroup.pairingType === 'swiss' ? (isEnglish ? 'Swiss' : '瑞士轮') : (isEnglish ? 'Elimination' : '淘汰')} · {currentGroup.gameType.toUpperCase()})
-                </span>
-              </span>
-              {showFormatManager ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-
             {showFormatManager && (
               <div className="mt-3 space-y-3">
                 <div className="space-y-2">
