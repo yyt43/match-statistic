@@ -142,7 +142,7 @@ try {
   if (settingsScrollerHeight < 180) {
     throw new Error(`Player list area is too short: ${settingsScrollerHeight}px`);
   }
-  const startGroupButton = page.getByRole('button', { name: /Start this group/ });
+  const startGroupButton = page.getByRole('button', { name: /^Start group/ });
   const startButtonInScroller = await startGroupButton.evaluate(button =>
     Boolean(button.closest('.overflow-y-auto.p-4.space-y-4'))
   );
