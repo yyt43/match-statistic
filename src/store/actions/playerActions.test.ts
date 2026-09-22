@@ -50,6 +50,23 @@ describe('player profile store actions', () => {
     expect(updated.groups[1].players.map(player => player.name)).toEqual(['B1', 'B2']);
   });
 
+  it('assigns workbook rows to groups matching their sheet names', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
+    competition.groups[0].name = '甲组';
+    competition.groups[1].name = '乙组';
+    useTournamentStore.setState({ competition });
+    useTournamentStore.getState().importPlayerProfiles([
+      { name: '甲一', groupName: '甲组' },
+      { name: '乙一', groupName: '乙组' },
+      { name: '甲二', groupName: '甲组' },
+      { name: '乙二', groupName: '乙组' },
+    ], true);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups[0].players.map(player => player.name)).toEqual(['甲一', '甲二']);
+    expect(updated.groups[1].players.map(player => player.name)).toEqual(['乙一', '乙二']);
+  });
+
   it('locks a valid roster and rejects later UID changes', () => {
     const competition = createNewCompetition('Profiles', 1, 2, 3, 'bo3');
     competition.playerSchemaId = 'poetryCupS2';

@@ -161,11 +161,16 @@ export function createPlayerActions(
       const shouldDistribute = distributeAcrossGroups
         ?? players.length >= competition.groups.length * 2;
       const fields = getPlayerFields(competition);
+      const groupNameByPlayerId = new Map<string, string>();
       const nextPlayers = players.map(entry => {
         const basePlayer = createPlayer(entry.name ?? '');
+        const playerId = entry.id ?? basePlayer.id;
+        if (entry.groupName?.trim()) {
+          groupNameByPlayerId.set(playerId, entry.groupName.trim());
+        }
         const next: Player = {
           ...basePlayer,
-          id: entry.id ?? basePlayer.id,
+          id: playerId,
           name: entry.name?.trim() ?? '',
           participantCode: entry.participantCode?.trim() ?? '',
           profile: {},
@@ -187,6 +192,15 @@ export function createPlayerActions(
         const hasParticipantCodes = nextPlayers.some(player =>
           /^[A-D][0-9]{2}$/.test(player.participantCode ?? '')
         );
+        const hasGroupNames = groupNameByPlayerId.size > 0;
+        if (hasGroupNames) {
+          const byGroupName = nextPlayers.filter(player =>
+            groupNameByPlayerId.get(player.id) === group.name.trim()
+          );
+          if (byGroupName.length > 0) {
+            return { ...group, players: byGroupName };
+          }
+        }
         if (hasParticipantCodes) {
           const prefix = String.fromCharCode(65 + index);
           const codedPlayers = nextPlayers.filter(player =>

@@ -14,9 +14,6 @@ import { logAudit } from '../../utils/auditLog';
 type ImportActionKey =
   | 'applyImportedMatchResults'
   | 'verifyMatchEvidence'
-  | 'announceRoundResults'
-  | 'markResultDisputed'
-  | 'finalizeDefaultConfirmations'
   | 'overrideMatchResult';
 
 export interface ImportedMatchResultCandidate {
@@ -108,7 +105,6 @@ export function createImportActions(
             evidenceVerificationStatus: candidate.evidenceVerificationStatus
               ?? match.evidenceVerificationStatus
               ?? 'not_required',
-            publicResultStatus: match.publicResultStatus ?? 'not_announced',
           };
           if (JSON.stringify(nextMatch) !== JSON.stringify(match)) {
             group.matches[matchIndex] = nextMatch;
@@ -135,7 +131,6 @@ export function createImportActions(
               evidenceRefs: candidate.evidenceRefs,
               evidenceHash: candidate.evidenceHash,
               evidenceVerificationStatus: candidate.evidenceVerificationStatus ?? 'not_required',
-              publicResultStatus: 'not_announced',
             }
           : matchItem);
         groups[candidate.groupIndex] = recalculateRanking(updatedGroup);
@@ -187,78 +182,6 @@ export function createImportActions(
       set({ competition: { ...competition, groups } }, { label: '核验比赛证据' });
       void logAudit('evidence-verification', `${matchId} -> ${status}`, { matchId, status, note });
       return true;
-    },
-
-    announceRoundResults: (groupIndex, round, confirmationDeadlineAt) => {
-      const { competition } = get();
-      const groups = cloneGroups(competition);
-      const group = groups[groupIndex];
-      if (!group) return 0;
-      const announcedAt = new Date().toISOString();
-      let count = 0;
-      group.matches = group.matches.map(match => {
-        if (match.round !== round || match.result === 'pending' || match.isPlayoff) return match;
-        count += 1;
-        return {
-          ...match,
-          publicResultStatus: match.publicResultStatus === 'disputed' ? 'disputed' : 'announced',
-          announcedAt,
-          confirmationDeadlineAt: confirmationDeadlineAt ?? match.confirmationDeadlineAt,
-        };
-      });
-      if (count === 0) return 0;
-      set({ competition: { ...competition, groups } }, { label: '公示本轮结果' });
-      void logAudit('round-results-announced', `Group ${groupIndex + 1}, round ${round}`, {
-        groupIndex,
-        round,
-        count,
-        confirmationDeadlineAt,
-      });
-      return count;
-    },
-
-    markResultDisputed: (matchId, note) => {
-      const { competition } = get();
-      const groups = cloneGroups(competition);
-      const disputedAt = new Date().toISOString();
-      let changed = false;
-      for (const group of groups) {
-        const index = group.matches.findIndex(match => match.id === matchId);
-        if (index < 0) continue;
-        group.matches[index] = {
-          ...group.matches[index],
-          publicResultStatus: 'disputed',
-          disputedAt,
-        };
-        changed = true;
-        break;
-      }
-      if (!changed) return false;
-      set({ competition: { ...competition, groups } }, { label: '标记比赛异议' });
-      void logAudit('match-disputed', matchId, { matchId, note });
-      return true;
-    },
-
-    finalizeDefaultConfirmations: (groupIndex, round) => {
-      const { competition } = get();
-      const groups = cloneGroups(competition);
-      const group = groups[groupIndex];
-      if (!group) return 0;
-      let count = 0;
-      group.matches = group.matches.map(match => {
-        if (match.round !== round || match.result === 'pending') return match;
-        if (match.publicResultStatus === 'disputed') return match;
-        count += 1;
-        return { ...match, publicResultStatus: 'default_confirmed' };
-      });
-      if (count === 0) return 0;
-      set({ competition: { ...competition, groups } }, { label: '完成默认确认' });
-      void logAudit('round-results-default-confirmed', `Group ${groupIndex + 1}, round ${round}`, {
-        groupIndex,
-        round,
-        count,
-      });
-      return count;
     },
 
     overrideMatchResult: (matchId, result, player1Games, player2Games, reason, evidenceRefs) => {
@@ -314,7 +237,6 @@ export function createImportActions(
             resultSource: 'referee_override',
             resultOverrides: [...(match.resultOverrides ?? []), override],
             evidenceVerificationStatus: 'not_required',
-            publicResultStatus: 'not_announced',
           }
         : match);
       groups[targetGroupIndex] = recalculateRanking(applied);

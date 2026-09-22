@@ -138,74 +138,72 @@ export function RosterProfilePanel() {
             </button>
           </div>
 
-          {schemaId === 'poetryCupS2' && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={event => void handleFile(event.target.files?.[0])}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={locked}
-                className="w-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
-              >
-                <Upload className="mr-1 inline h-3.5 w-3.5" />
-                {isEnglish ? 'Import nickname / UID / QQ' : '导入昵称、UID、QQ'}
-              </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={event => void handleFile(event.target.files?.[0])}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={locked}
+            className="w-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
+          >
+            <Upload className="mr-1 inline h-3.5 w-3.5" />
+            {isEnglish ? 'Import player workbook' : '导入选手信息表'}
+          </button>
 
-              {headers.length > 0 && !locked && (
-                <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-800/35 p-2">
-                  {selectOptions.map(([key, label]) => (
-                    <label key={key} className="grid grid-cols-[90px_1fr] items-center gap-2 text-[11px] text-slate-400">
-                      <span>{label}</span>
-                      <select
-                        value={columns[key] ?? ''}
-                        onChange={event => setColumns(previous => ({
-                          ...previous,
-                          [key]: event.target.value || undefined,
-                        }))}
-                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-slate-200"
-                      >
-                        <option value="">{isEnglish ? 'Not mapped' : '不映射'}</option>
-                        {headers.map(header => (
-                          <option key={header} value={header}>{header}</option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                  <button
-                    onClick={() => void handleImport()}
-                    disabled={!columns.name}
-                    className="w-full rounded-lg bg-emerald-500/15 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
+          {headers.length > 0 && !locked && (
+            <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-800/35 p-2">
+              {selectOptions.map(([key, label]) => (
+                <label key={key} className="grid grid-cols-[90px_1fr] items-center gap-2 text-[11px] text-slate-400">
+                  <span>{label}</span>
+                  <select
+                    value={columns[key] ?? ''}
+                    onChange={event => setColumns(previous => ({
+                      ...previous,
+                      [key]: event.target.value || undefined,
+                    }))}
+                    className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-slate-200"
                   >
-                    <Save className="mr-1 inline h-3.5 w-3.5" />
-                    {isEnglish ? 'Import mapped profiles' : '按当前映射导入'}
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleAssignCodes}
-                  disabled={locked}
-                  className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
-                >
-                  {isEnglish ? 'Generate codes' : '生成 A01-D32'}
-                </button>
-                <button
-                  onClick={handleLock}
-                  disabled={locked}
-                  className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
-                >
-                  <Lock className="mr-1 inline h-3.5 w-3.5" />
-                  {isEnglish ? 'Validate and lock' : '校验并锁定'}
-                </button>
-              </div>
-            </>
+                    <option value="">{isEnglish ? 'Not mapped' : '不映射'}</option>
+                    {headers.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <button
+                onClick={() => void handleImport()}
+                disabled={!columns.name}
+                className="w-full rounded-lg bg-emerald-500/15 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40"
+              >
+                <Save className="mr-1 inline h-3.5 w-3.5" />
+                {isEnglish ? 'Import mapped profiles' : '按当前映射导入'}
+              </button>
+            </div>
           )}
+
+          <div className={`grid gap-2 ${schemaId === 'poetryCupS2' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {schemaId === 'poetryCupS2' && (
+              <button
+                onClick={handleAssignCodes}
+                disabled={locked}
+                className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 disabled:opacity-40"
+              >
+                {isEnglish ? 'Generate codes' : '生成 A01-D32'}
+              </button>
+            )}
+            <button
+              onClick={handleLock}
+              disabled={locked}
+              className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 disabled:opacity-40"
+            >
+              <Lock className="mr-1 inline h-3.5 w-3.5" />
+              {isEnglish ? 'Validate and lock' : '校验并锁定'}
+            </button>
+          </div>
 
           {message && (
             <div className="rounded-lg border border-slate-700/60 bg-slate-800/50 px-2 py-1.5 text-[11px] text-slate-300">

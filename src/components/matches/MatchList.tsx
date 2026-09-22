@@ -14,7 +14,7 @@ interface MatchListProps {
 }
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, markResultDisputed, overrideMatchResult } = useTournamentStore();
+  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, overrideMatchResult } = useTournamentStore();
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   // 拖拽改序状态
@@ -117,23 +117,6 @@ export function MatchList({ testMode = false }: MatchListProps) {
           mismatch: '证据不符',
           unreadable: '图片不清',
           missing: '缺少截图',
-        };
-    return status ? labels[status] : '';
-  };
-
-  const getPublicStatusLabel = (status: Match['publicResultStatus']) => {
-    const labels = isEnglish
-      ? {
-          not_announced: 'Not announced',
-          announced: 'Announced',
-          default_confirmed: 'Confirmed',
-          disputed: 'Disputed',
-        }
-      : {
-          not_announced: '未公示',
-          announced: '已公示',
-          default_confirmed: '默认确认',
-          disputed: '有异议',
         };
     return status ? labels[status] : '';
   };
@@ -576,15 +559,6 @@ export function MatchList({ testMode = false }: MatchListProps) {
                                   {isEnglish ? 'Evidence' : '截图'}：{getEvidenceStatusLabel(match.evidenceVerificationStatus)}
                                 </span>
                               )}
-                              {match.publicResultStatus && (
-                                <span className={`rounded border px-1.5 py-0.5 ${
-                                  match.publicResultStatus === 'disputed'
-                                    ? 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-                                    : 'border-slate-600 bg-slate-700/40 text-slate-300'
-                                }`}>
-                                  {isEnglish ? 'Publication' : '公示'}：{getPublicStatusLabel(match.publicResultStatus)}
-                                </span>
-                              )}
                               {match.evidenceRefs?.[0] && (
                                 <span className="max-w-full truncate rounded border border-slate-700 bg-slate-800/70 px-1.5 py-0.5 font-mono text-slate-400">
                                   {match.evidenceRefs[0]}
@@ -609,14 +583,6 @@ export function MatchList({ testMode = false }: MatchListProps) {
                             <div className="text-[10px] text-rose-300 text-center bg-rose-500/10 border border-rose-500/20 rounded-md py-1.5">
                               {isEnglish ? 'This match is marked as a pre-drop; it does not count toward opponent win rate. Choose any normal score above to clear this flag.' : '当前标记为赛前弃赛（该场不计入对手胜率）。选择上方任意"正常比分"按钮即可取消标记。'}
                             </div>
-                          )}
-                          {match.result !== 'pending' && !match.preDrop && (
-                            <button
-                              onClick={() => markResultDisputed(match.id, 'Referee marked from match list')}
-                              className="w-full rounded-md border border-rose-500/20 bg-rose-500/5 py-1.5 text-[10px] text-rose-300"
-                            >
-                              {isEnglish ? 'Mark result as disputed' : '标记本场结果有异议'}
-                            </button>
                           )}
                         </div>
                       </div>
