@@ -133,7 +133,7 @@ try {
     throw new Error('Player rows are not positioned below the player management heading.');
   }
   const settingsScrollerHeight = await page
-    .locator('.col-start-2.min-h-0.overflow-y-auto')
+    .getByTestId('player-management-scroll')
     .first()
     .evaluate(scroller => scroller.clientHeight);
   if (settingsScrollerHeight < 180) {
