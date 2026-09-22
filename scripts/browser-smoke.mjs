@@ -129,6 +129,13 @@ try {
   if (!firstPlayerBox || firstPlayerBox.top < playerBox.y + playerBox.height) {
     throw new Error('Player rows are not positioned below the player management heading.');
   }
+  const startGroupButton = page.getByRole('button', { name: /Start this group/ });
+  const startButtonInScroller = await startGroupButton.evaluate(button =>
+    Boolean(button.closest('.overflow-y-auto.p-4.space-y-4'))
+  );
+  if (startButtonInScroller) {
+    throw new Error('The start button is still inside the scrolling settings area.');
+  }
 
   await page.getByRole('button', { name: /Format management/ }).click();
   await page.getByRole('button', { name: 'BO3', exact: true }).click();
@@ -139,7 +146,7 @@ try {
   await applyCurrent.click();
   await waitForText(page, 'Swiss · BO3');
 
-  await page.getByRole('button', { name: /Start this group/ }).click();
+  await startGroupButton.click();
   await waitForText(page, 'Confirm tournament information');
   const startDialog = page.getByRole('dialog').filter({ hasText: 'Confirm tournament information' });
   await startDialog.getByRole('button', { name: 'Confirm and start' }).click();
@@ -147,12 +154,23 @@ try {
   await page.getByRole('button', { name: /^Round 1/ }).waitFor();
   await waitForText(page, 'W = Win');
 
-  await page.getByRole('button', { name: 'Import results' }).click();
+  const importResultsButton = page.getByRole('button', { name: 'Import results' });
+  const quickScoreButton = page.getByRole('button', { name: 'Quick score entry' });
+  for (const button of [importResultsButton, quickScoreButton]) {
+    const isInsideScroller = await button.evaluate(element =>
+      Boolean(element.closest('.overflow-y-auto.p-4.space-y-4'))
+    );
+    if (isInsideScroller) {
+      throw new Error('A match action button is still inside the scrolling settings area.');
+    }
+  }
+
+  await importResultsButton.click();
   await waitForText(page, 'Import and verify match results');
   const importResultDialog = page.getByRole('dialog').filter({ hasText: 'Import and verify match results' });
   await importResultDialog.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: 'Quick score entry' }).click();
+  await quickScoreButton.click();
   await waitForText(page, 'Quick score entry');
   await waitForText(page, '1 groups');
   await page.keyboard.press('1');
