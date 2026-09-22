@@ -38,6 +38,7 @@ This project is suited for tournament management, club events, team activities, 
 - Persistent operation history: the latest 30 tournament changes survive refresh and can be undone, redone, or restored
 - Single-writer protection: the first tab edits while other tabs become read-only
 - Configurable tiebreak chains: BO1 / multi-game presets plus custom metric ordering
+- Consistent exports: rankings, image rankings, match tables, and summaries include participant code and UID
 - Quick score entry: multi-group scoring with search, filters, feedback before advance, and keyboard shortcuts
 - Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups

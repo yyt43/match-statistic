@@ -378,35 +378,37 @@ export function ControlPanel({
         )}
       </section>
 
-      {isSetup && (
-        <section className="border-t border-slate-700/50 pt-3">
-          <Suspense fallback={null}>
-            <RosterProfilePanel />
-          </Suspense>
-        </section>
-      )}
-
       {isSetup && currentGroup.players.length >= 2 && (
         <section className="space-y-2 border-t border-slate-700/50 pt-3">
           <div className="text-xs font-medium text-slate-300">
             {isEnglish ? 'Start event' : '开始比赛'}
           </div>
-          <button
-            onClick={() => setStartConfirmTarget('single')}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gold-500/30 bg-gold-500/15 py-2 text-xs font-medium text-gold-400 transition-colors hover:bg-gold-500/25"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {isEnglish ? 'Start this group' : '开始本小组'}
-          </button>
-          {competition.groups.length > 1 && (
+          <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => setStartConfirmTarget('all')}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 py-2 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+              onClick={() => setStartConfirmTarget('single')}
+              className="flex items-center justify-center gap-1 rounded-lg border border-gold-500/30 bg-gold-500/15 px-2 py-2 text-[10px] font-medium text-gold-400 transition-colors hover:bg-gold-500/25"
             >
               <Play className="h-3.5 w-3.5" />
-              {isEnglish ? 'Start all groups' : '全部小组开赛'}
+              {isEnglish ? 'Start group' : '本组开赛'}
             </button>
-          )}
+            {competition.groups.length > 1 && (
+              <button
+                onClick={() => setStartConfirmTarget('all')}
+                className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+              >
+                <Play className="h-3.5 w-3.5" />
+                {isEnglish ? 'Start all' : '全部开赛'}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {isSetup && (
+        <section className="border-t border-slate-700/50 pt-3">
+          <Suspense fallback={null}>
+            <RosterProfilePanel />
+          </Suspense>
         </section>
       )}
     </div>
@@ -568,7 +570,7 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className="grid grid-cols-[180px_260px_minmax(460px,1fr)_240px] border-b border-slate-700/50 bg-slate-800/40">
+      <div className="grid grid-cols-[220px_340px_minmax(460px,1fr)_260px] border-b border-slate-700/50 bg-slate-800/40">
         <button
           onClick={() => setShowGroupManager(!showGroupManager)}
           className={`flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors ${
@@ -613,7 +615,7 @@ export function ControlPanel({
       </div>
       )}
 
-      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-[180px_260px_minmax(460px,1fr)_240px]' : 'contents'}>
+      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-[220px_340px_minmax(460px,1fr)_260px]' : 'contents'}>
       {setupLayout && (
         <div className="col-start-4 row-start-1 min-h-0 overflow-y-auto border-l border-slate-700/50 p-4">
           {competitionDataContent}
@@ -654,6 +656,50 @@ export function ControlPanel({
                   >
                     {isEnglish ? 'Save' : '保存'}
                   </button>
+                </div>
+                <div className="space-y-2 border-t border-slate-700/50 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'Group overview' : '小组概览'}
+                    </span>
+                    <span className="text-[10px] text-slate-600">
+                      {competition.groups.length}{isEnglish ? ' groups' : ' 组'}
+                    </span>
+                  </div>
+                  <div className="max-h-48 space-y-1 overflow-y-auto">
+                    {competition.groups.map((group, index) => (
+                      <div
+                        key={group.id}
+                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-[11px] ${
+                          index === competition.currentGroupIndex
+                            ? 'border border-gold-500/30 bg-gold-500/10 text-gold-300'
+                            : 'bg-slate-800/30 text-slate-400'
+                        }`}
+                      >
+                        <span className="truncate">{group.name}</span>
+                        <span className="shrink-0 text-slate-500">
+                          {group.players.length}{isEnglish ? 'p' : '人'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => addGroup()}
+                      className="flex items-center justify-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 py-1.5 text-[10px] text-emerald-300 hover:bg-emerald-500/20"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {isEnglish ? 'Add group' : '添加小组'}
+                    </button>
+                    <button
+                      onClick={() => removeGroup(competition.currentGroupIndex)}
+                      disabled={competition.groups.length <= 1}
+                      className="flex items-center justify-center gap-1 rounded-md border border-rose-500/25 bg-rose-500/10 py-1.5 text-[10px] text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                      {isEnglish ? 'Remove group' : '删除当前组'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -817,7 +863,7 @@ export function ControlPanel({
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? 'col-span-2 col-start-2 row-start-1 grid min-h-0 grid-cols-[260px_minmax(460px,1fr)] overflow-hidden'
+          ? 'col-span-2 col-start-2 row-start-1 grid min-h-0 grid-cols-[340px_minmax(460px,1fr)] overflow-hidden'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理 */}
