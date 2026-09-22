@@ -101,6 +101,34 @@ try {
   await waitForText(page, 'Imported 4 player profiles.');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
+  const groupManagement = page.getByRole('button', { name: /Group management/ });
+  const formatManagement = page.getByRole('button', { name: /Format management/ });
+  const playerManagement = page.getByRole('button', { name: /Player management/ });
+  await groupManagement.waitFor({ state: 'visible' });
+  await formatManagement.waitFor({ state: 'visible' });
+  await playerManagement.waitFor({ state: 'visible' });
+  const [groupBox, formatBox, playerBox] = await Promise.all([
+    groupManagement.boundingBox(),
+    formatManagement.boundingBox(),
+    playerManagement.boundingBox(),
+  ]);
+  if (!groupBox || !formatBox || !playerBox) {
+    throw new Error('A management heading disappeared after roster import.');
+  }
+  if (formatBox.y - groupBox.y > 60 || playerBox.y - formatBox.y > 60) {
+    throw new Error('Management headings have an excessive gap after roster import.');
+  }
+  const firstPlayerBox = await page
+    .locator('input')
+    .evaluateAll(inputs => {
+      const input = inputs.find(element => element.value === 'Alice');
+      if (!input) return null;
+      const rect = input.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+  if (!firstPlayerBox || firstPlayerBox.top < playerBox.y + playerBox.height) {
+    throw new Error('Player rows are not positioned below the player management heading.');
+  }
 
   await page.getByRole('button', { name: /Start this group/ }).click();
   await waitForText(page, 'Round 1 match list');
