@@ -157,6 +157,7 @@ export function createPlayerActions(
     importPlayerProfiles: (players, distributeAcrossGroups) => {
       const { competition } = get();
       if (isRosterLocked(competition)) return validateRoster(competition);
+      if (players.length === 0) return validateRoster(competition);
       const shouldDistribute = distributeAcrossGroups
         ?? players.length >= competition.groups.length * 2;
       const fields = getPlayerFields(competition);

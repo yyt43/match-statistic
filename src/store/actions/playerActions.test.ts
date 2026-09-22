@@ -49,6 +49,25 @@ describe('player profile store actions', () => {
     expect(updated.groups[1].players.map(player => player.name)).toEqual(['B1', 'B2']);
   });
 
+  it('does not clear existing groups when an empty roster import is submitted', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
+    competition.groups[0].players = [
+      { ...competition.groups[0].players[0], name: 'A' },
+      { ...competition.groups[0].players[1], name: 'B' },
+    ];
+    competition.groups[1].players = [
+      { ...competition.groups[1].players[0], name: 'C' },
+      { ...competition.groups[1].players[1], name: 'D' },
+    ];
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().importPlayerProfiles([]);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups[0].players.map(player => player.name)).toEqual(['A', 'B']);
+    expect(updated.groups[1].players.map(player => player.name)).toEqual(['C', 'D']);
+  });
+
   it('assigns workbook rows to groups matching their sheet names', () => {
     const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
     competition.groups[0].name = '甲组';
