@@ -176,7 +176,7 @@ Player management uses one unified player workbook. There is no separate Generic
 
 Group switching is integrated into the Current Group bar. Click Group A, B, C, or D directly to switch.
 
-The player workbook import is placed in the Event Data column on the pre-start workspace. Player rows are sorted strictly by participant code. If codes are missing, the one-click action fills only empty codes and never overwrites existing ones.
+The player workbook import is placed in the Event Data column on the pre-start workspace. Player rows are sorted strictly by participant code. Codes use the `A01-Z99` format with up to 99 numbers per group. If codes are missing, the one-click action fills only empty codes and never overwrites existing ones.
 
 The profile importer automatically recognizes columns such as:
 

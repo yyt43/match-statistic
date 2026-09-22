@@ -10,6 +10,8 @@ import {
   getPlayerFields,
   isRosterLocked,
   normalizeUid,
+  PARTICIPANT_CODE_MAX,
+  PARTICIPANT_CODE_PATTERN,
   validateRoster,
 } from '../../utils/playerProfiles';
 import type {
@@ -241,7 +243,7 @@ export function createPlayerActions(
             : group;
         }
         const hasParticipantCodes = nextPlayers.some(player =>
-          /^[A-D][0-9]{2}$/.test(player.participantCode ?? '')
+          new RegExp(PARTICIPANT_CODE_PATTERN).test(player.participantCode ?? '')
         );
         if (hasParticipantCodes) {
           const prefix = String.fromCharCode(65 + index);
@@ -249,7 +251,7 @@ export function createPlayerActions(
             player.participantCode?.trim().toUpperCase().startsWith(prefix)
           );
           const uncodedPlayers = nextPlayers.filter(player =>
-            !/^[A-D][0-9]{2}$/.test(player.participantCode ?? '')
+            !new RegExp(PARTICIPANT_CODE_PATTERN).test(player.participantCode ?? '')
           );
           const uncodedPerGroup = Math.ceil(uncodedPlayers.length / competition.groups.length);
           return {
@@ -330,8 +332,8 @@ export function createPlayerActions(
         const players = group.players.map(player => {
           if (player.participantCode?.trim()) return player;
           let number = 1;
-          while (number <= 32 && usedNumbers.has(number)) number += 1;
-          if (number > 32) {
+          while (number <= PARTICIPANT_CODE_MAX && usedNumbers.has(number)) number += 1;
+          if (number > PARTICIPANT_CODE_MAX) {
             unresolved += 1;
             return player;
           }
