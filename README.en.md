@@ -202,6 +202,8 @@ Result: 比赛结果 / 胜方比分 / 你获胜的比分是
 Screenshot: 结算截图 / 小王子对局截图 / 截图 / 证据引用
 ```
 
+No phase, group, or round selection is required. Results are matched across all groups by participant code and automatically use each group's current round, so one workbook can contain results for multiple groups.
+
 Example:
 
 | Participant code | Game UID | Result | Screenshot |

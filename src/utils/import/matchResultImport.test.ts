@@ -75,7 +75,6 @@ describe('match result import', () => {
   it('converts winner-perspective score for the left player', () => {
     const preview = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row()]
     );
     expect(preview.issues).toHaveLength(0);
@@ -86,7 +85,6 @@ describe('match result import', () => {
   it('converts winner-perspective score for the right player', () => {
     const preview = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row({ participantCode: 'A02', uid: '338916899' })]
     );
     expect(preview.ready[0].result).toBe('player2');
@@ -96,7 +94,6 @@ describe('match result import', () => {
   it('merges identical duplicates and rejects conflicting results', () => {
     const same = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row(), row({ rowNumber: 3 })]
     );
     expect(same.duplicates).toHaveLength(1);
@@ -104,7 +101,6 @@ describe('match result import', () => {
 
     const conflict = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row(), row({ rowNumber: 3, resultOption: '我以 2-0 获胜' })]
     );
     expect(conflict.ready).toHaveLength(0);
@@ -114,7 +110,6 @@ describe('match result import', () => {
   it('rejects illegal winner score for BO3', () => {
     const preview = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row({ resultOption: '我以 3-1 获胜' })]
     );
     expect(preview.issues.some(issue => issue.code === 'INVALID_SCORE')).toBe(true);
@@ -123,7 +118,6 @@ describe('match result import', () => {
   it('requires player code and UID to identify the same player', () => {
     const mismatch = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row({ uid: '999999999' })]
     );
     expect(mismatch.ready).toHaveLength(0);
@@ -131,11 +125,45 @@ describe('match result import', () => {
 
     const crossPlayer = buildMatchImportPreview(
       competitionWithMatch(),
-      { phase: 'group', groupIndex: 0, round: 1 },
       [row({ uid: '338916899' })]
     );
     expect(crossPlayer.ready).toHaveLength(0);
     expect(crossPlayer.issues.some(issue => issue.code === 'UID_CODE_MISMATCH')).toBe(true);
+  });
+
+  it('matches rows across multiple groups from one workbook', () => {
+    const competition = createNewCompetition('Import', 2, 2, 3, 'bo3');
+    competition.playerSchemaId = 'poetryCupS2';
+    competition.playerFields = getDefaultPlayerFields('poetryCupS2');
+    for (const [groupIndex, prefix] of ['A', 'B'].entries()) {
+      const group = competition.groups[groupIndex];
+      group.players[0].participantCode = `${prefix}01`;
+      group.players[0].profile = { uid: groupIndex === 0 ? '180748058' : '346732256' };
+      group.players[1].participantCode = `${prefix}02`;
+      group.players[1].profile = { uid: groupIndex === 0 ? '338916899' : '283093920' };
+      group.currentRound = 1;
+      group.status = 'in_progress';
+      group.matches = [{
+        id: `m${groupIndex + 1}`,
+        round: 1,
+        player1Id: group.players[0].id,
+        player2Id: group.players[1].id,
+        result: 'pending',
+      }];
+    }
+
+    const preview = buildMatchImportPreview(competition, [
+      row(),
+      row({
+        rowNumber: 3,
+        participantCode: 'B01',
+        uid: '346732256',
+        resultOption: '我以 2-0 获胜',
+      }),
+    ]);
+
+    expect(preview.ready).toHaveLength(2);
+    expect(preview.ready.map(candidate => candidate.groupIndex)).toEqual([0, 1]);
   });
 
 });

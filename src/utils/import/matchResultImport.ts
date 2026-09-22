@@ -10,19 +10,6 @@ import { getRoundGameType } from '../swissPairing';
 import { normalizeUid } from '../playerProfiles';
 import { parseWorkbookFile, type ParsedWorkbookSheet } from './playerImport';
 
-export type MatchImportPhase =
-  | 'group'
-  | 'r16'
-  | 'quarterfinal'
-  | 'semifinal'
-  | 'final';
-
-export interface MatchImportContext {
-  phase: MatchImportPhase;
-  groupIndex?: number;
-  round?: number;
-}
-
 export interface MatchSubmissionRow {
   participantCode: string;
   uid: string;
@@ -80,7 +67,6 @@ export interface MatchImportCandidate {
 }
 
 export interface MatchImportPreview {
-  context: MatchImportContext;
   sourceFileName: string;
   rows: MatchSubmissionRow[];
   ready: MatchImportCandidate[];
@@ -187,26 +173,6 @@ function parseResultOption(
   return { winnerWins, loserWins };
 }
 
-function isMatchInContext(
-  match: Match,
-  groupIndex: number,
-  context: MatchImportContext
-): boolean {
-  if (context.phase === 'group') {
-    if (context.groupIndex !== undefined && context.groupIndex !== groupIndex) return false;
-    if (context.round !== undefined && match.round !== context.round) return false;
-    return match.round > 0 && !match.isPlayoff;
-  }
-  const expectedRound: Record<Exclude<MatchImportPhase, 'group'>, number> = {
-    r16: 1,
-    quarterfinal: 2,
-    semifinal: 3,
-    final: 4,
-  };
-  void groupIndex;
-  return match.round === expectedRound[context.phase] && !match.isPlayoff;
-}
-
 function findPlayer(
   competition: TournamentCompetition,
   participantCode: string,
@@ -226,7 +192,6 @@ function findPlayer(
 
 function createCandidate(
   row: MatchSubmissionRow,
-  context: MatchImportContext,
   player: Player,
   submittedUid: string,
   profileUid: string,
@@ -241,9 +206,7 @@ function createCandidate(
   const result: Exclude<MatchResult, 'pending'> = isPlayer1 ? 'player1' : 'player2';
   const opponentId = isPlayer1 ? match.player2Id : match.player1Id;
   const sourceSubmissionId = [
-    context.phase,
-    context.groupIndex ?? 'all',
-    context.round ?? match.round,
+    match.round,
     row.participantCode,
     row.submittedAt ?? '',
     score.winnerWins,
@@ -277,7 +240,6 @@ function createCandidate(
 
 export function buildMatchImportPreview(
   competition: TournamentCompetition,
-  context: MatchImportContext,
   rows: MatchSubmissionRow[],
   sourceFileName = 'results.xlsx'
 ): MatchImportPreview {
@@ -297,7 +259,7 @@ export function buildMatchImportPreview(
       continue;
     }
 
-    const found = findPlayer(competition, row.participantCode, context.groupIndex);
+    const found = findPlayer(competition, row.participantCode);
     if (!found) {
       issues.push({
         rowNumber: row.rowNumber,
@@ -341,10 +303,18 @@ export function buildMatchImportPreview(
     }
 
     const group = competition.groups[found.groupIndex];
-    const matches = group.matches.filter(match =>
+    const playerMatches = group.matches.filter(match =>
       (match.player1Id === found.player.id || match.player2Id === found.player.id)
-      && isMatchInContext(match, found.groupIndex, context)
+      && !match.isPlayoff
+      && match.round > 0
     );
+    const currentRoundMatches = playerMatches.filter(match => match.round === group.currentRound);
+    const pendingMatches = playerMatches.filter(match => match.result === 'pending');
+    const matches = currentRoundMatches.length > 0
+      ? currentRoundMatches
+      : pendingMatches.length > 0
+        ? pendingMatches
+        : playerMatches;
 
     if (matches.length === 0) {
       issues.push({
@@ -355,7 +325,7 @@ export function buildMatchImportPreview(
       });
       continue;
     }
-    if (matches.length > 1) {
+      if (matches.length > 1) {
       issues.push({
         rowNumber: row.rowNumber,
         code: 'MULTIPLE_MATCHES',
@@ -381,7 +351,6 @@ export function buildMatchImportPreview(
 
     const candidate = createCandidate(
       row,
-      context,
       found.player,
       submittedUid,
       profileUid,
@@ -417,7 +386,6 @@ export function buildMatchImportPreview(
   }
 
   return {
-    context,
     sourceFileName,
     rows,
     ready,
@@ -428,12 +396,11 @@ export function buildMatchImportPreview(
 
 export async function parseMatchResultsWorkbook(
   file: File,
-  competition: TournamentCompetition,
-  context: MatchImportContext
+  competition: TournamentCompetition
 ): Promise<MatchImportPreview> {
   const sheets = await parseWorkbookFile(file);
   const rows = sheets.flatMap(normalizeSubmissionRows);
-  return buildMatchImportPreview(competition, context, rows, file.name);
+  return buildMatchImportPreview(competition, rows, file.name);
 }
 
 export function generateRoundAnnouncement(
