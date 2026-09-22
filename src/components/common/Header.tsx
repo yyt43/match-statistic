@@ -13,6 +13,8 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
   const redo = useTournamentStore(state => state.redo);
   const { language, t } = useLanguagePreference();
   const isStarted = currentGroup.currentRound > 0;
+  const isSetup = currentGroup.status === 'setup';
+  const totalPlayers = competition.groups.reduce((sum, group) => sum + group.players.length, 0);
   const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
   const savedTime = lastSavedAt
     ? new Date(lastSavedAt).toLocaleTimeString(language === 'en' ? 'en-US' : 'zh-CN', {
@@ -41,10 +43,10 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-gold-500/10 rounded-full blur-3xl" />
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-700/20 rounded-full blur-3xl" />
       
-      <div className="relative px-6 py-8">
+      <div className="relative px-4 py-5 sm:px-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <div className="relative">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shadow-lg shadow-gold-500/30">
                   <Trophy className="w-7 h-7 text-indigo-900" />
@@ -55,10 +57,10 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
               </div>
               
               <div>
-                <h1 className="font-display text-2xl md:text-3xl font-bold gold-gradient tracking-wider">
+                <h1 className="font-display text-xl font-bold gold-gradient tracking-wider sm:text-2xl md:text-3xl">
                   {titleText}
                 </h1>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
                   <span className={`text-xs px-2.5 py-0.5 rounded-full border ${statusColor}`}>
                     {statusText}
                   </span>
@@ -77,7 +79,7 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-4 md:justify-end">
               <div className="glass-panel flex items-center gap-1 rounded-xl p-1">
                 <button
                   type="button"
@@ -100,18 +102,30 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
                   <Redo2 className="h-4 w-4" />
                 </button>
               </div>
-              <div className="glass-panel rounded-xl px-4 py-2.5 text-center">
-                <div className="text-2xl font-bold font-mono text-gold-400">
+              <div className="glass-panel rounded-xl px-3 py-2 text-center sm:px-4 sm:py-2.5">
+                <div className="text-xl font-bold font-mono text-gold-400 sm:text-2xl">
                   {currentGroup.players.length}
                 </div>
                 <div className="text-xs text-slate-400">{t.players}</div>
               </div>
-              <div className="glass-panel rounded-xl px-4 py-2.5 text-center">
-                <div className="text-2xl font-bold font-mono text-emerald-400">
-                  {currentGroup.matches.filter(m => m.result !== 'pending').length}
+              <div className="glass-panel rounded-xl px-3 py-2 text-center sm:px-4 sm:py-2.5">
+                <div className="text-xl font-bold font-mono text-emerald-400 sm:text-2xl">
+                  {isSetup
+                    ? totalPlayers
+                    : currentGroup.matches.filter(m => m.result !== 'pending').length}
                 </div>
-                <div className="text-xs text-slate-400">{t.completedMatches}</div>
+                <div className="text-xs text-slate-400">
+                  {isSetup ? t.totalPlayersLabel : t.completedMatches}
+                </div>
               </div>
+              {isSetup && (
+                <div className="glass-panel rounded-xl px-3 py-2 text-center sm:px-4 sm:py-2.5">
+                  <div className="text-xl font-bold font-mono text-sky-400 sm:text-2xl">
+                    {competition.groups.length}
+                  </div>
+                  <div className="text-xs text-slate-400">{t.groupCountLabel}</div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -410,7 +410,11 @@ export function ControlPanel({
   );
 
   return (
-    <div className="h-full flex flex-col bg-slate-800/40 border border-slate-700/40 rounded-2xl overflow-hidden">
+    <div className={`flex flex-col border border-slate-700/40 rounded-2xl bg-slate-800/40 ${
+      setupLayout
+        ? 'min-h-[1450px] overflow-visible xl:h-full xl:min-h-0 xl:overflow-hidden'
+        : 'h-full overflow-hidden'
+    }`}>
       {/* 赛事名称 */}
       {!setupLayout && (
       <div className="p-4 border-b border-slate-700/50">
@@ -613,14 +617,14 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className="grid grid-cols-[340px_minmax(460px,1fr)_280px] border-b border-slate-700/50 bg-slate-800/40">
+      <div className="grid grid-cols-3 border-b border-slate-700/50 bg-slate-800/40 xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
         {isSetup && (
           <button
             onClick={() => {
               setShowFormatManager(!showFormatManager);
               controlScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-2 py-2.5 text-xs font-medium transition-colors ${
+            className={`order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs xl:order-none ${
               showFormatManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -631,7 +635,7 @@ export function ControlPanel({
         {isSetup && (
           <button
             onClick={() => setShowPlayerManager(current => !current)}
-            className={`flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-2 py-2.5 text-xs font-medium transition-colors ${
+            className={`order-3 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs xl:order-none ${
               showPlayerManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -640,7 +644,7 @@ export function ControlPanel({
           </button>
         )}
         {setupLayout && (
-          <div className="flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-2 py-2.5 text-xs font-medium text-slate-300">
+          <div className="order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:px-2 sm:text-xs xl:order-none">
             <Settings className="w-3.5 h-3.5 text-gold-400" />
             {isEnglish ? 'Data' : '赛事数据'}
           </div>
@@ -648,22 +652,22 @@ export function ControlPanel({
       </div>
       )}
 
-      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-[340px_minmax(460px,1fr)_280px]' : 'contents'}>
+      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[340px_minmax(460px,1fr)_280px]' : 'contents'}>
       {setupLayout && (
-        <div className="col-start-3 row-start-1 min-h-0 overflow-y-auto border-l border-slate-700/50 p-4">
+        <div className="order-1 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 xl:order-none xl:col-start-3 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-l">
           {competitionDataContent}
         </div>
       )}
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? 'col-span-2 col-start-1 row-start-1 grid min-h-0 grid-cols-[340px_minmax(460px,1fr)] overflow-hidden'
+          ? 'order-2 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible xl:order-none xl:col-span-2 xl:col-start-1 xl:row-start-1 xl:min-h-0 xl:grid-cols-[340px_minmax(460px,1fr)] xl:overflow-hidden'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理 */}
         {isSetup && (
           <div className={setupLayout
-            ? 'col-start-1 min-h-0 overflow-y-auto border-r border-slate-700/50 p-4'
+            ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 xl:col-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r'
             : 'space-y-3'}
           >
             {showFormatManager && (
@@ -895,9 +899,11 @@ export function ControlPanel({
         )}
 
         {isSetup && (
-          <div className={setupLayout
-            ? 'col-start-2 min-h-0 overflow-y-auto p-4'
-            : ''}
+          <div
+            data-testid="player-management-scroll"
+            className={setupLayout
+              ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 xl:col-start-2 xl:min-h-0 xl:overflow-y-auto'
+              : ''}
           >
             {showPlayerManager && <PlayerManagerList />}
           </div>

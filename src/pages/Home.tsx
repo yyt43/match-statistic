@@ -216,9 +216,9 @@ export default function Home() {
 
       <Header lastSavedAt={lastSavedAt} />
 
-      <main className="flex-1 px-4 md:px-6 py-4">
+      <main className="flex-1 px-3 py-4 sm:px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-4 flex items-center justify-end gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
               onClick={() => setShowPlayerPreview(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-sm border border-slate-700/50 hover:border-slate-600"
@@ -247,7 +247,7 @@ export default function Home() {
 
           {competition.groups.every(group => group.status === 'setup') ? (
             <div className="mx-auto max-w-7xl">
-              <div className="h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px] overflow-hidden">
+              <div className="h-auto xl:h-[calc(100vh-250px)] xl:min-h-[720px] xl:overflow-hidden">
                 <ControlPanel
                   setupLayout
                   onShowConfirm={() => { setConfirmType('single'); setShowConfirm(true); }}
