@@ -19,6 +19,7 @@ export interface RosterColumnChoices {
 export interface RosterWorkbookColumns {
   headers: string[];
   detected: RosterColumnChoices;
+  isResultCollection: boolean;
 }
 
 const ALIASES = {
@@ -28,6 +29,8 @@ const ALIASES = {
   qq: ['qq号', 'qq', '联系qq'],
 };
 
+const RESULT_COLLECTION_HEADERS = ['比分', '截图', '提交时间', '提交者'];
+
 function normalize(value: string): string {
   return value.trim().replace(/[\s\u3000]+/g, '').toLowerCase();
 }
@@ -36,6 +39,24 @@ function detect(headers: string[], aliases: string[]): string | undefined {
   const normalizedAliases = aliases.map(normalize);
   return headers.find(header => normalizedAliases.includes(normalize(header)))
     ?? headers.find(header => normalizedAliases.some(alias => normalize(header).includes(alias)));
+}
+
+export function detectRosterColumns(headers: string[]): RosterColumnChoices {
+  return {
+    name: detect(headers, ALIASES.name) ?? '',
+    participantCode: detect(headers, ALIASES.participantCode),
+    uid: detect(headers, ALIASES.uid),
+    qq: detect(headers, ALIASES.qq),
+  };
+}
+
+export function isResultCollectionWorkbook(headers: string[]): boolean {
+  const normalizedHeaders = headers.map(normalize);
+  const hasScoreHeader = normalizedHeaders.some(header => header.includes('比分'));
+  const hasSubmissionHeader = normalizedHeaders.some(header =>
+    RESULT_COLLECTION_HEADERS.some(alias => header.includes(normalize(alias)))
+  );
+  return hasScoreHeader && hasSubmissionHeader;
 }
 
 function rowsWithHeaders(sheet: ParsedWorkbookSheet): {
@@ -66,12 +87,8 @@ export async function getRosterWorkbookColumnsFromFile(file: File): Promise<Rost
   const headers = Array.from(new Set(sheets.flatMap(sheet => rowsWithHeaders(sheet).headers)));
   return {
     headers,
-    detected: {
-      name: detect(headers, ALIASES.name) ?? headers[0] ?? '',
-      participantCode: detect(headers, ALIASES.participantCode),
-      uid: detect(headers, ALIASES.uid),
-      qq: detect(headers, ALIASES.qq),
-    },
+    detected: detectRosterColumns(headers),
+    isResultCollection: isResultCollectionWorkbook(headers),
   };
 }
 
@@ -81,6 +98,10 @@ export async function parseRosterProfilesFromWorkbook(
 ): Promise<RosterProfileImportRow[]> {
   if (!columns.name) throw new Error('必须选择昵称列');
   const sheets = await parseWorkbookFile(file);
+  const headers = Array.from(new Set(sheets.flatMap(sheet => rowsWithHeaders(sheet).headers)));
+  if (isResultCollectionWorkbook(headers)) {
+    throw new Error('这是比赛结果收集表，不是选手信息表。当前选手、分组和赛制数据已保留。');
+  }
   const parsedSheets: Array<{ name: string; rows: RosterProfileImportRow[] }> = [];
   for (const sheet of sheets) {
     const { rows } = rowsWithHeaders(sheet);
@@ -120,6 +141,9 @@ export async function parseRosterProfilesFromWorkbook(
       seen.add(key);
       deduplicated.push(row);
     }
+  }
+  if (deduplicated.length === 0) {
+    throw new Error('没有从表格中读取到选手数据，当前选手、分组和赛制数据已保留。');
   }
   return deduplicated;
 }

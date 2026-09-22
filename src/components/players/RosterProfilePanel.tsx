@@ -25,6 +25,7 @@ export function RosterProfilePanel() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [summary, setSummary] = useState<RosterValidationSummary>(() => validateRoster(competition));
   const [message, setMessage] = useState<string | null>(null);
+  const [hasImported, setHasImported] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const locked = isRosterLocked(competition);
@@ -37,6 +38,14 @@ export function RosterProfilePanel() {
     if (!file) return;
     try {
       const detected = await getRosterWorkbookColumnsFromFile(file);
+      if (detected.isResultCollection) {
+        setHeaders([]);
+        setColumns({ name: '' });
+        setMessage(isEnglish
+          ? 'This is a match-result collection workbook, not a player roster. Current players, groups, and format settings were kept unchanged.'
+          : '这是比赛结果收集表，不是选手信息表。当前选手、分组和赛制数据已保留。');
+        return;
+      }
       setHeaders(detected.headers);
       setColumns(detected.detected);
       if (detected.detected.name) {
@@ -56,6 +65,11 @@ export function RosterProfilePanel() {
     selectedColumns: RosterColumnChoices
   ) => {
     const rows = await parseRosterProfilesFromWorkbook(file, selectedColumns);
+    if (rows.length === 0) {
+      throw new Error(isEnglish
+        ? 'No player rows were found. Current players, groups, and format settings were kept unchanged.'
+        : '没有从表格中读取到选手数据，当前选手、分组和赛制数据已保留。');
+    }
     if (rows.some(row => !row.participantCode?.trim())) {
       throw new Error(isEnglish
         ? 'The workbook must contain a participant code for every player.'
@@ -65,6 +79,7 @@ export function RosterProfilePanel() {
     const finalCompetition = useTournamentStore.getState().competition;
     const finalSummary = validateRoster(finalCompetition);
     setSummary(finalSummary);
+    setHasImported(true);
     setMessage(isEnglish
       ? `Imported ${result.playerCount} player profiles.`
       : `已自动导入 ${result.playerCount} 名选手档案。`);
@@ -84,6 +99,7 @@ export function RosterProfilePanel() {
   const handleLock = () => {
     const result = lockRoster();
     setSummary(result);
+    setHasImported(true);
     setMessage(result.valid
       ? (isEnglish ? 'Roster locked.' : '选手档案已锁定。')
       : (isEnglish ? 'Roster validation failed.' : '选手档案校验未通过。'));
@@ -162,30 +178,40 @@ export function RosterProfilePanel() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
-            <div className="rounded bg-slate-800/60 px-2 py-1.5 text-slate-300">
-              {isEnglish ? 'Players' : '选手'} {summary.playerCount}
+          {!hasImported && !locked ? (
+            <div className="rounded-lg border border-slate-700/60 bg-slate-800/45 px-3 py-2 text-[11px] text-slate-400">
+              {isEnglish
+                ? 'Import one workbook containing nickname, participant code, UID, and QQ. Codes must come from the file.'
+                : '请导入包含昵称、选手编号、UID、QQ 的选手信息表。选手编号必须来自表格。'}
             </div>
-            <div className="rounded bg-slate-800/60 px-2 py-1.5 text-slate-300">
-              UID {summary.uidToPlayerId.size}
-            </div>
-            <div className={`rounded px-2 py-1.5 ${
-              summary.valid ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'
-            }`}>
-              {summary.valid
-                ? (isEnglish ? 'Valid' : '校验通过')
-                : (isEnglish ? `${summary.issues.length} issues` : `${summary.issues.length} 项异常`)}
-            </div>
-          </div>
-
-          {summary.issues.length > 0 && (
-            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-rose-500/20 bg-rose-500/5 p-2 text-[10px] text-rose-300">
-              {summary.issues.slice(0, 20).map((issue, index) => (
-                <div key={`${issue.code}-${issue.playerId ?? index}`}>
-                  {isEnglish ? issue.messageEn ?? issue.message : issue.message}
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                <div className="rounded bg-slate-800/60 px-2 py-1.5 text-slate-300">
+                  {isEnglish ? 'Players' : '选手'} {summary.playerCount}
                 </div>
-              ))}
-            </div>
+                <div className="rounded bg-slate-800/60 px-2 py-1.5 text-slate-300">
+                  UID {summary.uidToPlayerId.size}
+                </div>
+                <div className={`rounded px-2 py-1.5 ${
+                  summary.valid ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'
+                }`}>
+                  {summary.valid
+                    ? (isEnglish ? 'Valid' : '校验通过')
+                    : (isEnglish ? `${summary.issues.length} issues` : `${summary.issues.length} 项异常`)}
+                </div>
+              </div>
+
+              {summary.issues.length > 0 && (
+                <div className="max-h-24 space-y-1 overflow-y-auto rounded-lg border border-rose-500/20 bg-rose-500/5 p-2 text-[10px] text-rose-300">
+                  {summary.issues.slice(0, 20).map((issue, index) => (
+                    <div key={`${issue.code}-${issue.playerId ?? index}`}>
+                      {isEnglish ? issue.messageEn ?? issue.message : issue.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           {locked && (
