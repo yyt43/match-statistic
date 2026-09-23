@@ -1,7 +1,7 @@
 import type { CompetitionState } from '../useTournamentStore';
 import type { Player } from '../../types';
 import type { StoreGet, StoreSet } from './actionTypes';
-import { updateCurrentGroup } from '../competitionMutators';
+import { updateCompetitionGroup, updateCurrentGroup } from '../competitionMutators';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { generateId } from '../tournamentFactory';
 import { logAudit } from '../../utils/auditLog';
@@ -130,13 +130,15 @@ export function createPlayerActions(
       })), '修改选手名称');
     },
 
-    updatePlayerProfile: (playerId: string, changes) => {
+    updatePlayerProfile: (playerId: string, changes, groupIndex) => {
       const { competition } = get();
       if (isRosterLocked(competition)) return false;
+      const targetGroupIndex = groupIndex ?? competition.currentGroupIndex;
+      if (targetGroupIndex < 0 || targetGroupIndex >= competition.groups.length) return false;
       const fields = getPlayerFields(competition);
-      const allowedKeys = new Set(fields.map(field => field.key));
+      const allowedKeys = new Set(['name', ...fields.map(field => field.key)]);
 
-      persist(updateCurrentGroup(competition, group => ({
+      persist(updateCompetitionGroup(competition, targetGroupIndex, group => ({
         ...group,
         players: group.players.map(player => {
           if (player.id !== playerId) return player;
@@ -193,9 +195,39 @@ export function createPlayerActions(
       ));
       if (orderedGroupNames.length > 0) {
         const template = competition.groups[0];
-        const groups: TournamentGroup[] = orderedGroupNames.map((groupName, index) => {
-          const existing = competition.groups.find(group => group.name.trim() === groupName)
-            ?? competition.groups[index];
+        const groups = [...competition.groups];
+        const addedGroups: TournamentGroup[] = [];
+        const targetedGroupIndexes = new Set<number>();
+        const exactGroupIndexes = new Map<string, number>();
+
+        orderedGroupNames.forEach(groupName => {
+          const exactIndex = groups.findIndex((group, index) =>
+            !targetedGroupIndexes.has(index) && group.name.trim() === groupName
+          );
+          if (exactIndex >= 0) {
+            exactGroupIndexes.set(groupName, exactIndex);
+            targetedGroupIndexes.add(exactIndex);
+          }
+        });
+
+        const hasExactMatches = exactGroupIndexes.size > 0;
+        orderedGroupNames.forEach((groupName, importIndex) => {
+          let targetIndex = exactGroupIndexes.get(groupName) ?? -1;
+
+          if (targetIndex < 0 && !hasExactMatches) {
+            const preferredIndex = orderedGroupNames.length === 1
+              ? competition.currentGroupIndex
+              : importIndex;
+            for (let offset = 0; offset < groups.length; offset += 1) {
+              const index = (preferredIndex + offset) % groups.length;
+              if (!targetedGroupIndexes.has(index)) {
+                targetIndex = index;
+                break;
+              }
+            }
+          }
+
+          const existing = targetIndex >= 0 ? groups[targetIndex] : undefined;
           const base: TournamentGroup = existing ?? {
             id: generateId(),
             name: groupName,
@@ -213,7 +245,7 @@ export function createPlayerActions(
               ? [...template.roundGameTypes]
               : new Array(template?.totalRounds ?? 5).fill('bo1'),
           };
-          return {
+          const importedGroup: TournamentGroup = {
             ...base,
             id: base.id || generateId(),
             name: groupName,
@@ -226,10 +258,17 @@ export function createPlayerActions(
             createdAt: base.createdAt || new Date().toISOString(),
             playoffBrackets: undefined,
           };
+
+          if (existing) {
+            groups[targetIndex] = importedGroup;
+          } else {
+            addedGroups.push(importedGroup);
+          }
         });
+
         const updated = {
           ...competition,
-          groups,
+          groups: [...groups, ...addedGroups],
           currentGroupIndex: 0,
         };
         set({ competition: updated }, { label: '按工作表导入选手档案' });

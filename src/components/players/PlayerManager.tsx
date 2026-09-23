@@ -10,6 +10,7 @@ export function PlayerManagerList() {
   const { competition, removePlayer, updatePlayerProfile } = useTournamentStore();
   const rosterLocked = isRosterLocked(competition);
   const sortedPlayers = sortPlayersByParticipantCode(currentGroup.players);
+  const groupIndex = competition.currentGroupIndex;
 
   return (
     <div className="space-y-3">
@@ -34,27 +35,27 @@ export function PlayerManagerList() {
               disabled={rosterLocked}
               onBlur={event => updatePlayerProfile(player.id, {
                 participantCode: event.target.value.toUpperCase(),
-              })}
+              }, groupIndex)}
               placeholder="A01"
               className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-gold-300 outline-none focus:border-gold-500/40 disabled:opacity-70"
             />
             <input
               defaultValue={player.name}
               disabled={rosterLocked}
-              onBlur={event => updatePlayerProfile(player.id, { name: event.target.value })}
+              onBlur={event => updatePlayerProfile(player.id, { name: event.target.value }, groupIndex)}
               className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-2 py-1 text-sm text-slate-200 outline-none focus:border-gold-500/40 disabled:opacity-70"
             />
             <input
               defaultValue={player.profile?.uid ?? ''}
               disabled={rosterLocked}
-              onBlur={event => updatePlayerProfile(player.id, { uid: event.target.value })}
+              onBlur={event => updatePlayerProfile(player.id, { uid: event.target.value }, groupIndex)}
               placeholder="UID"
               className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-sky-300 outline-none focus:border-sky-500/40 disabled:opacity-70"
             />
             <input
               defaultValue={player.profile?.qq ?? ''}
               disabled={rosterLocked}
-              onBlur={event => updatePlayerProfile(player.id, { qq: event.target.value })}
+              onBlur={event => updatePlayerProfile(player.id, { qq: event.target.value }, groupIndex)}
               placeholder="QQ"
               className="min-w-0 rounded border border-slate-700/70 bg-slate-900/50 px-1.5 py-1 font-mono text-[11px] text-slate-300 outline-none focus:border-slate-500/40 disabled:opacity-70"
             />

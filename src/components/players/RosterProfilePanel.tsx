@@ -77,13 +77,21 @@ export function RosterProfilePanel() {
     const result = importPlayerProfiles(rows);
     const finalCompetition = useTournamentStore.getState().competition;
     const finalSummary = validateRoster(finalCompetition);
+    const importedGroupCount = new Set(
+      rows
+        .map(row => row.groupName?.trim())
+        .filter((name): name is string => !!name)
+    ).size || finalCompetition.groups.length;
+    const missingCodes = finalSummary.issues.filter(
+      issue => issue.code === 'MISSING_PARTICIPANT_CODE'
+    ).length;
     setSummary(finalSummary);
     setHasImported(true);
     setHeaders([]);
     setColumns({ name: '' });
     setMessage(isEnglish
-      ? `Imported ${result.playerCount} player profiles.`
-      : `已自动导入 ${result.playerCount} 名选手档案。`);
+      ? `Imported ${result.playerCount} player profiles across ${importedGroupCount} ${importedGroupCount === 1 ? 'group' : 'groups'}.${missingCodes > 0 ? ` ${missingCodes} players still need participant codes; use Fill missing codes to complete them.` : ''}`
+      : `已导入 ${importedGroupCount} 个小组、共 ${result.playerCount} 名选手。${missingCodes > 0 ? `另有 ${missingCodes} 名选手缺少编号，可点击“一键编号”补齐。` : ''}`);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -211,8 +219,8 @@ export function RosterProfilePanel() {
             {!hasImported && !locked ? (
               <div className="rounded-lg border border-slate-700/60 bg-slate-800/45 px-3 py-2 text-[11px] text-slate-400">
                 {isEnglish
-                  ? 'Import one workbook containing nickname, participant code, UID, and QQ. Codes must come from the file.'
-                  : '请导入包含昵称、选手编号、UID、QQ 的选手信息表。选手编号必须来自表格。'}
+                  ? 'Import one workbook containing nickname, participant code, UID, and QQ. Registration and summary sheets are skipped automatically; missing codes can be filled after import.'
+                  : '请导入包含昵称、选手编号、UID、QQ 的选手信息表。报名信息、汇总和总表 Sheet 会自动跳过；缺少编号时可在导入后一键补齐。'}
               </div>
             ) : (
               <>
