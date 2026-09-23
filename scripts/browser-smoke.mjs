@@ -187,9 +187,24 @@ try {
   await quickScoreButton.click();
   await waitForText(page, 'Quick score entry');
   await waitForText(page, '1 groups');
+  const quickScoreDialog = page.getByRole('dialog').filter({ hasText: 'Quick score entry' });
+  const [left20, left21, right20, right21] = await Promise.all([
+    quickScoreDialog.getByRole('button', { name: 'Left 2-0' }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: 'Left 2-1' }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: 'Right 2-0' }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: 'Right 2-1' }).boundingBox(),
+  ]);
+  if (!left20 || !left21 || !right20 || !right21) {
+    throw new Error('Detailed result options are missing for BO3.');
+  }
+  if (Math.abs(left20.x - left21.x) > 1 || Math.abs(right20.x - right21.x) > 1) {
+    throw new Error('Win options are not grouped into their matching side columns.');
+  }
+  if (left20.x >= right20.x || left21.x >= right21.x) {
+    throw new Error('Left-win options must stay left of right-win options.');
+  }
   await page.keyboard.press('1');
   await waitForText(page, '1 pending');
-  const quickScoreDialog = page.getByRole('dialog').filter({ hasText: 'Quick score entry' });
   await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Storage health' }).click();
