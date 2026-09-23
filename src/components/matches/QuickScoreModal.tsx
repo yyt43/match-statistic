@@ -7,6 +7,7 @@ import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { getRoundGameType } from '../../utils/swissPairing';
 import { ResultButtons } from './ResultButtons';
+import { buildQuickScoreOptions } from './quickScoreOptions';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface QuickScoreModalProps {
@@ -222,6 +223,8 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
       const gameType = getRoundGameType(selectedEntry.group, selectedEntry.group.currentRound);
+      const shortcutOption = buildQuickScoreOptions(gameType)
+        .find(option => option.shortcut === event.key);
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
         moveSelection(-1);
@@ -231,12 +234,13 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
       } else if (event.key.toLowerCase() === 'd') {
         event.preventDefault();
         applyResult('draw', 0, 0);
-      } else if (event.key === '1') {
+      } else if (shortcutOption) {
         event.preventDefault();
-        applyResult('player1', winScore(gameType), 0);
-      } else if (event.key === '2') {
-        event.preventDefault();
-        applyResult('player2', 0, winScore(gameType));
+        applyResult(
+          shortcutOption.result,
+          shortcutOption.player1Games,
+          shortcutOption.player2Games
+        );
       } else if (event.key.toLowerCase() === 'n') {
         event.preventDefault();
         jumpToNextPending();
@@ -254,8 +258,18 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
 
   const matchResultLabel = (entry: QuickMatchEntry) => {
     if (entry.match.isBye) return isEnglish ? 'Bye' : '轮空';
-    if (entry.match.result === 'player1') return isEnglish ? 'Left win' : '左胜';
-    if (entry.match.result === 'player2') return isEnglish ? 'Right win' : '右胜';
+    if (entry.match.result === 'player1') {
+      const score = entry.match.player1Games !== undefined && entry.match.player2Games !== undefined
+        ? ` ${entry.match.player1Games}-${entry.match.player2Games}`
+        : '';
+      return `${isEnglish ? 'Left win' : '左胜'}${score}`;
+    }
+    if (entry.match.result === 'player2') {
+      const score = entry.match.player1Games !== undefined && entry.match.player2Games !== undefined
+        ? ` ${entry.match.player1Games}-${entry.match.player2Games}`
+        : '';
+      return `${isEnglish ? 'Right win' : '右胜'}${score}`;
+    }
     if (entry.match.result === 'draw') return isEnglish ? 'Double loss' : '双负';
     return isEnglish ? 'Pending' : '待录';
   };
@@ -453,11 +467,25 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                   <span className="mx-2 text-slate-600">·</span>
                   {isEnglish ? `Match #${selectedEntry.matchNumber}` : `第 ${selectedEntry.matchNumber} 场`}
                 </div>
-                <span className="text-[10px] text-slate-500">
-                  {isEnglish
-                    ? `Round ${selectedEntry.group.currentRound}`
-                    : `第${selectedEntry.group.currentRound}轮`}
-                </span>
+                <div className="flex items-center gap-2 text-[10px]">
+                  {selectedEntry.match.result !== 'pending' && (
+                    <span className={`rounded border px-1.5 py-0.5 font-mono ${
+                      selectedEntry.match.result === 'draw'
+                        ? 'border-orange-500/25 bg-orange-500/10 text-orange-300'
+                        : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                    }`}>
+                      {isEnglish ? 'Recorded' : '已录'}{' '}
+                      {selectedEntry.match.result === 'draw'
+                        ? '0-0'
+                        : `${selectedEntry.match.player1Games ?? 0}-${selectedEntry.match.player2Games ?? 0}`}
+                    </span>
+                  )}
+                  <span className="text-slate-500">
+                    {isEnglish
+                      ? `Round ${selectedEntry.group.currentRound}`
+                      : `第${selectedEntry.group.currentRound}轮`}
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -526,6 +554,13 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                   gameType={selectedGameType}
                   isEnglish={isEnglish}
                   playoff={!!selectedEntry.match.isPlayoff}
+                  shortcutFor={(result, player1Games, player2Games) =>
+                    buildQuickScoreOptions(selectedGameType).find(option =>
+                      option.result === result
+                      && option.player1Games === player1Games
+                      && option.player2Games === player2Games
+                    )?.shortcut
+                  }
                   onResult={applyResult}
                 />
               </div>
@@ -576,8 +611,8 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
           <span className="flex items-center gap-1.5">
             <Keyboard className="h-3.5 w-3.5" />
             {isEnglish
-              ? '1 / 2 / D score · N next pending · ← → switch match'
-              : '1 / 2 / D 录分 · N 下一场待录 · ← → 切换比赛'}
+              ? '1/2 straight wins · 3+ other scores · D double loss · N next pending · ← → switch match'
+              : '1/2 直落 · 3+ 其他比分 · D 双负 · N 下一场待录 · ← → 切换比赛'}
           </span>
           <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
             {isEnglish ? 'Close' : '关闭'}

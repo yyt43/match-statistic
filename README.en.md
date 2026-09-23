@@ -43,7 +43,8 @@ This project is suited for tournament management, club events, team activities, 
 - Mobile adaptation: the pre-start workspace stacks vertically and header stats/actions wrap on small screens
 - Adaptive player preview: automatically uses 1-4 columns by group count, including a stable 2x2 layout for four groups
 - Start validation: block starting while roster codes, UIDs, QQ values, or nicknames still have errors
-- Quick score entry: multi-group scoring with search, filters, feedback before advance, and keyboard shortcuts
+- Quick score entry: multi-group scoring with search, filters, detailed keyboard scores, and recorded-score display
+- Safe undo: undo any round back to pending while preserving pairings, player assignments, and automatic byes
 - Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups
 - Public hosting: ready for GitHub Pages and similar static deployments
@@ -127,6 +128,7 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - [Multi-sheet Excel import](#multi-sheet-excel-import)
 - [Player profiles and UID](#player-profiles-and-uid)
 - [Result workbook import](#result-workbook-import)
+- [Quick score and undo rules](#quick-score-and-undo-rules)
 - [Quick start](#quick-start)
 - [Deploy to GitHub Pages](#deploy-to-github-pages)
 - [Pairing rules](#pairing-rules)
@@ -216,6 +218,25 @@ Example:
 | A05 | 180748058 | 我以 2-1 获胜 | A-R1-03_01.jpg |
 
 The importer supports multiple sheets, flexible column order, descriptive long headers, winner-perspective results, optional screenshots, conflict detection, and code-plus-UID identity verification. Code and UID mismatches are held for referee review.
+
+## Quick Score and Undo Rules
+
+### Keyboard scores
+
+- `1` / `2`: record a straight-set win for the left or right player, such as `2-0` in BO3.
+- `3+`: use the number shown on a detailed result button to record scores such as `2-1` or `3-1`.
+- `D`: record a double-loss.
+- `N`: jump to the next pending match.
+- `←` / `→`: switch to the previous or next match.
+
+The quick-score list and selected-match header display the recorded left-right score, such as `Left win 2-1` or `Recorded 1-2`.
+
+### Undo results
+
+- “Undo round N results” works for every round and no longer deletes the current pairings.
+- Player stats, game records, dropout flags, and result evidence are rolled back, while normal matches return to pending.
+- Automatic byes and the current round number remain unchanged, so referees can immediately enter the results again.
+- The undo button adapts to the round state: once a result exists it clears the results and keeps the current pairings; before any manual result exists it removes an empty later round and returns to the previous round, or removes an empty first round and returns to setup.
 
 ### Pairing and ranking
 

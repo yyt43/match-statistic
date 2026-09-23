@@ -5,6 +5,11 @@ interface ResultButtonsProps {
   gameType: GameType;
   isEnglish: boolean;
   playoff?: boolean;
+  shortcutFor?: (
+    result: 'player1' | 'player2',
+    player1Games: number,
+    player2Games: number
+  ) => string | undefined;
   onResult: (
     result: 'player1' | 'player2' | 'draw' | 'pending',
     player1Games?: number,
@@ -13,7 +18,13 @@ interface ResultButtonsProps {
   ) => void;
 }
 
-export function ResultButtons({ gameType, onResult, playoff, isEnglish }: ResultButtonsProps) {
+export function ResultButtons({
+  gameType,
+  onResult,
+  playoff,
+  isEnglish,
+  shortcutFor,
+}: ResultButtonsProps) {
   if (playoff) {
     const target = gameType === 'bo7' ? 4 : gameType === 'bo5' ? 3 : gameType === 'bo3' ? 2 : 1;
     return (
@@ -32,7 +43,10 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
                 className="w-full py-2 rounded bg-emerald-500/20 text-emerald-200"
                 onClick={() => onResult('player1', target, loss)}
               >
-                {isEnglish ? `Left ${target}-${loss}` : `左侧 ${target}-${loss}`}
+                <ResultButtonLabel
+                  label={isEnglish ? `Left ${target}-${loss}` : `左侧 ${target}-${loss}`}
+                  shortcut={shortcutFor?.('player1', target, loss)}
+                />
               </button>
             ))}
           </div>
@@ -44,7 +58,10 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
                 className="w-full py-2 rounded bg-emerald-500/20 text-emerald-200"
                 onClick={() => onResult('player2', loss, target)}
               >
-                {isEnglish ? `Right ${loss}-${target}` : `右侧 ${loss}-${target}`}
+                <ResultButtonLabel
+                  label={isEnglish ? `Right ${loss}-${target}` : `右侧 ${loss}-${target}`}
+                  shortcut={shortcutFor?.('player2', loss, target)}
+                />
               </button>
             ))}
           </div>
@@ -61,10 +78,16 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">
-            {isEnglish ? 'Left wins (1-0)' : '左侧胜 (1-0)'}
+            <ResultButtonLabel
+              label={isEnglish ? 'Left wins (1-0)' : '左侧胜 (1-0)'}
+              shortcut={shortcutFor?.('player1', 1, 0)}
+            />
           </button>
           <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">
-            {isEnglish ? 'Right wins (0-1)' : '右侧胜 (0-1)'}
+            <ResultButtonLabel
+              label={isEnglish ? 'Right wins (0-1)' : '右侧胜 (0-1)'}
+              shortcut={shortcutFor?.('player2', 0, 1)}
+            />
           </button>
         </div>
         <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
@@ -119,7 +142,10 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
               onClick={() => onResult('player1', option.p1g, option.p2g)}
               className="w-full py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
             >
-              {option.label}
+              <ResultButtonLabel
+                label={option.label}
+                shortcut={shortcutFor?.('player1', option.p1g, option.p2g)}
+              />
             </button>
           ))}
         </div>
@@ -131,7 +157,10 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
               onClick={() => onResult('player2', option.p1g, option.p2g)}
               className="w-full py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
             >
-              {option.label}
+              <ResultButtonLabel
+                label={option.label}
+                shortcut={shortcutFor?.('player2', option.p1g, option.p2g)}
+              />
             </button>
           ))}
         </div>
@@ -155,6 +184,19 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
         />
       </div>
     </div>
+  );
+}
+
+function ResultButtonLabel({ label, shortcut }: { label: string; shortcut?: string }) {
+  return (
+    <span className="flex items-center justify-center gap-1.5">
+      <span>{label}</span>
+      {shortcut && (
+        <kbd className="rounded bg-slate-950/35 px-1 py-0.5 font-mono text-[9px] text-current opacity-80">
+          {shortcut}
+        </kbd>
+      )}
+    </span>
   );
 }
 

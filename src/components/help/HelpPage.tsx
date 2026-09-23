@@ -133,8 +133,8 @@ const content: Record<AppLanguage, HelpCopy> = {
       {
         title: '快速录分',
         items: [
-          { keys: '1', description: '判定左侧选手获胜。' },
-          { keys: '2', description: '判定右侧选手获胜。' },
+          { keys: '1 / 2', description: '判定左侧或右侧选手直落获胜，例如 BO3 的 2-0。' },
+          { keys: '3+', description: '按详细赛果按钮上的数字提示录入 2-1、3-1 等具体比分。' },
           { keys: 'D', description: '记录双负。' },
           { keys: 'N', description: '跳到下一场待录比赛。' },
           { keys: '← / →', description: '切换上一场或下一场比赛。' },
@@ -161,7 +161,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       },
       {
         title: '管理进度',
-        items: ['需要改判时撤回上一轮，系统会恢复选手状态。', '可在弃赛管理中标记赛后弃赛或恢复选手。', '每轮完成后可查看、恢复或删除自动快照。'],
+        items: ['撤回按钮会按当前状态自动切换：已有赛果时清除结果并保留本轮对阵；后续轮未录分时撤回至上一轮；第一轮未录分时返回开赛前设置。', '可在弃赛管理中标记赛后弃赛或恢复选手。', '每轮完成后可查看、恢复或删除自动快照。'],
       },
       {
         title: '导出与备份',
@@ -206,7 +206,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     ],
     faq: '常见问题',
     faqItems: [
-      { question: '如何修改已录入的比赛结果？', answer: '可直接修改当前比赛结果，也可以使用 Ctrl/Cmd+Z 撤销上一操作；整轮回退仍可使用“撤回本轮赛果”。' },
+      { question: '如何修改已录入的比赛结果？', answer: '可直接修改当前比赛结果，也可以使用 Ctrl/Cmd+Z 撤销上一操作；“撤回本轮赛果”会保留当前对阵并清空该轮已录结果，便于重新录入。' },
       { question: '为什么比赛开始后不能导入？', answer: '为避免覆盖进行中的数据，导入会禁用；请先重置赛事，再导入新的 JSON 文件。' },
       { question: 'Excel 如何识别选手姓名？', answer: '系统会优先识别姓名、Name、Player 等表头，也可在导入前手动指定列。' },
       { question: '快照和 JSON 导出有什么区别？', answer: '快照适合浏览器内快速回滚；JSON 文件适合长期备份和跨设备迁移。' },
@@ -262,8 +262,8 @@ const content: Record<AppLanguage, HelpCopy> = {
       {
         title: 'Quick score entry',
         items: [
-          { keys: '1', description: 'Mark the left player as the winner.' },
-          { keys: '2', description: 'Mark the right player as the winner.' },
+          { keys: '1 / 2', description: 'Record a straight-set win for the left or right player, such as 2-0 in BO3.' },
+          { keys: '3+', description: 'Use the number shown on a detailed result button to record scores such as 2-1 or 3-1.' },
           { keys: 'D', description: 'Record a double-loss.' },
           { keys: 'N', description: 'Jump to the next pending match.' },
           { keys: '← / →', description: 'Switch to the previous or next match.' },
@@ -290,7 +290,7 @@ const content: Record<AppLanguage, HelpCopy> = {
       },
       {
         title: 'Manage progress',
-        items: ['Undo the previous round when a result must be changed.', 'Mark post-drops or restore players in dropout management.', 'Review, restore, or delete automatic snapshots after each round.'],
+        items: ['The undo action adapts automatically: it clears entered results while keeping the current pairings, returns an empty later round to the previous round, or returns an empty first round to setup.', 'Mark post-drops or restore players in dropout management.', 'Review, restore, or delete automatic snapshots after each round.'],
       },
       {
         title: 'Export and back up',
@@ -335,7 +335,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     ],
     faq: 'FAQ',
     faqItems: [
-      { question: 'How do I correct an entered result?', answer: 'Edit the current match directly, or use Ctrl/Cmd+Z to undo the last operation. “Undo round results” still restores a complete round.' },
+      { question: 'How do I correct an entered result?', answer: 'Edit the current match directly, or use Ctrl/Cmd+Z to undo the last operation. “Undo round results” keeps the current pairings, clears that round’s entered results, and lets you record them again.' },
       { question: 'Why is import disabled after the tournament starts?', answer: 'This prevents active data from being overwritten. Reset the tournament before importing a new JSON file.' },
       { question: 'How does Excel import detect player names?', answer: 'The app prioritizes headers such as Name, Player, and 姓名, and you can choose the column manually before import.' },
       { question: 'What is the difference between snapshots and JSON export?', answer: 'Snapshots are quick in-browser rollback points. JSON files are portable and better for long-term storage.' },

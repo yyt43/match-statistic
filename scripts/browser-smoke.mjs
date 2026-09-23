@@ -189,10 +189,10 @@ try {
   await waitForText(page, '1 groups');
   const quickScoreDialog = page.getByRole('dialog').filter({ hasText: 'Quick score entry' });
   const [left20, left21, right20, right21] = await Promise.all([
-    quickScoreDialog.getByRole('button', { name: 'Left 2-0' }).boundingBox(),
-    quickScoreDialog.getByRole('button', { name: 'Left 2-1' }).boundingBox(),
-    quickScoreDialog.getByRole('button', { name: 'Right 2-0' }).boundingBox(),
-    quickScoreDialog.getByRole('button', { name: 'Right 2-1' }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: /^Left 2-0/ }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: /^Left 2-1/ }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: /^Right 2-0/ }).boundingBox(),
+    quickScoreDialog.getByRole('button', { name: /^Right 2-1/ }).boundingBox(),
   ]);
   if (!left20 || !left21 || !right20 || !right21) {
     throw new Error('Detailed result options are missing for BO3.');
@@ -203,11 +203,12 @@ try {
   if (left20.x >= right20.x || left21.x >= right21.x) {
     throw new Error('Left-win options must stay left of right-win options.');
   }
-  await page.keyboard.press('1');
+  await page.keyboard.press('3');
   await waitForText(page, '1 pending');
+  await waitForText(page, 'Left win 2-1');
   await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: 'Undo round 1 results' }).click();
+  await page.getByRole('button', { name: 'Clear round 1 results' }).click();
   const undoDialog = page.getByRole('dialog').filter({ hasText: 'Confirm undo' });
   await undoDialog.getByRole('button', { name: 'Undo now' }).click();
   await waitForText(page, 'Round 1 match list');

@@ -59,6 +59,97 @@ function resetMatchResult(match: Match): Match {
   };
 }
 
+function rollbackRoundPlayerStats(
+  group: TournamentGroup,
+  currentRound: number,
+  preserveByes: boolean
+): Player[] {
+  const currentRoundMatches = group.matches.filter(m => m.round === currentRound);
+  const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
+  const isSingleElimination = group.pairingType === 'single_elimination';
+
+  for (const match of currentRoundMatches) {
+    const isPlayoff = !!match.isPlayoff;
+    const wasPreDrop = !!match.preDrop;
+
+    if (match.isBye) {
+      if (preserveByes) continue;
+      const p1 = playerMap.get(match.player1Id);
+      if (p1 && match.result === 'player1') {
+        if (isPlayoff) {
+          p1.playoffWins = (p1.playoffWins || 0) - 1;
+        } else {
+          p1.points -= 1;
+          p1.wins -= 1;
+          p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
+          if (match.player1Games !== undefined && match.player2Games !== undefined) {
+            p1.totalGames -= match.player1Games + match.player2Games;
+            p1.wonGames -= match.player1Games;
+          }
+        }
+      }
+      continue;
+    }
+
+    const p1 = playerMap.get(match.player1Id);
+    const p2 = playerMap.get(match.player2Id);
+    if (!p1 || !p2) continue;
+
+    if (isPlayoff) {
+      if (match.result === 'player1') {
+        p1.playoffWins = (p1.playoffWins || 0) - 1;
+      } else if (match.result === 'player2') {
+        p2.playoffWins = (p2.playoffWins || 0) - 1;
+      }
+      continue;
+    }
+
+    if (match.result === 'player1') {
+      p1.points -= 1;
+      p1.wins -= 1;
+      if (!wasPreDrop) {
+        p2.losses -= 1;
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+      } else {
+        p2.dropped = false;
+      }
+      if (isSingleElimination) p2.eliminated = false;
+    } else if (match.result === 'player2') {
+      p2.points -= 1;
+      p2.wins -= 1;
+      if (!wasPreDrop) {
+        p1.losses -= 1;
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+      } else {
+        p1.dropped = false;
+      }
+      if (isSingleElimination) p1.eliminated = false;
+    } else if (match.result === 'draw') {
+      p1.losses -= 1;
+      p2.losses -= 1;
+      if (!wasPreDrop) {
+        p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
+        p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
+      }
+      if (isSingleElimination) {
+        p1.eliminated = false;
+        p2.eliminated = false;
+      }
+    }
+
+    if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
+      p1.totalGames -= match.player1Games + match.player2Games;
+      p1.wonGames -= match.player1Games;
+      p2.totalGames -= match.player1Games + match.player2Games;
+      p2.wonGames -= match.player2Games;
+    }
+  }
+
+  return Array.from(playerMap.values());
+}
+
 export interface CompetitionState {
   competition: TournamentCompetition;
   viewRound: number;
@@ -126,6 +217,8 @@ export interface CompetitionState {
   generateNextRoundForGroup: (groupIdx: number) => void;
   generateNextRoundAllGroups: () => void;
   undoLastRound: () => void;
+  returnToPreviousRound: () => void;
+  returnToSetup: () => void;
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => void;
   randomGenerateAllGroups: () => Promise<void>;
   randomGenerateCurrentRoundAllGroups: () => Promise<void>;
@@ -429,78 +522,6 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const currentRound = group.currentRound;
 
-    // 找到当前轮的所有比赛
-    const currentRoundMatches = group.matches.filter(m => m.round === currentRound);
-
-    // 创建选手副本
-    const playerMap = new Map<string, Player>(group.players.map(p => [p.id, { ...p }]));
-    const isSingleElimination = group.pairingType === 'single_elimination';
-
-    // 回滚每场比赛的结果
-    for (const match of currentRoundMatches) {
-      const isPlayoff = !!match.isPlayoff;
-      const wasPreDrop = !!match.preDrop;
-
-      if (match.isBye) {
-        // Byes are automatic, not manually entered results. Preserve them
-        // while resetting the current round back to pending.
-        continue;
-      }
-
-      const p1 = playerMap.get(match.player1Id);
-      const p2 = playerMap.get(match.player2Id);
-      if (!p1 || !p2) continue;
-
-      // 加赛：只撤销 playoffWins
-      if (isPlayoff) {
-        if (match.result === 'player1') {
-          p1.playoffWins = (p1.playoffWins || 0) - 1;
-        } else if (match.result === 'player2') {
-          p2.playoffWins = (p2.playoffWins || 0) - 1;
-        }
-        continue;
-      }
-
-      if (match.result === 'player1') {
-        p1.points -= 1; p1.wins -= 1;
-        if (!wasPreDrop) {
-          p2.losses -= 1;
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
-        } else {
-          // 赛前弃赛：弃赛方（p2）恢复为未退赛
-          p2.dropped = false;
-        }
-        if (isSingleElimination) p2.eliminated = false;
-      } else if (match.result === 'player2') {
-        p2.points -= 1; p2.wins -= 1;
-        if (!wasPreDrop) {
-          p1.losses -= 1;
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
-        } else {
-          // 赛前弃赛：弃赛方（p1）恢复为未退赛
-          p1.dropped = false;
-        }
-        if (isSingleElimination) p1.eliminated = false;
-      } else if (match.result === 'draw') {
-        p1.losses -= 1; p2.losses -= 1;
-        if (!wasPreDrop) {
-          p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2.id);
-          p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1.id);
-        }
-        if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
-      }
-
-      // 赛前弃赛的局数据未实际发生，不扣减
-      if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-        p1.totalGames -= match.player1Games + match.player2Games;
-        p1.wonGames -= match.player1Games;
-        p2.totalGames -= match.player1Games + match.player2Games;
-        p2.wonGames -= match.player2Games;
-      }
-    }
-
     // Keep the current pairings and reset their results so referees can
     // immediately re-enter them. Automatic byes remain unchanged.
     const remainingMatches = group.matches.map(match =>
@@ -509,9 +530,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
         : match
     );
 
-    // 重新计算胜率
-    let updatedPlayers = Array.from(playerMap.values());
-    updatedPlayers = calculateAllWinRates(updatedPlayers, remainingMatches, group.gameType);
+    const updatedPlayers = calculateAllWinRates(
+      rollbackRoundPlayerStats(group, currentRound, true),
+      remainingMatches,
+      group.gameType
+    );
 
     const updatedGroups = [...competition.groups];
     updatedGroups[idx] = {
@@ -527,6 +550,80 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       { label: `撤回第${currentRound}轮` }
     );
     void logAudit('round-undo', `Round ${currentRound} undone`, { round: currentRound });
+  },
+
+  returnToPreviousRound: () => {
+    const { competition } = get();
+    const idx = competition.currentGroupIndex;
+    const group = clearPlayoffs(competition.groups[idx]);
+    const currentRound = group.currentRound;
+    if (currentRound <= 1) return;
+
+    const remainingMatches = group.matches.filter(match => match.round !== currentRound);
+    const previousRound = currentRound - 1;
+    const updatedPlayers = calculateAllWinRates(
+      rollbackRoundPlayerStats(group, currentRound, false),
+      remainingMatches,
+      group.gameType
+    );
+
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = {
+      ...group,
+      currentRound: previousRound,
+      matches: remainingMatches,
+      players: updatedPlayers,
+      status: 'in_progress' as TournamentStatus,
+    };
+    const updated = { ...competition, groups: updatedGroups };
+    set(
+      { competition: updated, viewRound: previousRound },
+      { label: `退回第${previousRound}轮` }
+    );
+    void logAudit('round-return', `Returned from round ${currentRound} to round ${previousRound}`, {
+      fromRound: currentRound,
+      toRound: previousRound,
+    });
+  },
+
+  returnToSetup: () => {
+    const { competition } = get();
+    const idx = competition.currentGroupIndex;
+    const group = clearPlayoffs(competition.groups[idx]);
+    if (group.currentRound !== 1) return;
+
+    const hasEnteredResult = group.matches.some(match =>
+      match.round === 1
+      && !match.isBye
+      && match.result !== 'pending'
+    );
+    if (hasEnteredResult) return;
+
+    const remainingMatches = group.matches.filter(match => match.round !== 1);
+    const updatedPlayers = calculateAllWinRates(
+      rollbackRoundPlayerStats(group, 1, false),
+      remainingMatches,
+      group.gameType
+    );
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = {
+      ...group,
+      currentRound: 0,
+      matches: remainingMatches,
+      players: updatedPlayers,
+      status: 'setup' as TournamentStatus,
+    };
+    const allGroupsInSetup = updatedGroups.every(item => item.status === 'setup');
+    const updated = {
+      ...competition,
+      groups: updatedGroups,
+      rosterLockedAt: allGroupsInSetup ? undefined : competition.rosterLockedAt,
+    };
+    set(
+      { competition: updated, viewRound: 0 },
+      { label: '撤回至开赛设置' }
+    );
+    void logAudit('round-undo', 'Round 1 returned to setup', { round: 1 });
   },
 
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {

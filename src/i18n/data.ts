@@ -311,6 +311,7 @@ export const translations = {
     clearAuditLogMessage: '将删除全部本地操作记录。此操作不会影响比赛数据，且不可恢复。',
     auditMatchResult: '修改赛果：{match} → {result}',
     auditRoundUndo: '撤回第 {round} 轮',
+    auditRoundReturn: '从第 {fromRound} 轮退回第 {toRound} 轮',
     auditHistoryUndo: '撤销上一操作',
     auditHistoryRedo: '重做上一操作',
     auditHistoryJump: '跳转到操作：{label}',
@@ -327,7 +328,7 @@ export const translations = {
     confirmResetMsg: '此操作将清除所有比赛数据，包括选手信息、比赛结果和排名。此操作不可恢复。',
     resetNow: '确认重置',
     confirmUndoTitle: '确认撤回',
-    confirmUndoMsg: '确定要撤回第 {round} 轮的所有比赛结果吗？此操作不可恢复。',
+    confirmUndoMsg: '确定要清除第 {round} 轮已录入的比赛结果吗？当前轮对阵会保留，可随后重新录入。',
     undoNow: '确认撤回',
 
     // Control Panel - Bottom buttons
@@ -718,6 +719,7 @@ export const translations = {
     clearAuditLogMessage: 'This deletes all local audit entries. Tournament data is not affected, and this action cannot be undone.',
     auditMatchResult: 'Result changed: {match} → {result}',
     auditRoundUndo: 'Undo round {round}',
+    auditRoundReturn: 'Returned from round {fromRound} to round {toRound}',
     auditHistoryUndo: 'History undo',
     auditHistoryRedo: 'History redo',
     auditHistoryJump: 'History jump: {label}',
@@ -734,7 +736,7 @@ export const translations = {
     confirmResetMsg: 'This will clear all tournament data, including players, matches, results, and rankings. This action cannot be undone.',
     resetNow: 'Reset now',
     confirmUndoTitle: 'Confirm undo',
-    confirmUndoMsg: 'Are you sure you want to undo all results from round {round}? This action cannot be undone.',
+    confirmUndoMsg: 'Clear the entered results for round {round}? The round pairings will be kept so you can record the results again.',
     undoNow: 'Undo now',
 
     // Control Panel - Bottom buttons
