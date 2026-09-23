@@ -90,7 +90,7 @@ export function RosterProfilePanel() {
     setHeaders([]);
     setColumns({ name: '' });
     setMessage(isEnglish
-      ? `Imported ${result.playerCount} player profiles across ${importedGroupCount} groups.${missingCodes > 0 ? ` ${missingCodes} players still need participant codes; use Fill missing codes to complete them.` : ''}`
+      ? `Imported ${result.playerCount} player profiles across ${importedGroupCount} ${importedGroupCount === 1 ? 'group' : 'groups'}.${missingCodes > 0 ? ` ${missingCodes} players still need participant codes; use Fill missing codes to complete them.` : ''}`
       : `已导入 ${importedGroupCount} 个小组、共 ${result.playerCount} 名选手。${missingCodes > 0 ? `另有 ${missingCodes} 名选手缺少编号，可点击“一键编号”补齐。` : ''}`);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };

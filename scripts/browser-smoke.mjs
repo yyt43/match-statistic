@@ -98,7 +98,7 @@ try {
   await waitForText(page, 'Poetic · Tournament Results System');
 
   await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
-  await waitForText(page, 'Imported 4 player profiles.');
+  await waitForText(page, 'Imported 4 player profiles across 1 group.');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
   if (
