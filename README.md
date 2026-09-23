@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.4.2
+当前版本：v0.4.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.2)
+[![Release](https://img.shields.io/badge/Release-v0.4.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.3)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -44,7 +44,7 @@
 - 选手预览自适应：按小组数量自动切换 1 至 4 列，四组使用稳定的 2×2 布局
 - 开赛校验：选手档案存在编号、UID、QQ 或昵称异常时禁止开赛并显示异常数量
 - 快速录分：支持多小组同屏、搜索、筛选、任意顺序录分、具体比分键盘录入和已录比分显示
-- 撤回保护：撤回任意一轮赛果时只重置该轮结果，保留对阵、选手配对和自动轮空，可直接重新录入
+- 撤回保护：有赛果时清除结果并保留对阵；未录分时按轮次撤回至上一轮或返回开赛前设置
 - 存储体检：检查主备记录、存储一致性、快照和审计状态并支持修复重写
 - 结果导出：Excel、图片、JSON 数据导出，便于复盘和备份
 - 公开托管：可直接部署到 GitHub Pages，适合现场、线上和协作使用
@@ -266,10 +266,10 @@ QQ / QQ号
 
 ### 撤回赛果
 
-- “撤回第 N 轮结果”适用于每一轮，不再删除当前轮对阵。
-- 系统会回滚该轮个人战绩、局分、弃赛状态和结果证据，将普通比赛重置为“待录”。
-- 自动轮空保持不变，当前轮次保持不变，裁判可直接重新录入赛果。
-- 撤回按钮会根据当前轮状态自动切换：已有赛果时清除结果并保留本轮对阵；第二轮以后尚未录分时删除空对阵并撤回至上一轮；第一轮尚未录分时返回开赛前设置。
+- 本轮已有赛果：回滚个人战绩、局分、弃赛状态和结果证据，将普通比赛重置为“待录”，并保留本轮对阵，便于重新录入。
+- 第二轮以后且本轮未录分：删除本轮空对阵并返回上一轮，上一轮赛果保持不变。
+- 第一轮且本轮未录分：删除第一轮对阵并返回开赛前设置，重新开放开赛前操作。
+- 自动轮空在清除本轮赛果时保持不变；需要退回上一轮或开赛设置时，相关轮次会自动移除。
 
 ### 配对与排名
 

@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.4.2
+Current version: v0.4.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.2)
+[![Release](https://img.shields.io/badge/Release-v0.4.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.3)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -44,7 +44,7 @@ This project is suited for tournament management, club events, team activities, 
 - Adaptive player preview: automatically uses 1-4 columns by group count, including a stable 2x2 layout for four groups
 - Start validation: block starting while roster codes, UIDs, QQ values, or nicknames still have errors
 - Quick score entry: multi-group scoring with search, filters, detailed keyboard scores, and recorded-score display
-- Safe undo: undo any round back to pending while preserving pairings, player assignments, and automatic byes
+- Safe undo: preserve pairings when results exist, or return an empty round to the previous round or setup
 - Storage health: inspect primary/backup records, mirrors, snapshots, audit data, and repair storage
 - Results export: Excel, image, and JSON export for reporting and backups
 - Public hosting: ready for GitHub Pages and similar static deployments
@@ -233,10 +233,10 @@ The quick-score list and selected-match header display the recorded left-right s
 
 ### Undo results
 
-- “Undo round N results” works for every round and no longer deletes the current pairings.
-- Player stats, game records, dropout flags, and result evidence are rolled back, while normal matches return to pending.
-- Automatic byes and the current round number remain unchanged, so referees can immediately enter the results again.
-- The undo button adapts to the round state: once a result exists it clears the results and keeps the current pairings; before any manual result exists it removes an empty later round and returns to the previous round, or removes an empty first round and returns to setup.
+- If the current round has entered results, roll back player stats, game records, dropout flags, and evidence; normal matches return to pending while the pairings remain for re-entry.
+- If a later round has no entered result, remove its empty pairings and return to the previous round while keeping the previous round results.
+- If round one has no entered result, remove the first-round pairings and return to setup.
+- Automatic byes remain when only clearing results; they are removed when the corresponding round is returned or reset.
 
 ### Pairing and ranking
 
