@@ -55,7 +55,7 @@ describe('undoLastRound', () => {
     expect(group.players.every(player => player.wins === 0 && player.losses === 0)).toBe(true);
   });
 
-  it('still removes later rounds and returns to the previous completed round', () => {
+  it('keeps later-round pairings and resets only their entered results', () => {
     useTournamentStore.setState({ competition: createReadyCompetition() });
     useTournamentStore.getState().startTournament(3);
 
@@ -64,15 +64,31 @@ describe('undoLastRound', () => {
       useTournamentStore.getState().updateMatchResult(match.id, 'player1', 1, 0);
     }
     useTournamentStore.getState().generateNextRound();
-    expect(useTournamentStore.getState().competition.groups[0].currentRound).toBe(2);
+    const secondRound = useTournamentStore.getState().competition.groups[0];
+    const secondRoundPairings = secondRound.matches
+      .filter(match => match.round === 2)
+      .map(match => ({
+        id: match.id,
+        player1Id: match.player1Id,
+        player2Id: match.player2Id,
+      }));
+    expect(secondRound.currentRound).toBe(2);
+    const secondRoundMatch = secondRound.matches.find(match => match.round === 2)!;
+    useTournamentStore.getState().updateMatchResult(secondRoundMatch.id, 'player1', 1, 0);
 
     useTournamentStore.getState().undoLastRound();
 
     const updated = useTournamentStore.getState();
     const group = updated.competition.groups[0];
-    expect(updated.viewRound).toBe(1);
-    expect(group.currentRound).toBe(1);
-    expect(group.matches.some(match => match.round === 2)).toBe(false);
+    expect(updated.viewRound).toBe(2);
+    expect(group.currentRound).toBe(2);
+    expect(group.matches.filter(match => match.round === 2).map(match => ({
+      id: match.id,
+      player1Id: match.player1Id,
+      player2Id: match.player2Id,
+    }))).toEqual(secondRoundPairings);
+    expect(group.matches.filter(match => match.round === 2).every(match => match.result === 'pending'))
+      .toBe(true);
     expect(group.matches.filter(match => match.round === 1).every(match => match.result !== 'pending'))
       .toBe(true);
   });
