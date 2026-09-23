@@ -133,8 +133,8 @@ const content: Record<AppLanguage, HelpCopy> = {
       {
         title: '快速录分',
         items: [
-          { keys: '1', description: '判定左侧选手获胜。' },
-          { keys: '2', description: '判定右侧选手获胜。' },
+          { keys: '1 / 2', description: '判定左侧或右侧选手直落获胜，例如 BO3 的 2-0。' },
+          { keys: '3+', description: '按详细赛果按钮上的数字提示录入 2-1、3-1 等具体比分。' },
           { keys: 'D', description: '记录双负。' },
           { keys: 'N', description: '跳到下一场待录比赛。' },
           { keys: '← / →', description: '切换上一场或下一场比赛。' },
@@ -262,8 +262,8 @@ const content: Record<AppLanguage, HelpCopy> = {
       {
         title: 'Quick score entry',
         items: [
-          { keys: '1', description: 'Mark the left player as the winner.' },
-          { keys: '2', description: 'Mark the right player as the winner.' },
+          { keys: '1 / 2', description: 'Record a straight-set win for the left or right player, such as 2-0 in BO3.' },
+          { keys: '3+', description: 'Use the number shown on a detailed result button to record scores such as 2-1 or 3-1.' },
           { keys: 'D', description: 'Record a double-loss.' },
           { keys: 'N', description: 'Jump to the next pending match.' },
           { keys: '← / →', description: 'Switch to the previous or next match.' },
