@@ -4,6 +4,7 @@ import type {
   TournamentCompetition,
   TournamentGroup,
   Player,
+  Match,
   MatchResult,
   TournamentStatus,
   GameType,
@@ -34,6 +35,29 @@ import {
 } from './competitionHistory';
 import type { CompetitionHistoryEntry } from './historyTypes';
 import { validateRoster, type RosterValidationSummary } from '../utils/playerProfiles';
+
+function resetMatchResult(match: Match): Match {
+  return {
+    ...match,
+    result: 'pending',
+    player1Games: undefined,
+    player2Games: undefined,
+    preDrop: undefined,
+    resultSource: undefined,
+    sourceSubmissionId: undefined,
+    sourceSubmittedAt: undefined,
+    evidenceRefs: undefined,
+    evidenceHash: undefined,
+    evidenceVerificationStatus: undefined,
+    evidenceVerifiedBy: undefined,
+    evidenceVerifiedAt: undefined,
+    publicResultStatus: undefined,
+    announcedAt: undefined,
+    confirmationDeadlineAt: undefined,
+    disputedAt: undefined,
+    resultOverrides: undefined,
+  };
+}
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -418,6 +442,9 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       const wasPreDrop = !!match.preDrop;
 
       if (match.isBye) {
+        // First-round byes are automatic, not manually entered results.
+        // Preserve them when resetting round one back to pending.
+        if (currentRound === 1) continue;
         const p1 = playerMap.get(match.player1Id);
         if (p1 && match.result === 'player1') {
           if (isPlayoff) {
@@ -488,8 +515,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       }
     }
 
-    // 删除当前轮的比赛
-    const remainingMatches = group.matches.filter(m => m.round !== currentRound);
+    // Undoing round one keeps the pairings and resets results so referees can
+    // immediately re-enter them. Later rounds still fall back to the previous
+    // round and remove the now-invalid pairings.
+    const remainingMatches = currentRound === 1
+      ? group.matches.map(match =>
+          match.round === currentRound && !match.isBye
+            ? resetMatchResult(match)
+            : match
+        )
+      : group.matches.filter(m => m.round !== currentRound);
 
     // 重新计算胜率
     let updatedPlayers = Array.from(playerMap.values());
@@ -498,14 +533,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const updatedGroups = [...competition.groups];
     updatedGroups[idx] = {
       ...group,
-      currentRound: currentRound - 1,
+      currentRound: currentRound === 1 ? 1 : currentRound - 1,
       matches: remainingMatches,
       players: updatedPlayers,
-      status: currentRound - 1 === 0 ? 'setup' as TournamentStatus : 'in_progress' as TournamentStatus,
+      status: 'in_progress' as TournamentStatus,
     };
     const updated = { ...competition, groups: updatedGroups };
     set(
-      { competition: updated, viewRound: currentRound - 1 },
+      { competition: updated, viewRound: currentRound === 1 ? 1 : currentRound - 1 },
       { label: `撤回第${currentRound}轮` }
     );
     void logAudit('round-undo', `Round ${currentRound} undone`, { round: currentRound });
