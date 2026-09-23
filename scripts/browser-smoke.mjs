@@ -208,7 +208,7 @@ try {
   await waitForText(page, 'Left win 2-1');
   await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: 'Undo round 1 results' }).click();
+  await page.getByRole('button', { name: 'Clear round 1 results' }).click();
   const undoDialog = page.getByRole('dialog').filter({ hasText: 'Confirm undo' });
   await undoDialog.getByRole('button', { name: 'Undo now' }).click();
   await waitForText(page, 'Round 1 match list');

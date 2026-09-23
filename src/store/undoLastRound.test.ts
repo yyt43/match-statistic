@@ -92,4 +92,44 @@ describe('undoLastRound', () => {
     expect(group.matches.filter(match => match.round === 1).every(match => match.result !== 'pending'))
       .toBe(true);
   });
+
+  it('can return to the previous round and remove the current pairings', () => {
+    useTournamentStore.setState({ competition: createReadyCompetition() });
+    useTournamentStore.getState().startTournament(3);
+
+    const firstRound = useTournamentStore.getState().competition.groups[0];
+    for (const match of firstRound.matches) {
+      useTournamentStore.getState().updateMatchResult(match.id, 'player1', 1, 0);
+    }
+    useTournamentStore.getState().generateNextRound();
+    const secondRoundMatch = useTournamentStore.getState().competition.groups[0].matches
+      .find(match => match.round === 2)!;
+    useTournamentStore.getState().updateMatchResult(secondRoundMatch.id, 'player1', 1, 0);
+
+    useTournamentStore.getState().returnToPreviousRound();
+
+    const updated = useTournamentStore.getState();
+    const group = updated.competition.groups[0];
+    expect(updated.viewRound).toBe(1);
+    expect(group.currentRound).toBe(1);
+    expect(group.matches.some(match => match.round === 2)).toBe(false);
+    expect(group.matches.filter(match => match.round === 1).every(match => match.result !== 'pending'))
+      .toBe(true);
+  });
+
+  it('returns an empty first round to setup', () => {
+    useTournamentStore.setState({ competition: createReadyCompetition() });
+    useTournamentStore.getState().startTournament(3);
+    expect(useTournamentStore.getState().competition.groups[0].currentRound).toBe(1);
+
+    useTournamentStore.getState().returnToSetup();
+
+    const updated = useTournamentStore.getState();
+    const group = updated.competition.groups[0];
+    expect(updated.viewRound).toBe(0);
+    expect(group.currentRound).toBe(0);
+    expect(group.status).toBe('setup');
+    expect(group.matches).toHaveLength(0);
+    expect(updated.competition.rosterLockedAt).toBeUndefined();
+  });
 });

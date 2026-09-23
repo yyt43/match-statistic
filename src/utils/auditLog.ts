@@ -8,6 +8,7 @@ let auditWriteQueue: Promise<void> = Promise.resolve();
 export type AuditAction =
   | 'match-result'
   | 'round-undo'
+  | 'round-return'
   | 'history-undo'
   | 'history-redo'
   | 'history-jump'

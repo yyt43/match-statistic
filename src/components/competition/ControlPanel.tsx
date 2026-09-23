@@ -24,6 +24,7 @@ import { AuditLogManager } from '../data/AuditLogManager';
 import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManagerList } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
+import { resolveRoundUndoMode } from './roundUndoMode';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -73,6 +74,8 @@ export function ControlPanel({
     generateNextRound,
     generateNextRoundAllGroups,
     undoLastRound,
+    returnToPreviousRound,
+    returnToSetup,
     resetCompetition,
     updateCompetitionName,
     addGroup,
@@ -176,6 +179,7 @@ export function ControlPanel({
   const isSetup = currentGroup.status === 'setup';
   const isInProgress = currentGroup.status === 'in_progress';
   const isCompleted = currentGroup.status === 'completed';
+  const roundUndoMode = resolveRoundUndoMode(currentGroup.currentRound, currentGroup.matches);
   // 任一小组已开始比赛时，禁止调整小组数量
   const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
   const draftPlayerCount = Math.max(
@@ -934,13 +938,36 @@ export function ControlPanel({
                 </span>
               </div>
 
-              {currentGroup.currentRound > 0 && (
+              {roundUndoMode !== 'none' && (
                 <button
                   onClick={() => setShowUndoConfirm(true)}
-                  className="w-full py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm flex items-center justify-center gap-2 border border-orange-500/25"
+                  className={`w-full py-2 rounded-lg transition-colors text-xs flex items-center justify-center gap-2 border ${
+                    roundUndoMode === 'clear-results'
+                      ? 'border-orange-500/25 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
+                      : 'border-rose-500/25 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+                  }`}
+                  title={roundUndoMode === 'clear-results'
+                    ? (isEnglish
+                        ? 'Clear this round results and keep the pairings for re-entry.'
+                        : '清除本轮赛果并保留对阵，便于重新录入。')
+                    : roundUndoMode === 'return-previous'
+                      ? (isEnglish
+                          ? 'No result has been entered in this round; remove its pairings and return to the previous round.'
+                          : '本轮尚未录入赛果，将删除本轮对阵并退回上一轮。')
+                      : (isEnglish
+                          ? 'No result has been entered in round one; return to the pre-start setup.'
+                          : '第一轮尚未录入赛果，将返回开赛前设置。')}
                 >
                   <Undo2 className="w-4 h-4" />
-                  {isEnglish ? `Undo round ${currentGroup.currentRound} results` : `撤回第${currentGroup.currentRound}轮结果`}
+                  {roundUndoMode === 'clear-results'
+                    ? (isEnglish
+                        ? `Clear round ${currentGroup.currentRound} results`
+                        : `撤回第${currentGroup.currentRound}轮赛果`)
+                    : roundUndoMode === 'return-previous'
+                      ? (isEnglish
+                          ? `Return to round ${currentGroup.currentRound - 1}`
+                          : `撤回至第${currentGroup.currentRound - 1}轮`)
+                      : (isEnglish ? 'Return to setup' : '撤回至开赛设置')}
                 </button>
               )}
 
@@ -1039,10 +1066,28 @@ export function ControlPanel({
       <ConfirmDialog
         isOpen={showUndoConfirm}
         onClose={() => setShowUndoConfirm(false)}
-        title={t.confirmUndoTitle}
-        message={formatText(t.confirmUndoMsg, { round: currentGroup.currentRound })}
-        confirmText={t.undoNow}
-        onConfirm={() => undoLastRound()}
+        title={roundUndoMode === 'clear-results'
+          ? t.confirmUndoTitle
+          : roundUndoMode === 'return-previous'
+            ? (isEnglish ? 'Return to previous round' : '撤回至上一轮')
+            : (isEnglish ? 'Return to setup' : '撤回至开赛设置')}
+        message={roundUndoMode === 'clear-results'
+          ? formatText(t.confirmUndoMsg, { round: currentGroup.currentRound })
+          : roundUndoMode === 'return-previous'
+            ? (isEnglish
+                ? `No result has been entered in round ${currentGroup.currentRound}. Remove its pairings and return to round ${currentGroup.currentRound - 1}?`
+                : `第 ${currentGroup.currentRound} 轮尚未录入赛果，确定删除本轮对阵并退回第 ${currentGroup.currentRound - 1} 轮吗？`)
+            : (isEnglish
+                ? 'No result has been entered in round one. Remove the first-round pairings and return to setup?'
+                : '第一轮尚未录入赛果，确定删除第一轮对阵并返回开赛前设置吗？')}
+        confirmText={roundUndoMode === 'clear-results'
+          ? t.undoNow
+          : (isEnglish ? 'Return' : '确认撤回')}
+        onConfirm={() => {
+          if (roundUndoMode === 'return-previous') returnToPreviousRound();
+          else if (roundUndoMode === 'return-setup') returnToSetup();
+          else undoLastRound();
+        }}
       />
 
       {/* 开赛前赛事信息确认 */}
