@@ -24,16 +24,30 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
             : '加赛需决出胜者；比分仅记录加赛，不计入常规小分。'}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: target }, (_, loss) => (
-            <div key={loss} className="contents">
-              <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player1', target, loss)}>
+          <div className="space-y-2">
+            <ResultSideLabel isEnglish={isEnglish} side="left" />
+            {Array.from({ length: target }, (_, loss) => (
+              <button
+                key={loss}
+                className="w-full py-2 rounded bg-emerald-500/20 text-emerald-200"
+                onClick={() => onResult('player1', target, loss)}
+              >
                 {isEnglish ? `Left ${target}-${loss}` : `左侧 ${target}-${loss}`}
               </button>
-              <button className="py-2 rounded bg-emerald-500/20 text-emerald-200" onClick={() => onResult('player2', loss, target)}>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <ResultSideLabel isEnglish={isEnglish} side="right" />
+            {Array.from({ length: target }, (_, loss) => (
+              <button
+                key={loss}
+                className="w-full py-2 rounded bg-emerald-500/20 text-emerald-200"
+                onClick={() => onResult('player2', loss, target)}
+              >
                 {isEnglish ? `Right ${loss}-${target}` : `右侧 ${loss}-${target}`}
               </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
         <button className="text-xs text-rose-300" onClick={() => onResult('pending')}>
           {isEnglish ? 'Reset playoff result' : '重置加赛结果'}
@@ -45,17 +59,17 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
   if (gameType === 'bo1') {
     return (
       <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button onClick={() => onResult('player1', 1, 0)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">
             {isEnglish ? 'Left wins (1-0)' : '左侧胜 (1-0)'}
           </button>
           <button onClick={() => onResult('player2', 0, 1)} className="py-2 rounded-lg text-sm font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30">
             {isEnglish ? 'Right wins (0-1)' : '右侧胜 (0-1)'}
           </button>
-          <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-            {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
-          </button>
         </div>
+        <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
+          {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+        </button>
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
           <PreDropButton
             isEnglish={isEnglish}
@@ -76,19 +90,18 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
   }
 
   const winScore = gameType === 'bo7' ? 4 : gameType === 'bo5' ? 3 : 2;
-  const options: Array<{ result: 'player1' | 'player2'; p1g: number; p2g: number; label: string }> = [];
+  const leftOptions: Array<{ p1g: number; p2g: number; label: string }> = [];
+  const rightOptions: Array<{ p1g: number; p2g: number; label: string }> = [];
 
   for (let loserGames = 0; loserGames < winScore; loserGames++) {
-    options.push({
-      result: 'player1',
+    leftOptions.push({
       p1g: winScore,
       p2g: loserGames,
       label: isEnglish ? `Left ${winScore}-${loserGames}` : `左侧 ${winScore}-${loserGames}`,
     });
   }
-  for (let loserGames = winScore - 1; loserGames >= 0; loserGames--) {
-    options.push({
-      result: 'player2',
+  for (let loserGames = 0; loserGames < winScore; loserGames++) {
+    rightOptions.push({
       p1g: loserGames,
       p2g: winScore,
       label: isEnglish ? `Right ${winScore}-${loserGames}` : `右侧 ${winScore}-${loserGames}`,
@@ -97,20 +110,35 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-2">
-        {options.map((option, index) => (
-          <button
-            key={index}
-            onClick={() => onResult(option.result, option.p1g, option.p2g)}
-            className="py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
-          >
-            {option.label}
-          </button>
-        ))}
-        <button onClick={() => onResult('draw', 0, 0)} className="py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-          {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
-        </button>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
+          <ResultSideLabel isEnglish={isEnglish} side="left" />
+          {leftOptions.map(option => (
+            <button
+              key={`left-${option.p2g}`}
+              onClick={() => onResult('player1', option.p1g, option.p2g)}
+              className="w-full py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-2">
+          <ResultSideLabel isEnglish={isEnglish} side="right" />
+          {rightOptions.map(option => (
+            <button
+              key={`right-${option.p1g}`}
+              onClick={() => onResult('player2', option.p1g, option.p2g)}
+              className="w-full py-2 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
+      <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
+        {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+      </button>
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
         <PreDropButton
           isEnglish={isEnglish}
@@ -126,6 +154,16 @@ export function ResultButtons({ gameType, onResult, playoff, isEnglish }: Result
           onClick={() => onResult('player2', undefined, undefined, true)}
         />
       </div>
+    </div>
+  );
+}
+
+function ResultSideLabel({ isEnglish, side }: { isEnglish: boolean; side: 'left' | 'right' }) {
+  return (
+    <div className="px-1 text-center text-[10px] font-medium text-emerald-400/80">
+      {side === 'left'
+        ? (isEnglish ? 'Left wins' : '左侧获胜')
+        : (isEnglish ? 'Right wins' : '右侧获胜')}
     </div>
   );
 }
