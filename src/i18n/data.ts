@@ -282,7 +282,7 @@ export const translations = {
     startAllGroups: '全部小组同时开赛',
     roundProgress: '第 {current}/{total} 轮',
     matchesComplete: '{done} / {total} 场完成',
-    undoRoundResults: '撤回第{round}轮结果',
+    undoRoundResults: '撤回第{round}轮赛果',
     finishCurrentRoundFirst: '请先完成当前轮所有比赛',
 
     // Control Panel - Dropout
@@ -389,7 +389,7 @@ export const translations = {
     onboardingRankingTitle: '赛果会自动更新排名',
     onboardingRankingDesc: '胜利、比分、双负、轮空和弃赛都会进入统一的排名计算，并保留比赛历史。',
     onboardingFlowTitle: '按轮次推进比赛',
-    onboardingFlowDesc: '生成对阵、录入赛果、确认本轮完成，再生成下一轮。需要改判时可撤回上一轮。',
+    onboardingFlowDesc: '生成对阵、录入赛果并确认本轮完成。需要改判时，撤回按钮会按本轮是否已有赛果自动保留对阵或返回上一轮。',
     onboardingDemoTitle: '直接体验示例赛事',
     demoEventName: '示例赛事',
     onboardingDemoDesc: '载入 8 名选手、3 轮瑞士轮和一组示例赛果，快速查看排名、对阵和导出效果。',
@@ -690,7 +690,7 @@ export const translations = {
     startAllGroups: 'Start all groups',
     roundProgress: 'Round {current}/{total}',
     matchesComplete: '{done} / {total} matches complete',
-    undoRoundResults: 'Undo round {round} results',
+    undoRoundResults: 'Clear round {round} results',
     finishCurrentRoundFirst: 'Please finish all matches in the current round first.',
 
     // Control Panel - Dropout
@@ -797,7 +797,7 @@ export const translations = {
     onboardingRankingTitle: 'Results update rankings automatically',
     onboardingRankingDesc: 'Wins, scores, double-losses, byes, and drops all feed the ranking system and match history.',
     onboardingFlowTitle: 'Advance the event round by round',
-    onboardingFlowDesc: 'Generate pairings, record results, finish the round, then generate the next one. Undo a round when a result must change.',
+    onboardingFlowDesc: 'Generate pairings, record results, and finish each round. When a correction is needed, undo keeps current pairings or returns an empty round to the previous stage automatically.',
     onboardingDemoTitle: 'Try a sample tournament',
     demoEventName: 'Sample Event',
     onboardingDemoDesc: 'Load eight players, three Swiss rounds, and sample results to explore rankings, pairings, and exports.',
