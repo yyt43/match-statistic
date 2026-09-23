@@ -207,6 +207,15 @@ try {
   await waitForText(page, '1 pending');
   await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
 
+  await page.getByRole('button', { name: 'Undo round 1 results' }).click();
+  const undoDialog = page.getByRole('dialog').filter({ hasText: 'Confirm undo' });
+  await undoDialog.getByRole('button', { name: 'Undo now' }).click();
+  await waitForText(page, 'Round 1 match list');
+  if (await page.getByText('Tournament has not started yet').count() > 0) {
+    throw new Error('Undoing round one removed the match list or ranking workspace.');
+  }
+  await waitForText(page, 'Pending');
+
   await page.getByRole('button', { name: 'Storage health' }).click();
   await waitForText(page, 'Storage health');
   const healthDialog = page.getByRole('dialog').filter({ hasText: 'Storage health' });

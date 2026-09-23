@@ -4,6 +4,7 @@ import type {
   TournamentCompetition,
   TournamentGroup,
   Player,
+  Match,
   MatchResult,
   TournamentStatus,
   GameType,
@@ -34,6 +35,29 @@ import {
 } from './competitionHistory';
 import type { CompetitionHistoryEntry } from './historyTypes';
 import { validateRoster, type RosterValidationSummary } from '../utils/playerProfiles';
+
+function resetMatchResult(match: Match): Match {
+  return {
+    ...match,
+    result: 'pending',
+    player1Games: undefined,
+    player2Games: undefined,
+    preDrop: undefined,
+    resultSource: undefined,
+    sourceSubmissionId: undefined,
+    sourceSubmittedAt: undefined,
+    evidenceRefs: undefined,
+    evidenceHash: undefined,
+    evidenceVerificationStatus: undefined,
+    evidenceVerifiedBy: undefined,
+    evidenceVerifiedAt: undefined,
+    publicResultStatus: undefined,
+    announcedAt: undefined,
+    confirmationDeadlineAt: undefined,
+    disputedAt: undefined,
+    resultOverrides: undefined,
+  };
+}
 
 export interface CompetitionState {
   competition: TournamentCompetition;
@@ -418,19 +442,8 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       const wasPreDrop = !!match.preDrop;
 
       if (match.isBye) {
-        const p1 = playerMap.get(match.player1Id);
-        if (p1 && match.result === 'player1') {
-          if (isPlayoff) {
-            p1.playoffWins = (p1.playoffWins || 0) - 1;
-          } else {
-            p1.points -= 1; p1.wins -= 1;
-            p1.playedAgainst = p1.playedAgainst.filter(id => id !== 'bye');
-          }
-          if (!isPlayoff && match.player1Games !== undefined && match.player2Games !== undefined) {
-            p1.totalGames -= match.player1Games + match.player2Games;
-            p1.wonGames -= match.player1Games;
-          }
-        }
+        // Byes are automatic, not manually entered results. Preserve them
+        // while resetting the current round back to pending.
         continue;
       }
 
@@ -488,8 +501,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       }
     }
 
-    // 删除当前轮的比赛
-    const remainingMatches = group.matches.filter(m => m.round !== currentRound);
+    // Keep the current pairings and reset their results so referees can
+    // immediately re-enter them. Automatic byes remain unchanged.
+    const remainingMatches = group.matches.map(match =>
+      match.round === currentRound && !match.isBye
+        ? resetMatchResult(match)
+        : match
+    );
 
     // 重新计算胜率
     let updatedPlayers = Array.from(playerMap.values());
@@ -498,14 +516,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const updatedGroups = [...competition.groups];
     updatedGroups[idx] = {
       ...group,
-      currentRound: currentRound - 1,
+      currentRound,
       matches: remainingMatches,
       players: updatedPlayers,
-      status: currentRound - 1 === 0 ? 'setup' as TournamentStatus : 'in_progress' as TournamentStatus,
+      status: 'in_progress' as TournamentStatus,
     };
     const updated = { ...competition, groups: updatedGroups };
     set(
-      { competition: updated, viewRound: currentRound - 1 },
+      { competition: updated, viewRound: currentRound },
       { label: `撤回第${currentRound}轮` }
     );
     void logAudit('round-undo', `Round ${currentRound} undone`, { round: currentRound });

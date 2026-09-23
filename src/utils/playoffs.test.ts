@@ -158,12 +158,13 @@ describe('真实store加赛流程与撤回', () => {
     expect(useTournamentStore.getState().competition.groups[0].players.every(p => p.playoffRank !== undefined)).toBe(true);
     await s.loadSavedCompetition(); expect(useTournamentStore.getState().competition.groups[0].players.every(p => p.playoffRank !== undefined)).toBe(true);
   });
-  it('撤回常规轮次后清除失效加赛；常规比分回滚仍正确', () => {
+  it('撤回常规轮次后清除失效加赛并保留当前对阵；常规比分回滚仍正确', () => {
     const s = useTournamentStore.getState(); s.generatePlayoff();
     const match = playoffMatches(useTournamentStore.getState().competition.groups[0])[0];
     s.updateMatchResult(match.id, 'player1', 2, 0); s.undoLastRound();
     const g = useTournamentStore.getState().competition.groups[0];
-    expect(g.currentRound).toBe(1); expect(playoffMatches(g)).toHaveLength(0);
+    expect(g.currentRound).toBe(2); expect(playoffMatches(g)).toHaveLength(0);
+    expect(g.matches.filter(item => item.round === 2).every(item => item.result === 'pending')).toBe(true);
     expect(g.playoffBrackets).toBeUndefined(); expect(g.players.every(p => !p.playoffWins && p.playoffRank === undefined && p.losses === 1)).toBe(true);
   });
 });
