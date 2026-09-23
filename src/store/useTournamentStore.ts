@@ -73,7 +73,11 @@ export interface CompetitionState {
   replacePlayers: (names: string[]) => void;
   removePlayer: (playerId: string) => void;
   updatePlayerName: (playerId: string, name: string) => void;
-  updatePlayerProfile: (playerId: string, changes: Record<string, string>) => boolean;
+  updatePlayerProfile: (
+    playerId: string,
+    changes: Record<string, string>,
+    groupIndex?: number
+  ) => boolean;
   importPlayerProfiles: (players: Array<{
     id?: string;
     name: string;

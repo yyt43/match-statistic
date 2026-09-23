@@ -138,6 +138,70 @@ describe('player profile store actions', () => {
     expect(updated.groups[1].players.map(player => player.name)).toEqual(['乙一', '乙二']);
   });
 
+  it('preserves other groups when importing a roster for only one group', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
+    competition.groups[0].name = '甲组';
+    competition.groups[1].name = '乙组';
+    competition.groups[1].players = competition.groups[1].players.map((player, index) => ({
+      ...player,
+      name: index === 0 ? '原有乙一' : '原有乙二',
+    }));
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().importPlayerProfiles([
+      { name: '新甲一', groupName: '甲组', participantCode: 'A01' },
+      { name: '新甲二', groupName: '甲组', participantCode: 'A02' },
+    ]);
+
+    let updated = useTournamentStore.getState().competition;
+    expect(updated.groups).toHaveLength(2);
+    expect(updated.groups[0].players.map(player => player.name)).toEqual(['新甲一', '新甲二']);
+    expect(updated.groups[1].players.map(player => player.name)).toEqual(['原有乙一', '原有乙二']);
+
+    useTournamentStore.getState().setCurrentGroup(1);
+    updated = useTournamentStore.getState().competition;
+    expect(updated.currentGroupIndex).toBe(1);
+    expect(updated.groups[1].players.map(player => player.name)).toEqual(['原有乙一', '原有乙二']);
+  });
+
+  it('imports a single unnamed worksheet into the current group', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
+    competition.currentGroupIndex = 1;
+    competition.groups[0].players = competition.groups[0].players.map((player, index) => ({
+      ...player,
+      name: index === 0 ? '原有甲一' : '原有甲二',
+    }));
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().importPlayerProfiles([
+      { name: '新乙一', groupName: 'Sheet1', participantCode: 'B01' },
+      { name: '新乙二', groupName: 'Sheet1', participantCode: 'B02' },
+    ]);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups).toHaveLength(2);
+    expect(updated.groups[0].players.map(player => player.name)).toEqual(['原有甲一', '原有甲二']);
+    expect(updated.groups[1].players.map(player => player.name)).toEqual(['新乙一', '新乙二']);
+  });
+
+  it('writes a player edit back to its original group after switching groups', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
+    useTournamentStore.setState({ competition });
+    const playerId = competition.groups[0].players[0].id;
+
+    useTournamentStore.getState().setCurrentGroup(1);
+    const changed = useTournamentStore.getState().updatePlayerProfile(
+      playerId,
+      { name: '切换后写入甲组' },
+      0
+    );
+    useTournamentStore.getState().setCurrentGroup(0);
+
+    expect(changed).toBe(true);
+    expect(useTournamentStore.getState().competition.groups[0].players[0].name)
+      .toBe('切换后写入甲组');
+  });
+
   it('locks a valid roster and rejects later UID changes', () => {
     const competition = createNewCompetition('Profiles', 1, 2, 3, 'bo3');
     competition.playerSchemaId = 'poetryCupS2';

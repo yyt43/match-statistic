@@ -31,6 +31,7 @@ This project is suited for tournament management, club events, team activities, 
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
 - Unified player profiles: nickname, participant code, 9-digit UID, and QQ use one import template and one editable list
+- Player edit protection: manual nickname changes remain in their original group after switching away and back
 - Current group switcher: click Group A, B, C, or D directly in the Current Group bar
 - Result workbook import: match by participant code, verify code plus UID, detect conflicts, and route exceptions to referees
 - Tencent Docs compatibility: long headers, multiple sheets, screenshot filename references, and optional screenshot verification
@@ -152,7 +153,7 @@ Player management now has one unified workbook import:
 
 1. Upload `.xlsx`, `.xls`, or `.csv`.
 2. The app detects nickname, participant code, UID, and QQ columns.
-3. Multi-sheet workbooks match sheet names to existing group names.
+3. Registration, summary, and aggregate sheets such as `报名信息`, `汇总`, `总表`, and `All` are skipped before sheet names are matched to groups.
 4. Column mapping can be adjusted before importing when headers are ambiguous.
 
 The previous name-only import, text-paste panel, and second import button have been removed.
@@ -161,14 +162,16 @@ The import process automatically removes blank rows, duplicate names, header-lik
 
 ## Multi-sheet Excel Import
 
-When an Excel file contains multiple worksheets, the app creates a group for each sheet name:
+When an Excel file contains multiple worksheets, the app maps group sheets by name:
 
 - `Group A`, `Group B`, `Group C` become three separate groups
+- Registration, summary, and aggregate sheets such as `报名信息`, `汇总`, `总表`, and `All` are skipped
+- When a summary sheet and group sheets contain the same UID, the group sheets take priority
 - Valid names inside each sheet are collected and deduplicated
 - Empty sheets or sheets without valid names are skipped
 - A single-sheet workbook follows the standard single-group flow
 
-This is useful when organizers keep different group rosters in separate tabs and upload them together.
+This is useful when organizers keep different group rosters in separate tabs and upload them together. If group sheets do not contain participant codes, use the one-click code action after import to fill them by group.
 
 ## Player Profiles and UID
 
@@ -177,6 +180,8 @@ Player management uses one unified player workbook. There is no separate Generic
 Group switching is integrated into the Current Group bar. Click Group A, B, C, or D directly to switch.
 
 The player workbook import is placed in the Event Data column on the pre-start workspace. Player rows are sorted strictly by participant code. Codes use the `A01-Z99` format with up to 99 numbers per group. If codes are missing, the one-click action fills only empty codes and never overwrites existing ones.
+
+Nickname, participant code, UID, and QQ can be edited directly in the player list. The edit is written back to the player's original group, so it remains intact after switching to another group and back.
 
 The profile importer automatically recognizes columns such as:
 
