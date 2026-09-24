@@ -105,6 +105,13 @@ export async function generateImage(
         const clonedElement = clonedDoc.getElementById(elementId);
         if (!clonedElement) return;
 
+        // html2canvas offsets the 12px CJK baseline in the 24px round badge.
+        // Compensate only in the export clone so the live preview stays centered.
+        clonedDoc.querySelectorAll<HTMLElement>('[data-image-text-optical-center]').forEach(text => {
+          text.style.position = 'relative';
+          text.style.top = '-6.5px';
+        });
+
         let parent = clonedElement.parentElement;
         while (parent && parent !== clonedDoc.body) {
           const style = clonedDoc.defaultView?.getComputedStyle(parent) || parent.style;
