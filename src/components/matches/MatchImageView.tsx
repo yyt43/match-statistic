@@ -61,8 +61,10 @@ export function MatchImageView() {
             <h2 className="text-lg font-bold text-white">{formatText(t.matchImageTitle, { group: currentGroup.name, round: viewRound })}</h2>
             <p className="text-xs text-slate-400 mt-1">{formatText(t.matchImageCount, { count: matches.length })}</p>
           </div>
-          <div className="px-3 py-1 bg-orange-500 rounded text-xs font-bold text-white">
-            {formatText(t.matchImageRoundBadge, { round: viewRound })}
+          <div className="mt-1.5 inline-block h-6 self-start rounded bg-orange-500 px-3 text-center text-xs font-bold leading-6 text-white">
+            <span data-image-text-optical-center>
+              {formatText(t.matchImageRoundBadge, { round: viewRound })}
+            </span>
           </div>
         </div>
 
