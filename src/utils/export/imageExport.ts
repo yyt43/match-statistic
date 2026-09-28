@@ -105,11 +105,13 @@ export async function generateImage(
         const clonedElement = clonedDoc.getElementById(elementId);
         if (!clonedElement) return;
 
-        // html2canvas offsets the 12px CJK baseline in the 24px round badge.
+        // html2canvas can place CJK text below the visual center of small badges.
         // Compensate only in the export clone so the live preview stays centered.
-        clonedDoc.querySelectorAll<HTMLElement>('[data-image-text-optical-center]').forEach(text => {
+        clonedDoc.querySelectorAll<HTMLElement>('[data-image-text-optical-center], [data-image-text-offset-y]').forEach(text => {
+          const configuredOffset = Number(text.dataset.imageTextOffsetY);
+          const offset = Number.isFinite(configuredOffset) ? configuredOffset : -6.5;
           text.style.position = 'relative';
-          text.style.top = '-6.5px';
+          text.style.top = `${offset}px`;
         });
 
         let parent = clonedElement.parentElement;
