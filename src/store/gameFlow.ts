@@ -1,20 +1,35 @@
-import type { MatchResult, Player, TournamentGroup } from '../types';
+import type { Match, MatchResult, Player, TournamentGroup } from '../types';
 import { calculateAllWinRates, getRankedPlayers, getRoundGameType, generatePairings } from '../utils/swissPairing';
+import {
+  createEliminationFirstRoundMatches,
+  createEliminationNextRoundMatches,
+  getEliminationBracketRounds,
+} from '../utils/elimination';
 
 export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   if (group.status !== 'in_progress') return group;
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return group;
 
-  const roundGameType = getRoundGameType(group, nextRound);
-  const { matches, updatedPlayers: pairedPlayers } = generatePairings(
-    group.players,
-    nextRound,
-    roundGameType,
-    group.pairingType,
-    group.matches,
-    group.tiebreakRules
-  );
+  const bracketMatches: Match[] | null = group.eliminationBracket
+    ? (nextRound === 1
+      ? createEliminationFirstRoundMatches(group, group.eliminationBracket)
+      : createEliminationNextRoundMatches(group, nextRound))
+    : null;
+  const generated = bracketMatches
+    ? { matches: bracketMatches, updatedPlayers: group.players }
+    : generatePairings(
+      group.players,
+      nextRound,
+      getRoundGameType(group, nextRound),
+      group.pairingType,
+      group.matches,
+      group.tiebreakRules
+    );
+  const matches = generated.matches;
+  const pairedPlayers = generated.updatedPlayers;
+
+  if (group.eliminationBracket && matches.length === 0) return group;
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
   for (const match of matches) {
@@ -194,7 +209,9 @@ export function applyMatchResultFast(
 
   const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
   const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
-  const isLastRound = group.currentRound >= group.totalRounds;
+  const isLastRound = group.eliminationBracket
+    ? group.currentRound >= getEliminationBracketRounds(group.eliminationBracket.size)
+    : group.currentRound >= group.totalRounds;
 
   return {
     ...group,

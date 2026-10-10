@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createNewCompetition } from './tournamentFactory';
+import { createOrderedEliminationBracket, createEliminationFirstRoundMatches } from '../utils/elimination';
 import { useTournamentStore } from './useTournamentStore';
 
 function competitionWithPendingMatch() {
@@ -148,5 +149,104 @@ describe('import store actions', () => {
       2,
       'Late correction'
     )).toBe(false);
+  });
+
+  it('rebuilds fixed-bracket downstream matches after an imported correction', () => {
+    const competition = createNewCompetition('Fixed bracket import', 1, 4, 2, 'bo1', 'single_elimination');
+    const group = competition.groups[0];
+    const bracket = {
+      ...createOrderedEliminationBracket(group.players),
+      lockedAt: '2026-10-10T00:00:00.000Z',
+    };
+    group.eliminationBracket = bracket;
+    group.matches = createEliminationFirstRoundMatches(group, bracket);
+    group.matches = group.matches.map((match, index) => index === 1
+      ? {
+          ...match,
+          result: 'player1' as const,
+          player1Games: 1,
+          player2Games: 0,
+        }
+      : {
+          ...match,
+          result: 'pending' as const,
+          player1Games: undefined,
+          player2Games: undefined,
+        });
+    group.currentRound = 1;
+    group.status = 'in_progress';
+    useTournamentStore.setState({ competition });
+    const store = useTournamentStore.getState();
+
+    const firstMatch = group.matches[0];
+    store.applyImportedMatchResults([{
+      matchId: firstMatch.id,
+      groupIndex: 0,
+      result: 'player1',
+      player1Games: 1,
+      player2Games: 0,
+      evidenceVerificationStatus: 'verified',
+    }]);
+    expect(
+      useTournamentStore.getState().competition.groups[0].matches
+        .find(match => match.bracketNodeId === 'r2-m0')?.player1Id
+    ).toBe(firstMatch.player1Id);
+
+    store.applyImportedMatchResults([{
+      matchId: firstMatch.id,
+      groupIndex: 0,
+      result: 'player2',
+      player1Games: 0,
+      player2Games: 1,
+      evidenceVerificationStatus: 'verified',
+    }]);
+    const rebuilt = useTournamentStore.getState().competition.groups[0];
+    expect(rebuilt.matches.find(match => match.id === firstMatch.id)?.result).toBe('player2');
+    expect(rebuilt.matches.find(match => match.bracketNodeId === 'r2-m0')?.player1Id)
+      .toBe(firstMatch.player2Id);
+  });
+
+  it('blocks imported fixed-bracket corrections after a downstream result exists', () => {
+    const competition = createNewCompetition('Protected bracket import', 1, 4, 2, 'bo1', 'single_elimination');
+    const group = competition.groups[0];
+    const bracket = {
+      ...createOrderedEliminationBracket(group.players),
+      lockedAt: '2026-10-10T00:00:00.000Z',
+    };
+    group.eliminationBracket = bracket;
+    group.matches = createEliminationFirstRoundMatches(group, bracket);
+    group.matches = group.matches.map(match => ({
+      ...match,
+      result: 'pending' as const,
+      player1Games: undefined,
+      player2Games: undefined,
+    }));
+    group.currentRound = 2;
+    group.status = 'in_progress';
+    group.matches.push({
+      id: 'r2-m0',
+      round: 2,
+      player1Id: group.players[0].id,
+      player2Id: group.players[2].id,
+      result: 'player1',
+      player1Games: 1,
+      player2Games: 0,
+      bracketNodeId: 'r2-m0',
+    });
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().applyImportedMatchResults([{
+      matchId: group.matches[0].id,
+      groupIndex: 0,
+      result: 'player2',
+      player1Games: 0,
+      player2Games: 1,
+      evidenceVerificationStatus: 'verified',
+    }]);
+
+    expect(
+      useTournamentStore.getState().competition.groups[0].matches
+        .find(match => match.id === group.matches[0].id)?.result
+    ).toBe('pending');
   });
 });

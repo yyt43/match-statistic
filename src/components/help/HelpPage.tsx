@@ -104,9 +104,9 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <Eye className="w-5 h-5" />, title: '选手总览', description: '开赛前集中核对名单，自动检测重名和空小组，支持搜索与复制。' },
       { icon: <UserCog className="w-5 h-5" />, title: '名单管理', description: '逐个修改选手，或从文本、Excel、CSV、TXT 批量导入。' },
       { icon: <UserCog className="w-5 h-5" />, title: '选手档案', description: '支持通用模板和诗意杯模板，分别维护选手编号、9 位 UID 和 QQ。' },
-      { icon: <Swords className="w-5 h-5" />, title: '双赛制支持', description: '支持瑞士轮和单败淘汰，每轮可独立设置 BO1、BO3、BO5 或 BO7。' },
+      { icon: <Swords className="w-5 h-5" />, title: '双赛制支持', description: '支持瑞士轮和单败淘汰；单败淘汰默认按名单顺序生成完整签表，开赛前可调整并确认锁定。' },
       { icon: <FileUp className="w-5 h-5" />, title: '赛果导入', description: '导入腾讯文档 XLSX，按选手编号匹配比赛，逐场核验截图后写入结果。' },
-      { icon: <ArrowLeftRight className="w-5 h-5" />, title: '对阵编辑', description: '单败淘汰当前轮可交换选手，并支持随机分配和按录入顺序重排。' },
+      { icon: <ArrowLeftRight className="w-5 h-5" />, title: '签表调整', description: '开赛前可随机重抽、交换签位或指定选手/轮空；确认后完整签表锁定，后续轮次只填入胜者。' },
       { icon: <Trophy className="w-5 h-5" />, title: '实时排名', description: '自动计算胜率、对手胜率、局胜率，并展示淘汰、弃赛和加赛状态。' },
       { icon: <Download className="w-5 h-5" />, title: '导出工具', description: '排行榜、对阵表和总表可导出为 PNG 或 Excel，并包含选手编号与 UID；赛事数据可导出为 JSON。' },
       { icon: <Database className="w-5 h-5" />, title: '本地双备份', description: '主键与备份键双重保存；每轮完赛还会自动创建快照。' },
@@ -153,7 +153,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     steps: [
       {
         title: '创建比赛',
-        items: ['设置赛事名称和小组数量。', '配置配对方式、比赛局数和轮次。', '导入或录入选手名单，并预览核对。', '开始本组比赛或一键启动全部小组。'],
+        items: ['设置赛事名称和小组数量。', '配置配对方式、比赛局数和轮次。', '导入或录入选手名单，并预览核对。', '单败淘汰确认完整签表后开始本组，或一键启动全部小组。'],
       },
       {
         title: '录入赛果',
@@ -188,12 +188,15 @@ const content: Record<AppLanguage, HelpCopy> = {
       { title: '局胜率（BO3+）', text: '本人局胜率与对手局胜率均按累计胜局 / 累计总局计算，赛前弃赛和加赛不计入。' },
       { title: '完全同分', text: '若常规破分指标全部相同，系统会标记需要加赛；加赛胜场和最终名次只用于区分名次，不改变常规小分。' },
     ],
-    eliminationRules: '单败淘汰规则',
+    eliminationRules: '单败淘汰固定签表',
     eliminationRuleItems: [
-      '第一轮随机配对，后续按上轮胜者顺序配对。',
-      '每轮可独立设置 BO1-BO7。',
-      '败者自动淘汰，奇数人数时产生轮空。',
-      '撤回上一轮会恢复被淘汰选手的状态。',
+      '默认按当前名单顺序排阵；8 人为 1 vs 2、3 vs 4、5 vs 6、7 vs 8，相邻两场胜者晋级相遇。',
+      '开赛前可随机重抽、交换签位、指定选手或轮空；确认后签表和名单一起锁定。',
+      '非 2 的幂人数优先把轮空分配给名单靠前选手，避免轮空对轮空，首轮轮空比分跟随该轮局制。',
+      '后续轮次严格按固定节点填入胜者，不再重新随机配对；未进行的后续轮次不可提前录分。',
+      '改判只有在后续轮次尚未产生赛果时可用；已有后续赛果时需先撤回下游结果。',
+      '选手退赛保留原签位和姓名，按弃权处理，由当前对手继续晋级。',
+      '撤回至开赛前可重新排阵；每轮可独立设置 BO1-BO7。',
     ],
     storage: '数据存储',
     storageItems: [
@@ -234,8 +237,8 @@ const content: Record<AppLanguage, HelpCopy> = {
       { icon: <Users className="w-5 h-5" />, title: 'Multi-group management', description: 'Configure and run 1-20 groups. Codes use A01-Z99, and missing codes can be filled without overwriting existing ones.' },
       { icon: <Eye className="w-5 h-5" />, title: 'Player overview', description: 'Validate every roster before play, with duplicate and empty-group detection, search, and copy tools.' },
       { icon: <UserCog className="w-5 h-5" />, title: 'Roster management', description: 'Edit players individually or import from text, Excel, CSV, and TXT files.' },
-      { icon: <Swords className="w-5 h-5" />, title: 'Swiss and elimination', description: 'Use Swiss or single-elimination pairings with per-round BO1, BO3, BO5, or BO7 settings.' },
-      { icon: <ArrowLeftRight className="w-5 h-5" />, title: 'Match editing', description: 'Swap players in the current elimination round, randomize, or assign by entry order.' },
+      { icon: <Swords className="w-5 h-5" />, title: 'Swiss and elimination', description: 'Use Swiss or single elimination. Elimination brackets follow roster order by default and can be reviewed and locked before play.' },
+      { icon: <ArrowLeftRight className="w-5 h-5" />, title: 'Bracket editing', description: 'Before play, redraw, swap slots, or assign a player/bye. Once confirmed, the full bracket is locked and later rounds only receive winners.' },
       { icon: <Trophy className="w-5 h-5" />, title: 'Live rankings', description: 'Track win rate, opponent win rate, game win rate, eliminations, drops, and playoffs.' },
       { icon: <Download className="w-5 h-5" />, title: 'Export tools', description: 'Export rankings, match tables, and summaries as PNG or Excel with participant codes and UIDs, or save tournament data as JSON.' },
       { icon: <Database className="w-5 h-5" />, title: 'Local backups', description: 'Primary and backup storage keys protect local data, with automatic snapshots after each round.' },
@@ -282,7 +285,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     steps: [
       {
         title: 'Create the tournament',
-        items: ['Set the tournament name and number of groups.', 'Configure pairing type, match length, and rounds.', 'Import players or enter names, then verify the preview.', 'Start one group or launch all groups together.'],
+        items: ['Set the tournament name and number of groups.', 'Configure pairing type, match length, and rounds.', 'Import players or enter names, then verify the preview.', 'For elimination groups, confirm the full bracket before starting one group or all groups.'],
       },
       {
         title: 'Record results',
@@ -317,12 +320,15 @@ const content: Record<AppLanguage, HelpCopy> = {
       { title: 'Game rates (BO3+)', text: 'Personal and opponent game win rates use total games won / total games played. Pre-match drops and playoffs are excluded.' },
       { title: 'Exact ties', text: 'If every regular tiebreak metric is identical, the app marks the players as requiring a playoff. Playoff wins and final placement never change regular tiebreak metrics.' },
     ],
-    eliminationRules: 'Single-elimination rules',
+    eliminationRules: 'Fixed single-elimination bracket',
     eliminationRuleItems: [
-      'Round one is random; later rounds pair winners in order.',
-      'Each round can use a different BO1-BO7 setting.',
-      'The loser is eliminated, and an odd field creates a bye.',
-      'Undoing the previous round restores eliminated players.',
+      'The default bracket follows current roster order. With eight players: 1 vs 2, 3 vs 4, 5 vs 6, 7 vs 8, with adjacent winners meeting in the next round.',
+      'Before play, redraw, swap slots, or assign players and byes. Confirmation locks the bracket and roster together.',
+      'For non-power-of-two fields, byes go to the earliest roster positions first and never face each other. A first-round bye uses that round\'s match format.',
+      'Later rounds always receive winners at fixed nodes and are never randomly repaired. Future rounds cannot be scored early.',
+      'A completed result can be changed only before any downstream result exists; undo those results first when later rounds have been played.',
+      'A withdrawn player keeps the original slot and name, is treated as a forfeit, and the opponent advances.',
+      'Returning to setup unlocks bracket editing. Each round can use a different BO1-BO7 setting.',
     ],
     storage: 'Data storage',
     storageItems: [

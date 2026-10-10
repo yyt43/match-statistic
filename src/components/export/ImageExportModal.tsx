@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Download, Camera, Trophy, Swords, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { X, Download, Camera, Trophy, Swords, Users, Calendar, AlertTriangle, GitBranch } from 'lucide-react';
 import { RankingImageView } from './RankingImageView';
 import { MatchImageView } from '../matches/MatchImageView';
+import { EliminationBracketTree } from '../competition/EliminationBracketTree';
 import { generateImage } from '../../utils/export/imageExport';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
@@ -11,7 +12,7 @@ import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
 
-type ExportType = 'ranking' | 'match';
+type ExportType = 'ranking' | 'match' | 'bracket';
 
 interface ImageExportModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   const [exportProgress, setExportProgress] = useState(0);
   const currentGroup = useCurrentGroup();
   const { competition, viewRound, setViewRound } = useTournamentStore();
-  const { t } = useLanguagePreference();
+  const { language, t } = useLanguagePreference();
   const dialogRef = useRef<HTMLDivElement>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
 
@@ -91,9 +92,17 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           const groupIdx = competition.groups.indexOf(groupsToExport[i]);
           useTournamentStore.getState().setCurrentGroup(groupIdx);
           await new Promise(resolve => setTimeout(resolve, 300));
-          const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
+          const elementId = activeType === 'ranking'
+            ? 'ranking-image'
+            : activeType === 'match'
+              ? 'match-image'
+              : 'bracket-image';
           const groupViewRound = useTournamentStore.getState().viewRound;
-          const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: groupViewRound });
+          const suffix = activeType === 'ranking'
+            ? t.ranking
+            : activeType === 'match'
+              ? formatText(t.roundN, { round: groupViewRound })
+              : (language === 'en' ? 'Bracket' : '淘汰签表');
           await generateImage(elementId, `${groupsToExport[i].name}-${suffix}`, {
             signal: controller.signal,
             onProgress: percent => {
@@ -102,8 +111,16 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           });
         }
       } else {
-        const elementId = activeType === 'ranking' ? 'ranking-image' : 'match-image';
-        const suffix = activeType === 'ranking' ? t.ranking : formatText(t.roundN, { round: viewRound });
+        const elementId = activeType === 'ranking'
+          ? 'ranking-image'
+          : activeType === 'match'
+            ? 'match-image'
+            : 'bracket-image';
+        const suffix = activeType === 'ranking'
+          ? t.ranking
+          : activeType === 'match'
+            ? formatText(t.roundN, { round: viewRound })
+            : (language === 'en' ? 'Bracket' : '淘汰签表');
         await generateImage(elementId, `${currentGroup.name}-${suffix}`, {
           signal: controller.signal,
           onProgress: setExportProgress,
@@ -162,6 +179,18 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             >
               <Swords className="w-4 h-4" />
               {t.matchTable}
+            </button>
+            <button
+              onClick={() => setActiveType('bracket')}
+              disabled={!currentGroup.eliminationBracket}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                activeType === 'bracket'
+                  ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              {language === 'en' ? 'Bracket' : '淘汰签表'}
             </button>
           </div>
 
@@ -237,7 +266,11 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
               <p className="text-slate-300 font-medium mb-2">
                 {activeType === 'ranking'
                   ? formatText(t.exportAllGroupsRankingInfo, { count: availableGroups.length })
-                  : formatText(t.exportAllGroupsMatchInfo, { count: availableGroups.length })}
+                  : activeType === 'match'
+                    ? formatText(t.exportAllGroupsMatchInfo, { count: availableGroups.length })
+                    : (language === 'en'
+                        ? `Will export brackets for all ${availableGroups.length} single-elimination groups`
+                        : `将导出全部 ${availableGroups.length} 个单败淘汰小组的签表`)}
               </p>
               <div className="max-w-md space-y-1.5 text-slate-500 text-sm">
                 <p>· {t.exportAllGroupsTip1}</p>
@@ -247,7 +280,27 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             </div>
           ) : (
             <div className="flex justify-center min-w-fit">
-              {activeType === 'ranking' ? <RankingImageView /> : <MatchImageView />}
+              {activeType === 'ranking'
+                ? <RankingImageView />
+                : activeType === 'match'
+                  ? <MatchImageView />
+                  : (
+                    <div
+                      id="bracket-image"
+                      className="rounded-xl border border-slate-700/60 bg-slate-900 p-4"
+                    >
+                      <div className="mb-3 text-center text-sm font-semibold text-white">
+                        {currentGroup.name} · {language === 'en' ? 'Bracket' : '淘汰签表'}
+                      </div>
+                      {currentGroup.eliminationBracket ? (
+                        <EliminationBracketTree group={currentGroup} isEnglish={language === 'en'} />
+                      ) : (
+                        <div className="py-16 text-center text-sm text-slate-500">
+                          {language === 'en' ? 'This group has no fixed bracket.' : '该小组暂无固定签表。'}
+                        </div>
+                      )}
+                    </div>
+                  )}
             </div>
           )}
         </div>

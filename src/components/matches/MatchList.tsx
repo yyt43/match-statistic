@@ -8,6 +8,7 @@ import { useLanguagePreference } from '../../i18n/context';
 import { ResultButtons } from './ResultButtons';
 import { RoundEditor } from './RoundEditor';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
+import { EliminationBracketTree } from '../competition/EliminationBracketTree';
 
 interface MatchListProps {
   testMode?: boolean;
@@ -17,6 +18,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
   const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, overrideMatchResult } = useTournamentStore();
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [bracketView, setBracketView] = useState(false);
   // 拖拽改序状态
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -79,6 +81,15 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const canEdit = (match: Match) => {
     if (match.isBye) return false;
+    if (hasFixedBracket && match.round > currentGroup.currentRound) return false;
+    if (hasFixedBracket && match.bracketNodeId && match.result !== 'pending') {
+      const downstreamPlayed = currentGroup.matches.some(candidate =>
+        candidate.bracketNodeId
+        && candidate.round > match.round
+        && candidate.result !== 'pending'
+      );
+      if (downstreamPlayed) return false;
+    }
     // 加赛比赛始终允许编辑（即使比赛已结束）
     if (match.isPlayoff) return !!match.playoffBracketId;
     if (currentGroup.status === 'completed') return false;
@@ -131,6 +142,9 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const getResultText = (match: Match) => {
     if (match.isBye) return isEnglish ? 'Bye' : '轮空';
+    if (match.result === 'pending' && match.round > currentGroup.currentRound) {
+      return isEnglish ? 'Future round' : '后续轮次';
+    }
     if (match.isPlayoff && match.playoffBracketId) {
       const bracket = currentGroup.playoffBrackets?.find(b => b.id === match.playoffBracketId);
       return isEnglish
@@ -167,6 +181,23 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
   const handleSetResult = (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const match = currentGroup.matches.find(m => m.id === matchId);
+    if (
+      match
+      && hasFixedBracket
+      && match.bracketNodeId
+      && match.result !== 'pending'
+      && !canEdit(match)
+    ) {
+      setConfirmState({
+        open: true,
+        title: isEnglish ? 'Cannot change result' : '无法修改赛果',
+        message: isEnglish
+          ? 'A later-round match already has a result. Undo those later rounds before changing this result.'
+          : '后续轮次已有赛果。请先撤回后续轮次，再修改本场结果。',
+        onConfirm: () => {},
+      });
+      return;
+    }
     if (match && match.result !== 'pending'
       && (match.resultSource === 'import' || match.resultSource === 'referee_override')
       && (match.result !== result || match.player1Games !== player1Games || match.player2Games !== player2Games)) {
@@ -208,14 +239,19 @@ export function MatchList({ testMode = false }: MatchListProps) {
   };
 
   const isSingleElimination = currentGroup.pairingType === 'single_elimination';
+  const hasFixedBracket = !!currentGroup.eliminationBracket?.lockedAt;
+
+  useEffect(() => {
+    if (!currentGroup.eliminationBracket) setBracketView(false);
+  }, [currentGroup.eliminationBracket]);
 
   const canEditRound = useMemo(() => {
-    if (!isSingleElimination) return false;
+    if (!isSingleElimination || hasFixedBracket) return false;
     if (viewRound !== currentGroup.currentRound) return false;
     if (currentGroup.status === 'completed') return false;
     const roundMatches = currentGroup.matches.filter(m => m.round === viewRound);
     return roundMatches.length > 0 && roundMatches.some(m => m.result === 'pending');
-  }, [isSingleElimination, viewRound, currentGroup.currentRound, currentGroup.status, currentGroup.matches]);
+  }, [isSingleElimination, hasFixedBracket, viewRound, currentGroup.currentRound, currentGroup.status, currentGroup.matches]);
 
   if (currentGroup.currentRound === 0) {
     return (
@@ -253,6 +289,20 @@ export function MatchList({ testMode = false }: MatchListProps) {
           {isPlayoffView ? (isEnglish ? 'Playoff match list' : '加赛对阵表') : (isEnglish ? `Round ${viewRound} match list` : `第 ${viewRound} 轮对阵表`)}
         </h2>
         <div className="flex items-center gap-2">
+          {isSingleElimination && currentGroup.eliminationBracket && (
+            <button
+              onClick={() => setBracketView(value => !value)}
+              className={`rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+                bracketView
+                  ? 'border border-gold-500/30 bg-gold-500/15 text-gold-400'
+                  : 'border border-slate-700/50 bg-slate-800/50 text-slate-400 hover:bg-slate-700/50'
+              }`}
+            >
+              {bracketView
+                ? (isEnglish ? 'Match list' : '对阵列表')
+                : (isEnglish ? 'Bracket' : '签表总览')}
+            </button>
+          )}
           {canEditRound && !editMode && (
             <button
               onClick={() => setEditMode(true)}
@@ -367,7 +417,14 @@ export function MatchList({ testMode = false }: MatchListProps) {
         </div>
       )}
 
-      {editMode && canEditRound && (
+      {bracketView && isSingleElimination && currentGroup.eliminationBracket ? (
+        <div className="min-h-0 flex-1 overflow-auto pr-1">
+          <EliminationBracketTree
+            group={currentGroup}
+            isEnglish={isEnglish}
+          />
+        </div>
+      ) : editMode && canEditRound ? (
         <RoundEditor
           matches={matches}
           players={currentGroup.players}
@@ -378,9 +435,9 @@ export function MatchList({ testMode = false }: MatchListProps) {
             setEditMode(false);
           }}
         />
-      )}
+      ) : null}
 
-      {!editMode && (
+      {!editMode && !bracketView && (
         <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
           {matches.length === 0 ? (
             <div className="text-center py-12 text-slate-500">
@@ -575,6 +632,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
                             <ResultButtons
                               gameType={roundGameType}
                               playoff={!!match.isPlayoff}
+                              noDraw={hasFixedBracket}
                               isEnglish={isEnglish}
                               onResult={(result, p1g, p2g, preDrop) => handleSetResult(match.id, result, p1g, p2g, preDrop)}
                             />

@@ -1,7 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2, GitBranch } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
-import { getRankingTableData, getMatchTableData, exportAllGroupsRankingToExcel, exportAllGroupsCurrentRoundMatchesToExcel, exportAllGroupsToExcel, exportGroupSummaryToExcel, exportSingleSheetToExcel } from '../../utils/export/excelExport';
+import {
+  getRankingTableData,
+  getMatchTableData,
+  getEliminationBracketTableData,
+  exportAllGroupsRankingToExcel,
+  exportAllGroupsCurrentRoundMatchesToExcel,
+  exportAllGroupsToExcel,
+  exportAllGroupsBracketsToExcel,
+  exportEliminationBracketToExcel,
+  exportGroupSummaryToExcel,
+  exportSingleSheetToExcel,
+} from '../../utils/export/excelExport';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { TournamentGroup } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
@@ -9,7 +20,7 @@ import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
 
-type ExportType = 'ranking' | 'match' | 'summary';
+type ExportType = 'ranking' | 'match' | 'summary' | 'bracket';
 
 interface ExcelExportModalProps {
   isOpen: boolean;
@@ -71,11 +82,14 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   const previewGroup = currentGroup;
   const isRanking = activeType === 'ranking';
   const isSummary = activeType === 'summary';
+  const isBracket = activeType === 'bracket';
 
   const tableData = isRanking
     ? getRankingTableData(previewGroup, language)
     : isSummary
       ? getRankingTableData(previewGroup, language)
+      : isBracket
+        ? getEliminationBracketTableData(previewGroup, language)
       : getMatchTableData(previewGroup, viewRound, language);
 
   const handleDownload = async () => {
@@ -95,6 +109,20 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
           await exportAllGroupsToExcel(availableGroups, competition.name, language, options);
         } else {
           await exportGroupSummaryToExcel(previewGroup, competition.name, language, options);
+        }
+        return;
+      }
+
+      if (isBracket) {
+        if (!previewGroup.eliminationBracket) {
+          alert(language === 'en' ? 'This group has no fixed bracket.' : '该小组暂无固定签表。');
+          return;
+        }
+        setExportPhase('saving');
+        if (exportAllGroups) {
+          await exportAllGroupsBracketsToExcel(availableGroups, competition.name, language, options);
+        } else {
+          await exportEliminationBracketToExcel(previewGroup, competition.name, language, options);
         }
         return;
       }
@@ -192,6 +220,18 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
               <Layers className="w-4 h-4" />
               {t.summary}
             </button>
+            <button
+              onClick={() => setActiveType('bracket')}
+              disabled={!currentGroup.eliminationBracket}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                activeType === 'bracket'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              {language === 'en' ? 'Bracket' : '淘汰签表'}
+            </button>
           </div>
 
           {hasMultipleGroups && (
@@ -265,7 +305,15 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
               <Users className="w-12 h-12 text-emerald-400/50 mb-4" />
               <p className="text-slate-300 font-medium mb-2">
                 {formatText(
-                  isRanking ? t.exportAllGroupsExcelRankingInfo : isSummary ? t.exportAllGroupsExcelSummaryInfo : t.exportAllGroupsExcelMatchInfo,
+                  isRanking
+                    ? t.exportAllGroupsExcelRankingInfo
+                    : isSummary
+                      ? t.exportAllGroupsExcelSummaryInfo
+                      : isBracket
+                        ? (language === 'en'
+                            ? `Will export brackets for up to ${availableGroups.length} groups`
+                            : `将导出全部 ${availableGroups.length} 个小组中的固定签表`)
+                        : t.exportAllGroupsExcelMatchInfo,
                   { count: availableGroups.length }
                 )}
               </p>
@@ -273,7 +321,13 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                 <p>· {t.exportAllGroupsTip1}</p>
                 <p>· {t.exportAllGroupsTip2}</p>
                 {isSummary && <p>· {t.exportAllGroupsTip3Summary}</p>}
-                {!isRanking && !isSummary && <p>· {t.exportAllGroupsTip3Match}</p>}
+                {!isRanking && !isSummary && (
+                  <p>· {isBracket
+                    ? (language === 'en'
+                        ? 'Only groups with fixed brackets are included.'
+                        : '仅包含已生成固定签表的小组。')
+                    : t.exportAllGroupsTip3Match}</p>
+                )}
                 <p>· {formatText(t.exportAllGroupsTip4, { count: availableGroups.length })}</p>
               </div>
             </div>
@@ -288,7 +342,8 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                   {previewGroup.name}
                   {isRanking && ` · ${t.ranking}`}
                   {isSummary && ` · ${t.summary}`}
-                  {!isRanking && !isSummary && ` · ${formatText(t.roundN, { round: viewRound })}`}
+                  {isBracket && ` · ${language === 'en' ? 'Bracket' : '淘汰签表'}`}
+                  {!isRanking && !isSummary && !isBracket && ` · ${formatText(t.roundN, { round: viewRound })}`}
                 </div>
                 <table className="border-collapse bg-slate-800/60 rounded-lg overflow-hidden">
                   <thead>
@@ -353,7 +408,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
           </button>
           <button
             onClick={handleDownload}
-            disabled={isExporting || ((isRanking || isSummary) && !canExportRanking)}
+            disabled={isExporting || ((isRanking || isSummary) && !canExportRanking) || (isBracket && !previewGroup.eliminationBracket)}
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExporting ? (
@@ -364,7 +419,11 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                {(isRanking || isSummary) && !canExportRanking ? t.roundNotFinished : t.downloadExcel}
+                {(isRanking || isSummary) && !canExportRanking
+                  ? t.roundNotFinished
+                  : isBracket && !previewGroup.eliminationBracket
+                    ? (language === 'en' ? 'No fixed bracket' : '暂无固定签表')
+                    : t.downloadExcel}
               </>
             )}
           </button>
