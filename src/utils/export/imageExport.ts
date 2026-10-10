@@ -114,6 +114,10 @@ export async function generateImage(
           text.style.top = `${offset}px`;
         });
 
+        clonedDoc.querySelectorAll<HTMLElement>('[data-bracket-round]').forEach(node => {
+          node.style.transform = 'none';
+        });
+
         let parent = clonedElement.parentElement;
         while (parent && parent !== clonedDoc.body) {
           const style = clonedDoc.defaultView?.getComputedStyle(parent) || parent.style;
