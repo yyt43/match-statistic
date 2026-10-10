@@ -18,6 +18,8 @@ const HEADER_HEIGHT = 32;
 const BODY_GAP = 10;
 const CHAMPION_WIDTH = 148;
 const CHAMPION_GAP = 28;
+const MATCH_NODE_HEIGHT = 128;
+const CHAMPION_NODE_HEIGHT = 96;
 
 function getColumnX(round: number): number {
   return (round - 1) * (NODE_WIDTH + COLUMN_GAP);
@@ -30,6 +32,10 @@ function getNodeSpan(round: number): number {
 function getNodeCenterY(round: number, matchIndex: number): number {
   const span = getNodeSpan(round);
   return matchIndex * span * ROW_HEIGHT + (span * ROW_HEIGHT) / 2;
+}
+
+function getNodeTop(round: number, matchIndex: number, height: number): number {
+  return getNodeCenterY(round, matchIndex) - height / 2;
 }
 
 export function EliminationBracketTree({
@@ -202,10 +208,10 @@ export function EliminationBracketTree({
                   key={node.id}
                   data-bracket-round={round.round}
                   data-bracket-match-index={node.matchIndex}
-                  className="absolute z-10 -translate-y-1/2 rounded-lg border border-slate-700/60 bg-slate-900/95 p-2 shadow-sm"
+                  className="absolute z-10 h-32 rounded-lg border border-slate-700/60 bg-slate-900/95 p-2 shadow-sm"
                   style={{
                     left: getColumnX(round.round),
-                    top: getNodeCenterY(round.round, node.matchIndex),
+                    top: getNodeTop(round.round, node.matchIndex, MATCH_NODE_HEIGHT),
                     width: NODE_WIDTH,
                   }}
                 >
@@ -225,8 +231,8 @@ export function EliminationBracketTree({
 
           {view.championId && (
             <div
-              className="absolute z-10 -translate-y-1/2 rounded-xl border border-gold-500/35 bg-slate-900/95 p-3 text-center shadow-lg"
-              style={{ left: championX, top: finalCenterY, width: CHAMPION_WIDTH }}
+              className="absolute z-10 h-24 rounded-xl border border-gold-500/35 bg-slate-900/95 p-3 text-center shadow-lg"
+              style={{ left: championX, top: finalCenterY - CHAMPION_NODE_HEIGHT / 2, width: CHAMPION_WIDTH }}
             >
               <Trophy className="mx-auto mb-1.5 h-5 w-5 text-gold-400" />
               <div className="text-[10px] uppercase text-gold-500">
