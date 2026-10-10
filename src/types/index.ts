@@ -135,6 +135,8 @@ export interface Match {
   confirmationDeadlineAt?: string;
   disputedAt?: string;
   resultOverrides?: MatchResultOverride[];
+  /** 固定单败签表中的首轮节点编号，用于逐轮填充胜者。 */
+  bracketNodeId?: string;
 }
 
 export type PlayoffFormat = 'two' | 'three_one' | 'three_two' | 'four';
@@ -144,6 +146,30 @@ export interface PlayoffBracket {
   startRank: number;
   format: PlayoffFormat;
   waitingPlayerId?: string;
+}
+
+export type EliminationBracketSource = 'roster_order' | 'random' | 'custom';
+
+/**
+ * 固定单败签表。slots 仅保存首轮签位，后续轮次由 bracketNodeId 按固定路径晋级。
+ * slots 长度为 2 的幂，null 表示轮空签位。
+ */
+export interface EliminationBracket {
+  id: string;
+  size: number;
+  slots: Array<string | null>;
+  source: EliminationBracketSource;
+  lockedAt?: string;
+}
+
+export interface EliminationBracketViewNode {
+  id: string;
+  round: number;
+  matchIndex: number;
+  player1Id: string | null;
+  player2Id: string | null;
+  match?: Match;
+  winnerId: string | null;
 }
 
 export interface TournamentGroup {
@@ -162,6 +188,8 @@ export interface TournamentGroup {
   /** 单败淘汰每轮独立赛制，下标为 round-1；未设置则回退到 gameType */
   roundGameTypes?: GameType[];
   playoffBrackets?: PlayoffBracket[];
+  /** 新版固定单败签表；旧赛事没有该字段时继续使用旧流程。 */
+  eliminationBracket?: EliminationBracket;
 }
 
 export interface TournamentCompetition {

@@ -86,4 +86,30 @@ describe('competition schema', () => {
       expect(result.message).toContain('uid');
     }
   });
+
+  it('rejects invalid fixed-bracket slots and dangling node references', () => {
+    const competition = validCompetition();
+    const group = competition.groups[0];
+    group.eliminationBracket = {
+      id: 'bracket-1',
+      size: 4,
+      slots: [group.players[0].id, group.players[0].id, group.players[1].id, null],
+      source: 'roster_order',
+    };
+    group.matches.push({
+      id: 'bracket-match',
+      round: 1,
+      player1Id: group.players[0].id,
+      player2Id: group.players[1].id,
+      result: 'pending',
+      bracketNodeId: 'r1-m0',
+    });
+
+    const result = validateCompetitionData(competition);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.message).toContain('duplicate player reference');
+      expect(result.message).toContain('must contain every player exactly once');
+    }
+  });
 });

@@ -199,6 +199,9 @@ function validateGroup(value: unknown, path: string, errors: string[]): void {
   if (group.playoffBrackets !== undefined) {
     validateArray(group, 'playoffBrackets', `${path}.playoffBrackets`, errors, validatePlayoffBracket);
   }
+  if (group.eliminationBracket !== undefined) {
+    validateEliminationBracket(group.eliminationBracket, `${path}.eliminationBracket`, errors);
+  }
 
   const playerRecords = asObjectArray(group.players);
   const playerIds = validateUniqueIds(playerRecords, `${path}.players`, errors);
@@ -206,6 +209,10 @@ function validateGroup(value: unknown, path: string, errors: string[]): void {
   validateUniqueIds(matchRecords, `${path}.matches`, errors);
   const bracketRecords = asObjectArray(group.playoffBrackets);
   const bracketIds = validateUniqueIds(bracketRecords, `${path}.playoffBrackets`, errors);
+  const eliminationBracket = asRecord(group.eliminationBracket);
+  const eliminationSlots = eliminationBracket && Array.isArray(eliminationBracket.slots)
+    ? eliminationBracket.slots
+    : [];
 
   for (const player of playerRecords) {
     validatePlayerStats(player, path, errors);
@@ -219,6 +226,31 @@ function validateGroup(value: unknown, path: string, errors: string[]): void {
         if (typeof opponentId !== 'string' || (opponentId !== 'bye' && !playerIds.has(opponentId))) {
           errors.push(`${path}.players.${String(player.id)}.playedAgainst.${index}: unknown player reference`);
         }
+      }
+    }
+  }
+
+  if (eliminationSlots.length > 0) {
+    const seenEliminationPlayers = new Set<string>();
+    let filledSlots = 0;
+    eliminationSlots.forEach((playerId, index) => {
+      if (playerId === null) return;
+      if (typeof playerId !== 'string' || !playerIds.has(playerId)) {
+        errors.push(`${path}.eliminationBracket.slots.${index}: unknown player reference`);
+        return;
+      }
+      if (seenEliminationPlayers.has(playerId)) {
+        errors.push(`${path}.eliminationBracket.slots.${index}: duplicate player reference`);
+      }
+      seenEliminationPlayers.add(playerId);
+      filledSlots += 1;
+    });
+    if (filledSlots !== playerRecords.length) {
+      errors.push(`${path}.eliminationBracket.slots: must contain every player exactly once`);
+    }
+    for (let index = 0; index < eliminationSlots.length; index += 2) {
+      if (eliminationSlots[index] === null && eliminationSlots[index + 1] === null) {
+        errors.push(`${path}.eliminationBracket.slots.${index}: bye cannot face bye`);
       }
     }
   }
@@ -266,6 +298,9 @@ function validateGroup(value: unknown, path: string, errors: string[]): void {
     if (match.playoffBracketId !== undefined
       && (typeof match.playoffBracketId !== 'string' || !bracketIds.has(match.playoffBracketId))) {
       errors.push(`${matchPath}.playoffBracketId: unknown bracket reference`);
+    }
+    if (match.bracketNodeId !== undefined && eliminationSlots.length === 0) {
+      errors.push(`${matchPath}.bracketNodeId: elimination bracket is missing`);
     }
   }
 }
@@ -375,6 +410,42 @@ function validateMatch(value: unknown, path: string, errors: string[]): void {
     && (typeof match.playoffRole !== 'string' || !PLAYOFF_ROLES.has(match.playoffRole))) {
     errors.push(`${path}.playoffRole: invalid value`);
   }
+  optionalString(match, 'bracketNodeId', `${path}.bracketNodeId`, errors);
+}
+
+function validateEliminationBracket(
+  value: unknown,
+  path: string,
+  errors: string[]
+): void {
+  const bracket = asRecord(value);
+  if (!bracket) {
+    errors.push(`${path}: expected object`);
+    return;
+  }
+  requireString(bracket, 'id', `${path}.id`, errors);
+  if (
+    typeof bracket.size !== 'number'
+    || !Number.isInteger(bracket.size)
+    || bracket.size < 2
+    || (bracket.size & (bracket.size - 1)) !== 0
+  ) {
+    errors.push(`${path}.size: expected a power of two greater than or equal to 2`);
+  }
+  if (
+    typeof bracket.source !== 'string'
+    || !['roster_order', 'random', 'custom'].includes(bracket.source)
+  ) {
+    errors.push(`${path}.source: invalid value`);
+  }
+  if (
+    !Array.isArray(bracket.slots)
+    || (typeof bracket.size === 'number' && bracket.slots.length !== bracket.size)
+    || !bracket.slots.every(slot => slot === null || typeof slot === 'string')
+  ) {
+    errors.push(`${path}.slots: expected an array of strings or null matching size`);
+  }
+  optionalString(bracket, 'lockedAt', `${path}.lockedAt`, errors);
 }
 
 function validatePlayoffBracket(value: unknown, path: string, errors: string[]): void {

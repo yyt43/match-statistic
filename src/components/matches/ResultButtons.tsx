@@ -5,6 +5,7 @@ interface ResultButtonsProps {
   gameType: GameType;
   isEnglish: boolean;
   playoff?: boolean;
+  noDraw?: boolean;
   shortcutFor?: (
     result: 'player1' | 'player2',
     player1Games: number,
@@ -22,6 +23,7 @@ export function ResultButtons({
   gameType,
   onResult,
   playoff,
+  noDraw,
   isEnglish,
   shortcutFor,
 }: ResultButtonsProps) {
@@ -90,9 +92,11 @@ export function ResultButtons({
             />
           </button>
         </div>
-        <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-          {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
-        </button>
+        {!noDraw && (
+          <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
+            {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+          </button>
+        )}
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
           <PreDropButton
             isEnglish={isEnglish}
@@ -165,9 +169,11 @@ export function ResultButtons({
           ))}
         </div>
       </div>
-      <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-        {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
-      </button>
+      {!noDraw && (
+        <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
+          {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+        </button>
+      )}
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
         <PreDropButton
           isEnglish={isEnglish}

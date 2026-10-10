@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.4.3
+当前版本：v0.5.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.3)
+[![Release](https://img.shields.io/badge/Release-v0.5.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.5.0)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -27,7 +27,7 @@
 - 多小组并行赛事管理：统一管理多个分组、赛制和轮次
 - 统一赛制草稿：同一套设置可应用至本小组或全部小组，开赛前确认赛事信息
 - 独立开赛设置页：未开赛时隐藏排行榜和对阵表，小组操作集中在当前小组，主区域按赛制、选手和赛事数据三列布局
-- 瑞士轮 / 单败淘汰双赛制：支持常见比赛流程与淘汰结构
+- 瑞士轮 / 单败淘汰双赛制：单败淘汰默认按名单顺序生成完整签表，开赛前可随机重抽、交换签位或指定选手/轮空，确认后锁定晋级路径
 - Excel 一键导入：支持文本、CSV、TXT、XLSX 批量导入选手名单
 - 多表格工作簿导入：按 sheet 名自动识别小组，批量分组录入
 - 统一选手档案：昵称、选手编号、9 位 UID、QQ 使用同一导入模板和同一编辑列表
@@ -281,7 +281,16 @@ QQ / QQ号
 
   - **BO3 / BO5 / BO7**：胜场数 → 对手胜率(SOS) → 本人局胜率 → 对手局胜率
 
-- **双负（平局）**：BO1 / 多局均支持；单败淘汰中双方同时淘汰
+- **双负（平局）**：瑞士轮及普通对阵支持；固定单败签表禁止双负，每场必须产生一名晋级者
+
+### 固定单败签表
+
+- **默认排阵**：按当前选手名单顺序生成。8 人示例为 1 vs 2、3 vs 4、5 vs 6、7 vs 8，相邻两场胜者在下一轮相遇。
+- **开赛前调整**：可“按名单顺序重置”“随机重抽”“交换签位”或“指定选手/轮空”；轮空优先分配给名单靠前选手，不会出现轮空对轮空。
+- **确认锁定**：确认开赛时同时锁定签表和名单。后续轮次只按固定节点填入胜者，不会重新随机配对。
+- **逐轮推进**：每轮完成后生成下一轮，未来轮次可查看但不能提前录分；已有后续赛果时禁止直接改判，需先撤回下游结果。
+- **退赛与撤销**：退赛保留原签位和姓名并按弃权处理；撤回至开赛前可重新调整完整签表。
+- **导出**：总体签表视图支持 PNG 和 Excel 导出，包含姓名、编号/UID、比分、胜者、轮空和弃权状态。
 
 ### 弃赛管理
 

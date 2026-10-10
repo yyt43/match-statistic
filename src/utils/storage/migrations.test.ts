@@ -95,4 +95,20 @@ describe('storage migrations', () => {
     expect(migrated.rosterLockedAt).toBeTruthy();
     expect(migrated.groups[0].players[0].profile).toEqual({});
   });
+
+  it('keeps pre-fixed-bracket competitions on the legacy path', () => {
+    const competition = createNewCompetition('Version 6', 1, 8, 3, 'bo1');
+    competition.groups[0].pairingType = 'single_elimination';
+    competition.groups[0].matches = [{
+      id: 'legacy-match',
+      round: 1,
+      player1Id: competition.groups[0].players[0].id,
+      player2Id: competition.groups[0].players[1].id,
+      result: 'pending',
+    }];
+
+    const migrated = migrateCompetitionData(competition, 6);
+    expect(migrated.groups[0].eliminationBracket).toBeUndefined();
+    expect(migrated.groups[0].matches[0].bracketNodeId).toBeUndefined();
+  });
 });

@@ -15,6 +15,17 @@ import type {
   EvidenceVerificationStatus,
 } from '../types';
 import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType } from '../utils/swissPairing';
+import {
+  assignEliminationBracketSlot as assignBracketSlot,
+  createOrderedEliminationBracket,
+  createRandomEliminationBracket,
+  getEliminationBracketView,
+  hasPlayedDownstreamBracketMatches,
+  rebuildEliminationMatchesAfterResult,
+  swapEliminationBracketSlots as swapBracketSlots,
+  validateEliminationBracket,
+  type EliminationBracketView,
+} from '../utils/elimination';
 import { saveSnapshot } from '../utils/storage/snapshot';
 import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
@@ -213,6 +224,15 @@ export interface CompetitionState {
 
   startTournament: (totalRounds: number) => void;
   startAllGroups: () => void;
+  prepareEliminationBracket: (groupIdx?: number) => void;
+  resetEliminationBracketOrder: (groupIdx?: number) => void;
+  randomizeEliminationBracket: (groupIdx?: number) => void;
+  swapEliminationBracketSlots: (firstIndex: number, secondIndex: number, groupIdx?: number) => void;
+  assignEliminationBracketSlot: (slotIndex: number, playerId: string | null, groupIdx?: number) => void;
+  confirmEliminationBracket: (groupIdx?: number) => void;
+  confirmEliminationBracketsAndStartAll: (groupIndices: number[]) => void;
+  getEliminationBracketView: (groupIdx?: number) => EliminationBracketView;
+  canChangeEliminationBracketResult: (groupIdx: number, round: number) => boolean;
   generateNextRound: () => void;
   generateNextRoundForGroup: (groupIdx: number) => void;
   generateNextRoundAllGroups: () => void;
@@ -399,6 +419,8 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     if (!validateRoster(competition).valid) return;
+    const currentGroup = competition.groups[idx];
+    if (currentGroup?.pairingType === 'single_elimination' && !currentGroup.eliminationBracket?.lockedAt) return;
     let updated = startTournamentForGroup(competition, idx, totalRounds);
     updated = {
       ...updated,
@@ -416,6 +438,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   startAllGroups: () => {
     const { competition } = get();
     if (!validateRoster(competition).valid) return;
+    const hasUnconfirmedEliminationGroup = competition.groups.some(group =>
+      group.status === 'setup'
+      && group.players.length >= 2
+      && group.pairingType === 'single_elimination'
+      && !group.eliminationBracket?.lockedAt
+    );
+    if (hasUnconfirmedEliminationGroup) return;
     let updated = startAllGroupsInCompetition(competition);
     updated = {
       ...updated,
@@ -425,6 +454,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     for (let i = 0; i < updated.groups.length; i++) {
       const g = updated.groups[i];
+      if (g.pairingType === 'single_elimination' && !g.eliminationBracket?.lockedAt) continue;
       if (g.status === 'in_progress' && g.currentRound === 0) {
         updated = generateNextRoundForCompetition(updated, i);
       }
@@ -435,6 +465,163 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       { competition: updated, viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0 },
       { label: '开始全部小组' }
     );
+  },
+
+  prepareEliminationBracket: (groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.pairingType !== 'single_elimination' || group.status !== 'setup') return;
+    if (group.players.length < 2) return;
+
+    const bracket = group.eliminationBracket?.lockedAt
+      ? group.eliminationBracket
+      : createOrderedEliminationBracket(group.players);
+    if (validateEliminationBracket(bracket, group.players)) return;
+
+    const updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: bracket,
+    }));
+    set({ competition: updated }, { label: '准备单败签表' });
+  },
+
+  resetEliminationBracketOrder: (groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.pairingType !== 'single_elimination' || group.eliminationBracket?.lockedAt) return;
+
+    const updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: createOrderedEliminationBracket(current.players),
+    }));
+    set({ competition: updated }, { label: '恢复名单顺序组织' });
+  },
+
+  randomizeEliminationBracket: (groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.pairingType !== 'single_elimination' || group.eliminationBracket?.lockedAt) return;
+
+    const updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: createRandomEliminationBracket(current.players),
+    }));
+    set({ competition: updated }, { label: '随机重抽单败签表' });
+  },
+
+  swapEliminationBracketSlots: (firstIndex, secondIndex, groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group?.eliminationBracket || group.eliminationBracket.lockedAt) return;
+
+    const updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: swapBracketSlots(current.eliminationBracket!, firstIndex, secondIndex),
+    }));
+    set({ competition: updated }, { label: '交换单败签位' });
+  },
+
+  assignEliminationBracketSlot: (slotIndex, playerId, groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group?.eliminationBracket || group.eliminationBracket.lockedAt) return;
+
+    const updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: assignBracketSlot(current.eliminationBracket!, slotIndex, playerId),
+    }));
+    set({ competition: updated }, { label: '指定单败签位' });
+  },
+
+  confirmEliminationBracket: (groupIdx) => {
+    const { competition } = get();
+    if (!validateRoster(competition).valid) return;
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.pairingType !== 'single_elimination') return;
+    if (group.status !== 'setup' || group.eliminationBracket?.lockedAt) return;
+
+    const bracket = group.eliminationBracket ?? createOrderedEliminationBracket(group.players);
+    if (validateEliminationBracket(bracket, group.players)) return;
+
+    let updated = updateGroupAtIndex(competition, idx, current => ({
+      ...current,
+      eliminationBracket: {
+        ...bracket,
+        lockedAt: bracket.lockedAt ?? new Date().toISOString(),
+      },
+    }));
+    updated = {
+      ...updated,
+      rosterLockedAt: updated.rosterLockedAt ?? new Date().toISOString(),
+    };
+    updated = startTournamentForGroup(updated, idx, group.totalRounds);
+    updated = generateNextRoundForCompetition(updated, idx);
+    set(
+      { competition: updated, viewRound: updated.groups[idx].currentRound },
+      { label: 'Confirm elimination bracket and start' }
+    );
+  },
+
+  confirmEliminationBracketsAndStartAll: (groupIndices) => {
+    const { competition } = get();
+    if (!validateRoster(competition).valid) return;
+
+    const indices = Array.from(new Set(groupIndices)).filter(index =>
+      competition.groups[index]?.pairingType === 'single_elimination'
+      && competition.groups[index]?.status === 'setup'
+      && !competition.groups[index]?.eliminationBracket?.lockedAt
+    );
+    const brackets = new Map<number, NonNullable<TournamentGroup['eliminationBracket']>>();
+    for (const index of indices) {
+      const group = competition.groups[index];
+      const bracket = group.eliminationBracket ?? createOrderedEliminationBracket(group.players);
+      if (validateEliminationBracket(bracket, group.players)) return;
+      brackets.set(index, { ...bracket, lockedAt: bracket.lockedAt ?? new Date().toISOString() });
+    }
+
+    let updated: TournamentCompetition = {
+      ...competition,
+      rosterLockedAt: competition.rosterLockedAt ?? new Date().toISOString(),
+      groups: competition.groups.map((group, index) => {
+        const bracket = brackets.get(index);
+        return bracket ? { ...group, eliminationBracket: bracket } : group;
+      }),
+    };
+    updated = startAllGroupsInCompetition(updated);
+    for (let index = 0; index < updated.groups.length; index += 1) {
+      const group = updated.groups[index];
+      if (group.status === 'in_progress' && group.currentRound === 0) {
+        updated = generateNextRoundForCompetition(updated, index);
+      }
+    }
+
+    const currentGroup = updated.groups[updated.currentGroupIndex];
+    set(
+      {
+        competition: updated,
+        viewRound: currentGroup.currentRound > 0 ? currentGroup.currentRound : 0,
+      },
+      { label: 'Confirm all elimination brackets and start' }
+    );
+  },
+
+  getEliminationBracketView: (groupIdx) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    return group ? getEliminationBracketView(group) : { rounds: [] };
+  },
+
+  canChangeEliminationBracketResult: (groupIdx, round) => {
+    const group = get().competition.groups[groupIdx];
+    if (!group?.eliminationBracket) return true;
+    return !hasPlayedDownstreamBracketMatches(group, round);
   },
 
   generateNextRound: () => {
@@ -454,6 +641,12 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const nextRound = group.currentRound + 1;
     if (nextRound > group.totalRounds) return;
+
+    if (group.eliminationBracket) {
+      const updated = generateNextRoundForCompetition(competition, groupIdx);
+      set({ competition: updated }, { label: '生成小组下一轮' });
+      return;
+    }
 
     const roundGameType = getRoundGameType(group, nextRound);
     const { matches, updatedPlayers: pairedPlayers } = generatePairings(
@@ -522,6 +715,36 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const currentRound = group.currentRound;
 
+    if (group.eliminationBracket) {
+      const resetMatches = group.matches
+        .filter(match => !match.bracketNodeId || match.round <= currentRound)
+        .map(match =>
+          match.round === currentRound && !match.isBye ? resetMatchResult(match) : match
+        );
+      const updatedPlayers = getRankedPlayers(
+        calculateAllWinRates(
+          rollbackRoundPlayerStats(group, currentRound, true),
+          resetMatches,
+          group.gameType
+        ),
+        group.gameType,
+        group.pairingType,
+        group.tiebreakRules
+      );
+      const updatedGroups = [...competition.groups];
+      updatedGroups[idx] = {
+        ...group,
+        matches: resetMatches,
+        players: updatedPlayers,
+        status: 'in_progress' as TournamentStatus,
+      };
+      set(
+        { competition: { ...competition, groups: updatedGroups }, viewRound: currentRound },
+        { label: `Clear round ${currentRound} results` }
+      );
+      return;
+    }
+
     // Keep the current pairings and reset their results so referees can
     // immediately re-enter them. Automatic byes remain unchanged.
     const remainingMatches = group.matches.map(match =>
@@ -559,6 +782,47 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const currentRound = group.currentRound;
     if (currentRound <= 1) return;
 
+    if (group.eliminationBracket) {
+      const hasEnteredResult = group.matches.some(match =>
+        match.round === currentRound && !match.isBye && match.result !== 'pending'
+      );
+      if (!hasEnteredResult) return;
+      const remainingMatches = group.matches.filter(match =>
+        !match.bracketNodeId || match.round < currentRound
+      );
+      const previousRound = currentRound - 1;
+      const updatedPlayers = getRankedPlayers(
+        calculateAllWinRates(
+          rollbackRoundPlayerStats(group, currentRound, false),
+          remainingMatches,
+          group.gameType
+        ),
+        group.gameType,
+        group.pairingType,
+        group.tiebreakRules
+      );
+      const updatedGroups = [...competition.groups];
+      updatedGroups[idx] = {
+        ...group,
+        currentRound: previousRound,
+        matches: remainingMatches,
+        players: updatedPlayers,
+        status: 'in_progress' as TournamentStatus,
+      };
+      set(
+        {
+          competition: { ...competition, groups: updatedGroups },
+          viewRound: previousRound,
+        },
+        { label: `Return from elimination round ${currentRound} to ${previousRound}` }
+      );
+      void logAudit('round-return', `Returned from elimination round ${currentRound} to ${previousRound}`, {
+        fromRound: currentRound,
+        toRound: previousRound,
+      });
+      return;
+    }
+
     const remainingMatches = group.matches.filter(match => match.round !== currentRound);
     const previousRound = currentRound - 1;
     const updatedPlayers = calculateAllWinRates(
@@ -591,6 +855,44 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const idx = competition.currentGroupIndex;
     const group = clearPlayoffs(competition.groups[idx]);
     if (group.currentRound !== 1) return;
+
+    if (group.eliminationBracket) {
+      const hasEnteredResult = group.matches.some(match =>
+        match.round === 1 && !match.isBye && match.result !== 'pending'
+      );
+      if (hasEnteredResult) return;
+      const remainingMatches = group.matches.filter(match => match.round !== 1);
+      const updatedPlayers = calculateAllWinRates(
+        rollbackRoundPlayerStats(group, 1, false),
+        remainingMatches,
+        group.gameType
+      );
+      const updatedGroups = [...competition.groups];
+      updatedGroups[idx] = {
+        ...group,
+        eliminationBracket: {
+          ...group.eliminationBracket,
+          lockedAt: undefined,
+        },
+        currentRound: 0,
+        matches: remainingMatches,
+        players: updatedPlayers,
+        status: 'setup' as TournamentStatus,
+      };
+      const allGroupsInSetup = updatedGroups.every(item => item.status === 'setup');
+      set(
+        {
+          competition: {
+            ...competition,
+            groups: updatedGroups,
+            rosterLockedAt: allGroupsInSetup ? undefined : competition.rosterLockedAt,
+          },
+          viewRound: 0,
+        },
+        { label: 'Return to setup' }
+      );
+      return;
+    }
 
     const hasEnteredResult = group.matches.some(match =>
       match.round === 1
@@ -651,6 +953,27 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       return;
     }
 
+    if (
+      storedGroup.eliminationBracket
+      && result === 'draw'
+      && storedMatch.bracketNodeId
+    ) {
+      return;
+    }
+    if (
+      storedGroup.eliminationBracket
+      && storedMatch.bracketNodeId
+      && storedMatch.result !== 'pending'
+      && (
+        result !== storedMatch.result
+        || player1Games !== storedMatch.player1Games
+        || player2Games !== storedMatch.player2Games
+      )
+      && !get().canChangeEliminationBracketResult(idx, storedMatch.round)
+    ) {
+      return;
+    }
+
     const playoffsCleared = hasPlayoffData(storedGroup)
       && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
     const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
@@ -670,7 +993,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
     }
 
-    const updatedMatches = [...group.matches];
+    let updatedMatches = [...group.matches];
     updatedMatches[matchIndex] = {
       ...match,
       result,
@@ -679,6 +1002,12 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       preDrop: !!preDrop,
       resultSource: match.resultSource ?? 'manual',
     };
+    if (group.eliminationBracket && match.bracketNodeId && oldResult !== result) {
+      updatedMatches = rebuildEliminationMatchesAfterResult(
+        { ...group, matches: updatedMatches },
+        match.round
+      );
+    }
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
@@ -778,6 +1107,23 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       return;
     }
 
+    if (storedGroup.eliminationBracket && result === 'draw' && storedMatch.bracketNodeId) {
+      return;
+    }
+    if (
+      storedGroup.eliminationBracket
+      && storedMatch.bracketNodeId
+      && storedMatch.result !== 'pending'
+      && (
+        result !== storedMatch.result
+        || player1Games !== storedMatch.player1Games
+        || player2Games !== storedMatch.player2Games
+      )
+      && !get().canChangeEliminationBracketResult(groupIdx, storedMatch.round)
+    ) {
+      return;
+    }
+
     const playoffsCleared = hasPlayoffData(storedGroup)
       && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
     const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
@@ -797,7 +1143,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
     }
 
-    const updatedMatches = [...group.matches];
+    let updatedMatches = [...group.matches];
     updatedMatches[matchIndex] = {
       ...match,
       result,
@@ -806,6 +1152,12 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       preDrop: !!preDrop,
       resultSource: match.resultSource ?? 'manual',
     };
+    if (group.eliminationBracket && match.bracketNodeId && oldResult !== result) {
+      updatedMatches = rebuildEliminationMatchesAfterResult(
+        { ...group, matches: updatedMatches },
+        match.round
+      );
+    }
 
     let updatedPlayers = Array.from(playerMap.values());
     updatedPlayers = calculateAllWinRates(updatedPlayers, updatedMatches, group.gameType);
@@ -852,6 +1204,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const match = group.matches[matchIndex];
     if (match.result !== 'pending') return;
+    if (group.eliminationBracket?.lockedAt) return;
 
     const updatedMatches = [...group.matches];
     updatedMatches[matchIndex] = { ...match, player1Id, player2Id };
@@ -866,6 +1219,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const group = competition.groups[competition.currentGroupIndex];
     if (!group) return;
+    if (group.eliminationBracket?.lockedAt) return;
 
     const updatedMatches = group.matches.map(m => {
       const update = updates.find(u => u.matchId === m.id);
@@ -948,6 +1302,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const idx = competition.currentGroupIndex;
     const group = competition.groups[idx];
     if (!group) return;
+    if (group.eliminationBracket?.lockedAt) return;
 
     // 仅在同一轮内重排：将 fromMatch 移动到 toMatch 的位置
     const roundMatchIds = group.matches.filter(m => m.round === round).map(m => m.id);

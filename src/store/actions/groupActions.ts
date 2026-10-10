@@ -201,6 +201,7 @@ export function createGroupActions(
           totalRounds,
           gameType: config.gameType,
           pairingType: config.pairingType,
+          eliminationBracket: undefined,
           tiebreakTemplate: template,
           tiebreakRules: rules,
           roundGameTypes: finalRoundGameTypes,
@@ -276,7 +277,13 @@ export function createGroupActions(
         roundGameTypes = roundGameTypes.slice(0, totalRounds);
       }
       const groups = [...competition.groups];
-      groups[index] = { ...group, pairingType, totalRounds, roundGameTypes };
+      groups[index] = {
+        ...group,
+        pairingType,
+        totalRounds,
+        roundGameTypes,
+        eliminationBracket: undefined,
+      };
       persist({ ...competition, groups }, '修改配对方式');
     },
 

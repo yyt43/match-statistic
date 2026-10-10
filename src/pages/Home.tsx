@@ -13,6 +13,7 @@ import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore
 import { useStorageSync } from '../hooks/useStorageSync';
 import { useWriterLock } from '../hooks/useWriterLock';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
+import { getEliminationBracketView } from '../utils/elimination';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Redo2, Swords, Languages, RefreshCw } from 'lucide-react';
 import { useLanguagePreference } from '../i18n/context';
 import { formatText } from '../i18n/data';
@@ -566,6 +567,21 @@ function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
     if (currentRoundMatches.length === 0 || !currentRoundMatches.every(m => m.result !== 'pending')) return [];
 
     const nextRound = previewGroup.currentRound + 1;
+    if (previewGroup.eliminationBracket?.lockedAt) {
+      const view = getEliminationBracketView(previewGroup);
+      const nodes = view.rounds.find(item => item.round === nextRound)?.nodes ?? [];
+      return nodes
+        .filter(node => node.player1Id || node.player2Id)
+        .map(node => ({
+          id: node.id,
+          round: nextRound,
+          player1Id: node.player1Id ?? 'bye',
+          player2Id: node.player2Id ?? 'bye',
+          result: 'pending' as const,
+          isBye: !node.player1Id || !node.player2Id,
+          bracketNodeId: node.id,
+        }));
+    }
     const roundGameType = getRoundGameType(previewGroup, nextRound);
     try {
       const { matches } = generatePairings(

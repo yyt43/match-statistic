@@ -1,5 +1,9 @@
-import type { TournamentCompetition, TournamentGroup, TournamentStatus, Player } from '../types';
+import type { TournamentCompetition, TournamentGroup, TournamentStatus, Player, Match } from '../types';
 import { calculateAllWinRates, generatePairings, getRankedPlayers, getRoundGameType, getSingleEliminationRounds } from '../utils/swissPairing';
+import {
+  createEliminationFirstRoundMatches,
+  createEliminationNextRoundMatches,
+} from '../utils/elimination';
 
 export function startTournamentForGroup(
   competition: TournamentCompetition,
@@ -21,6 +25,9 @@ export function startTournamentForGroup(
 export function startAllGroupsInCompetition(competition: TournamentCompetition): TournamentCompetition {
   const updatedGroups = competition.groups.map(group => {
     if (group.status !== 'setup' || group.players.length < 2) return group;
+    if (group.pairingType === 'single_elimination' && !group.eliminationBracket?.lockedAt) {
+      return group;
+    }
     const rounds = group.pairingType === 'single_elimination'
       ? getSingleEliminationRounds(group.players.length)
       : group.totalRounds;
@@ -39,15 +46,25 @@ export function generateNextRoundForCompetition(
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return competition;
 
-  const roundGameType = getRoundGameType(group, nextRound);
-  const { matches, updatedPlayers: pairedPlayers } = generatePairings(
-    group.players,
-    nextRound,
-    roundGameType,
-    group.pairingType,
-    group.matches,
-    group.tiebreakRules
-  );
+  const bracketMatches: Match[] | null = group.eliminationBracket
+    ? (nextRound === 1
+      ? createEliminationFirstRoundMatches(group, group.eliminationBracket)
+      : createEliminationNextRoundMatches(group, nextRound))
+    : null;
+  const generated = bracketMatches
+    ? { matches: bracketMatches, updatedPlayers: group.players }
+    : generatePairings(
+      group.players,
+      nextRound,
+      getRoundGameType(group, nextRound),
+      group.pairingType,
+      group.matches,
+      group.tiebreakRules
+    );
+  const matches = generated.matches;
+  const pairedPlayers = generated.updatedPlayers;
+
+  if (group.eliminationBracket && matches.length === 0) return competition;
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
   for (const match of matches) {
@@ -69,8 +86,22 @@ export function generateNextRoundForCompetition(
   const allMatches = [...group.matches, ...matches];
   updatedPlayers = calculateAllWinRates(updatedPlayers, allMatches, group.gameType);
 
+  const isBracketComplete = !!group.eliminationBracket
+    && nextRound === getSingleEliminationRounds(group.eliminationBracket.size);
+
   const updatedGroups = [...competition.groups];
-  updatedGroups[groupIdx] = { ...group, currentRound: nextRound, matches: allMatches, players: updatedPlayers };
+  const updatedGroup = {
+    ...group,
+    currentRound: nextRound,
+    matches: allMatches,
+    players: updatedPlayers,
+    status: isBracketComplete && allMatches
+      .filter(match => match.round === nextRound)
+      .every(match => match.result !== 'pending')
+      ? 'completed' as TournamentStatus
+      : group.status,
+  };
+  updatedGroups[groupIdx] = updatedGroup;
   return { ...competition, groups: updatedGroups };
 }
 

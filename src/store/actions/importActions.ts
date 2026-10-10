@@ -10,6 +10,10 @@ import type { CompetitionState } from '../useTournamentStore';
 import type { StoreGet, StoreSet } from './actionTypes';
 import { applyMatchResultFast, recalculateRanking } from '../gameFlow';
 import { logAudit } from '../../utils/auditLog';
+import {
+  hasPlayedDownstreamBracketMatches,
+  rebuildEliminationMatchesAfterResult,
+} from '../../utils/elimination';
 
 type ImportActionKey =
   | 'applyImportedMatchResults'
@@ -89,10 +93,64 @@ export function createImportActions(
         if (matchIndex < 0) continue;
         const match = group.matches[matchIndex];
         if (match.isBye) continue;
-
+        if (group.eliminationBracket && match.bracketNodeId && candidate.result === 'draw') {
+          continue;
+        }
         const sameResult = match.result === candidate.result
           && match.player1Games === candidate.player1Games
           && match.player2Games === candidate.player2Games;
+        if (
+          group.eliminationBracket
+          && match.bracketNodeId
+          && !sameResult
+          && hasPlayedDownstreamBracketMatches(group, match.round)
+        ) {
+          continue;
+        }
+        if (
+          group.eliminationBracket
+          && match.bracketNodeId
+          && match.result !== 'pending'
+          && !hasPlayedDownstreamBracketMatches(group, match.round)
+        ) {
+          const applied = applyMatchResultFast(
+            group,
+            candidate.matchId,
+            candidate.result,
+            candidate.player1Games,
+            candidate.player2Games
+          );
+          if (sameResult) {
+            const nextMatch = applied.matches.find(matchItem => matchItem.id === candidate.matchId);
+            if (nextMatch) {
+              group.matches[matchIndex] = {
+                ...nextMatch,
+                sourceSubmissionId: match.sourceSubmissionId ?? candidate.sourceSubmissionId,
+                sourceSubmittedAt: match.sourceSubmittedAt ?? candidate.sourceSubmittedAt,
+                evidenceRefs: match.evidenceRefs?.length
+                  ? match.evidenceRefs
+                  : candidate.evidenceRefs,
+                evidenceHash: match.evidenceHash ?? candidate.evidenceHash,
+                evidenceVerificationStatus: candidate.evidenceVerificationStatus
+                  ?? match.evidenceVerificationStatus
+                  ?? 'not_required',
+              };
+            }
+            changed = changed || JSON.stringify(group.matches[matchIndex]) !== JSON.stringify(match);
+            continue;
+          }
+          let updatedMatches = [...applied.matches];
+          updatedMatches = rebuildEliminationMatchesAfterResult(
+            { ...applied, matches: updatedMatches },
+            match.round
+          );
+          groups[candidate.groupIndex] = recalculateRanking({
+            ...applied,
+            matches: updatedMatches,
+          });
+          changed = true;
+          continue;
+        }
         if (sameResult) {
           const nextMatch: Match = {
             ...match,
@@ -122,10 +180,10 @@ export function createImportActions(
         );
         const updatedMatch = updatedGroup.matches.find(matchItem => matchItem.id === candidate.matchId);
         if (!updatedMatch) continue;
-        updatedGroup.matches = updatedGroup.matches.map(matchItem => matchItem.id === candidate.matchId
+        let updatedMatches: Match[] = updatedGroup.matches.map(matchItem => matchItem.id === candidate.matchId
           ? {
               ...updatedMatch,
-              resultSource: 'import',
+              resultSource: 'import' as const,
               sourceSubmissionId: candidate.sourceSubmissionId,
               sourceSubmittedAt: candidate.sourceSubmittedAt,
               evidenceRefs: candidate.evidenceRefs,
@@ -133,7 +191,16 @@ export function createImportActions(
               evidenceVerificationStatus: candidate.evidenceVerificationStatus ?? 'not_required',
             }
           : matchItem);
-        groups[candidate.groupIndex] = recalculateRanking(updatedGroup);
+        if (updatedGroup.eliminationBracket && updatedMatch.bracketNodeId && match.result !== candidate.result) {
+          updatedMatches = rebuildEliminationMatchesAfterResult(
+            { ...updatedGroup, matches: updatedMatches },
+            updatedMatch.round
+          );
+        }
+        groups[candidate.groupIndex] = recalculateRanking({
+          ...updatedGroup,
+          matches: updatedMatches,
+        });
         changed = true;
       }
 
@@ -206,6 +273,9 @@ export function createImportActions(
 
       if (!previous || targetGroupIndex < 0) return false;
       const targetGroup = groups[targetGroupIndex];
+      if (targetGroup.eliminationBracket && previous.bracketNodeId && result === 'draw') {
+        return false;
+      }
       if (hasPlayedMatchesAfter(targetGroup, targetRound)) {
         return false;
       }
@@ -218,6 +288,13 @@ export function createImportActions(
         player1Games,
         player2Games
       );
+      let appliedMatches = applied.matches;
+      if (applied.eliminationBracket && previous.bracketNodeId) {
+        appliedMatches = rebuildEliminationMatchesAfterResult(
+          { ...applied, matches: appliedMatches },
+          targetRound
+        );
+      }
       const changedAt = new Date().toISOString();
       const override: MatchResultOverride = {
         previousResult: previous.result,
@@ -231,7 +308,7 @@ export function createImportActions(
         changedBy: 'referee',
         changedAt,
       };
-      applied.matches = applied.matches.map(match => match.id === matchId
+      appliedMatches = appliedMatches.map(match => match.id === matchId
         ? {
             ...match,
             resultSource: 'referee_override',
@@ -239,7 +316,10 @@ export function createImportActions(
             evidenceVerificationStatus: 'not_required',
           }
         : match);
-      groups[targetGroupIndex] = recalculateRanking(applied);
+      groups[targetGroupIndex] = recalculateRanking({
+        ...applied,
+        matches: appliedMatches,
+      });
       set({ competition: { ...competition, groups } }, { label: '裁判改判' });
       void logAudit('match-result-override', matchId, {
         matchId,

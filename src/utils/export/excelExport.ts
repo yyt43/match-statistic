@@ -3,6 +3,7 @@ import { getEliminationTitleI18n, getEliminatedRound } from '../ranking';
 import { sortPlayers } from '../swissPairing';
 import { translations, formatText, type AppLanguage } from '../../i18n/data';
 import { writeExcelWorkbook, type ExcelExportOptions } from './excelWorkbook';
+import { buildEliminationBracketExportRows } from '../elimination';
 
 type TranslationTable = Record<keyof typeof translations['zh'], string>;
 
@@ -194,6 +195,74 @@ export function getMatchTableData(group: TournamentGroup, round: number, languag
   return { headers, rows };
 }
 
+export function getEliminationBracketTableData(
+  group: TournamentGroup,
+  language: AppLanguage = 'zh'
+): { headers: string[]; rows: (string | number)[][] } {
+  const t = translations[language];
+  const headers = [
+    language === 'en' ? 'Round' : '轮次',
+    language === 'en' ? 'Match' : '场次',
+    `${t.participantCodeCol} 1`,
+    `${t.playerCol} 1`,
+    `${t.uidCol} 1`,
+    `${t.participantCodeCol} 2`,
+    `${t.playerCol} 2`,
+    `${t.uidCol} 2`,
+    t.scoreCol,
+    language === 'en' ? 'Winner' : '胜者',
+    t.resultCol,
+  ];
+  const rows: (string | number)[][] = buildEliminationBracketExportRows(group, language).map(row => [
+    language === 'en' ? `Round ${row.round}` : `第${row.round}轮`,
+    row.matchIndex + 1,
+    row.player1Code,
+    row.player1Name,
+    row.player1Uid,
+    row.player2Code,
+    row.player2Name,
+    row.player2Uid,
+    row.score,
+    row.winnerName,
+    row.status,
+  ]);
+  return { headers, rows };
+}
+
+export async function exportEliminationBracketToExcel(
+  group: TournamentGroup,
+  competitionName: string,
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
+): Promise<void> {
+  const { headers, rows } = getEliminationBracketTableData(group, language);
+  const sheetName = language === 'en' ? 'Bracket' : '淘汰签表';
+  await writeExcelWorkbook(
+    [{ name: sheetName, rows: [headers, ...rows] }],
+    `${competitionName}-${group.name}-${sheetName}.xlsx`,
+    options
+  );
+}
+
+export async function exportAllGroupsBracketsToExcel(
+  groups: TournamentGroup[],
+  competitionName: string,
+  language: AppLanguage = 'zh',
+  options?: ExcelExportOptions
+): Promise<void> {
+  const sheetName = language === 'en' ? 'Bracket' : '淘汰签表';
+  const sheets = groups
+    .filter(group => group.eliminationBracket)
+    .map(group => {
+      const { headers, rows } = getEliminationBracketTableData(group, language);
+      return {
+        name: `${group.name}-${sheetName}`,
+        rows: [headers, ...rows],
+      };
+    });
+  await writeExcelWorkbook(sheets, `${competitionName}-${sheetName}.xlsx`, options);
+}
+
 export async function exportRankingToExcel(
   players: Player[],
   competitionName: string,
@@ -276,6 +345,14 @@ export async function exportGroupSummaryToExcel(
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [
     { name: t.ranking, rows: rankData },
   ];
+  if (group.eliminationBracket) {
+    const { headers: bracketHeaders, rows: bracketRows } =
+      getEliminationBracketTableData(group, language);
+    sheets.push({
+      name: language === 'en' ? 'Bracket' : '淘汰签表',
+      rows: [bracketHeaders, ...bracketRows],
+    });
+  }
   for (let round = 1; round <= group.totalRounds; round++) {
     const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round, language);
     if (mRows.length === 0) continue;
@@ -297,6 +374,14 @@ export async function exportAllGroupsToExcel(
     const { headers, rows } = getRankingTableData(group, language);
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({ name: `${group.name}-${t.ranking}`, rows: data });
+    if (group.eliminationBracket) {
+      const { headers: bracketHeaders, rows: bracketRows } =
+        getEliminationBracketTableData(group, language);
+      sheets.push({
+        name: `${group.name}-${language === 'en' ? 'Bracket' : '淘汰签表'}`,
+        rows: [bracketHeaders, ...bracketRows],
+      });
+    }
     for (let round = 1; round <= group.totalRounds; round++) {
       const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round, language);
       if (mRows.length === 0) continue;

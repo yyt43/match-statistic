@@ -9,7 +9,11 @@ export function RoundTabs() {
   const { t } = useLanguagePreference();
   
   const rounds = [];
-  for (let i = 1; i <= currentGroup.currentRound; i++) {
+  const bracketRoundCount = currentGroup.eliminationBracket
+    ? Math.log2(currentGroup.eliminationBracket.size)
+    : 0;
+  const visibleRoundCount = Math.max(currentGroup.currentRound, bracketRoundCount);
+  for (let i = 1; i <= visibleRoundCount; i++) {
     rounds.push(i);
   }
 
@@ -37,23 +41,29 @@ export function RoundTabs() {
         {rounds.map(round => {
           const isActive = round === viewRound;
           const isCurrent = round === currentGroup.currentRound;
+          const isFuture = round > currentGroup.currentRound;
           const roundMatches = currentGroup.matches.filter(m => m.round === round);
-          const isComplete = roundMatches.length > 0 && roundMatches.every(m => m.result !== 'pending');
+          const isComplete = !isFuture && roundMatches.length > 0 && roundMatches.every(m => m.result !== 'pending');
           
           return (
             <button
               key={round}
-              onClick={() => setViewRound(round)}
+              onClick={() => {
+                if (!isFuture) setViewRound(round);
+              }}
+              disabled={isFuture}
               className={`
                 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-                ${isActive
+                ${isFuture
+                  ? 'bg-slate-900/50 text-slate-600 cursor-default'
+                  : isActive
                   ? 'bg-gradient-to-r from-gold-500 to-gold-400 text-indigo-900 shadow-lg shadow-gold-500/30'
                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300'
                 }
               `}
             >
               {formatText(t.roundN, { round })}
-              {isCurrent && <span className="ml-1 text-xs">{t.roundCurrentMark}</span>}
+              {isCurrent && !isFuture && <span className="ml-1 text-xs">{t.roundCurrentMark}</span>}
               {isComplete && !isCurrent && <span className="ml-1 text-xs">✓</span>}
             </button>
           );

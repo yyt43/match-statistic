@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.4.3
+Current version: v0.5.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.4.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.4.3)
+[![Release](https://img.shields.io/badge/Release-v0.5.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.5.0)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -27,7 +27,7 @@ This project is suited for tournament management, club events, team activities, 
 - Multi-group tournament management: manage multiple groups, formats, and rounds in one event
 - Shared format draft: apply one configuration to the current group or all groups, with a pre-start event summary
 - Dedicated pre-start workspace: hide rankings and match tables, keep group actions in the current-group bar, and use format, players, and event-data columns
-- Swiss / single-elimination support: common tournament flow and knockout structures
+- Swiss / single-elimination support: elimination brackets follow roster order by default, can be adjusted before play, then lock into a fixed advancement path
 - One-click Excel import: import player lists from plain text, CSV, TXT, and XLSX
 - Multi-sheet workbook support: automatically identify sheet names as group names and import by group
 - Unified player profiles: nickname, participant code, 9-digit UID, and QQ use one import template and one editable list
@@ -244,7 +244,16 @@ The quick-score list and selected-match header display the recorded left-right s
 - Ranking rules: use the default format preset or configure a custom tiebreak chain
   - BO1: wins -> SOS -> SOSOS
   - BO3 / BO5 / BO7: wins -> SOS -> player game win rate -> opponent game win rate
-- Draws: supported in BO1 and multi-game formats; in single elimination, both players can be eliminated in the same round
+- Draws: supported in Swiss and regular pairings; a fixed elimination bracket forbids double-loss results and every match must produce an advancing winner
+
+### Fixed elimination brackets
+
+- **Default seeding**: generated from current roster order. With eight players: 1 vs 2, 3 vs 4, 5 vs 6, and 7 vs 8; adjacent winners meet in the next round.
+- **Pre-start editing**: reset to roster order, redraw, swap slots, or assign a player/bye. Byes go to the earliest roster positions and never face each other.
+- **Locked confirmation**: confirmation locks both the bracket and roster. Later rounds only receive winners at fixed nodes and are never randomly repaired.
+- **Round progression**: each completed round advances to the next fixed round. Future rounds are viewable but cannot be scored early; changing an earlier result is blocked after downstream results exist.
+- **Withdrawals and undo**: a withdrawn player keeps the original slot and name and is treated as a forfeit. Returning to setup unlocks bracket editing.
+- **Exports**: the bracket view supports PNG and Excel export with names, participant codes/UIDs, scores, winners, byes, and forfeits.
 
 ### Drop handling
 

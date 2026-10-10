@@ -109,6 +109,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
 
   const selectedIndex = visibleEntries.findIndex(entry => entry.key === selectedKey);
   const selectedEntry = selectedIndex >= 0 ? visibleEntries[selectedIndex] : (visibleEntries[0] ?? null);
+  const noDraw = !!selectedEntry?.match.bracketNodeId;
   const pendingCount = matchEntries.filter(entry => entry.match.result === 'pending').length;
   const visiblePendingCount = visibleEntries.filter(entry => entry.match.result === 'pending').length;
   const activeGroupCount = groupOptions.length;
@@ -231,7 +232,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
         moveSelection(1);
-      } else if (event.key.toLowerCase() === 'd') {
+      } else if (event.key.toLowerCase() === 'd' && !noDraw) {
         event.preventDefault();
         applyResult('draw', 0, 0);
       } else if (shortcutOption) {
@@ -547,13 +548,16 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                     {isEnglish ? 'Detailed result' : '详细赛果'}
                   </span>
                   <span className="text-[10px] text-slate-500">
-                    {isEnglish ? 'D = double loss · arrow keys switch match' : 'D = 双负 · 方向键切换比赛'}
+                    {noDraw
+                      ? (isEnglish ? 'Arrow keys switch match' : '方向键切换比赛')
+                      : (isEnglish ? 'D = double loss · arrow keys switch match' : 'D = 双负 · 方向键切换比赛')}
                   </span>
                 </div>
                 <ResultButtons
                   gameType={selectedGameType}
                   isEnglish={isEnglish}
                   playoff={!!selectedEntry.match.isPlayoff}
+                  noDraw={noDraw}
                   shortcutFor={(result, player1Games, player2Games) =>
                     buildQuickScoreOptions(selectedGameType).find(option =>
                       option.result === result

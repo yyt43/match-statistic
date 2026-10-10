@@ -25,6 +25,7 @@ import { DropoutManager } from '../players/DropoutManager';
 import { PlayerManagerList } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
 import { resolveRoundUndoMode } from './roundUndoMode';
+import { EliminationBracketConfirmModal } from './EliminationBracketConfirmModal';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -71,6 +72,7 @@ export function ControlPanel({
     competition,
     startTournament,
     startAllGroups,
+    confirmEliminationBracketsAndStartAll,
     generateNextRound,
     generateNextRoundAllGroups,
     undoLastRound,
@@ -95,7 +97,8 @@ export function ControlPanel({
   const [showResultImport, setShowResultImport] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
-  const [isEditingName, setIsEditingName] = useState(false);  const [showFormatManager, setShowFormatManager] = useState(setupLayout);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [showFormatManager, setShowFormatManager] = useState(setupLayout);
   const [showPlayerManager, setShowPlayerManager] = useState(true);
   const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
   const [draftGameType, setDraftGameType] = useState<GameType>(currentGroup.gameType);
@@ -109,6 +112,8 @@ export function ControlPanel({
     normalizeTiebreakRules(currentGroup.tiebreakRules, currentGroup.gameType)
   );
   const [startConfirmTarget, setStartConfirmTarget] = useState<'single' | 'all' | null>(null);
+  const [bracketConfirmIndices, setBracketConfirmIndices] = useState<number[] | null>(null);
+  const [bracketConfirmAll, setBracketConfirmAll] = useState(false);
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
   const [editGroupNameValue, setEditGroupNameValue] = useState('');
   // 数字输入框字符串缓冲（允许清空编辑中间态）
@@ -1100,8 +1105,26 @@ export function ControlPanel({
           : '请确认以下赛事信息。确认后将锁定选手档案并生成第一轮对阵。'}
         confirmText={isEnglish ? 'Confirm and start' : '确认并开始比赛'}
         onConfirm={() => {
-          if (startConfirmTarget === 'all') {
-            startAllGroups();
+          const target = startConfirmTarget;
+          setStartConfirmTarget(null);
+          if (target === 'all') {
+            const eliminationIndices = competition.groups
+              .map((group, index) => ({ group, index }))
+              .filter(({ group }) =>
+                group.pairingType === 'single_elimination'
+                && group.status === 'setup'
+                && group.players.length >= 2
+              )
+              .map(({ index }) => index);
+            if (eliminationIndices.length > 0) {
+              setBracketConfirmAll(true);
+              setBracketConfirmIndices(eliminationIndices);
+            } else {
+              startAllGroups();
+            }
+          } else if (currentGroup.pairingType === 'single_elimination') {
+            setBracketConfirmAll(false);
+            setBracketConfirmIndices([competition.currentGroupIndex]);
           } else {
             startTournament(currentGroup.totalRounds);
           }
@@ -1192,6 +1215,27 @@ export function ControlPanel({
           </div>
         </div>
       </ConfirmDialog>
+
+      <EliminationBracketConfirmModal
+        isOpen={bracketConfirmIndices !== null}
+        onClose={() => setBracketConfirmIndices(null)}
+        groupIndices={bracketConfirmIndices ?? []}
+        title={bracketConfirmIndices && bracketConfirmIndices.length > 1
+          ? (isEnglish ? 'Confirm all elimination brackets' : '确认全部单败签表')
+          : (isEnglish ? 'Confirm elimination bracket' : '确认单败签表')}
+        confirmLabel={bracketConfirmIndices && bracketConfirmIndices.length > 1
+          ? (isEnglish ? 'Confirm all and start' : '确认全部并开始')
+          : (isEnglish ? 'Confirm and start' : '确认并开始')}
+        onConfirm={() => {
+          if (!bracketConfirmIndices) return;
+          if (bracketConfirmAll) {
+            confirmEliminationBracketsAndStartAll(bracketConfirmIndices);
+          } else {
+            useTournamentStore.getState().confirmEliminationBracket(bracketConfirmIndices[0]);
+          }
+          setBracketConfirmIndices(null);
+        }}
+      />
 
       {/* 备份管理面板 */}
       <BackupManager

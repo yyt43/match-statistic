@@ -14,7 +14,7 @@ import {
   getPlayerSchemaId,
 } from '../playerProfiles';
 
-export const CURRENT_STORAGE_VERSION = 6;
+export const CURRENT_STORAGE_VERSION = 7;
 
 type Migration = (competition: TournamentCompetition) => TournamentCompetition;
 
@@ -70,6 +70,10 @@ const migrations: Record<number, Migration> = {
       groups: competition.groups.map(migrateGroup),
     };
   },
+
+  // Version 7 introduced the fixed single-elimination bracket. Existing
+  // tournaments intentionally keep no bracket and continue on the legacy path.
+  6: competition => competition,
 };
 
 export function migrateCompetitionData(
