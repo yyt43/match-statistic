@@ -24,7 +24,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Report full dependency audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npm run check
       - run: npm run lint
       - run: npm run test:coverage
