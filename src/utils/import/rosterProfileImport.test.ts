@@ -17,6 +17,21 @@ describe('roster profile column detection', () => {
       participantCode: '选手编号',
       uid: '你的原神UID',
       qq: 'QQ号',
+      groupName: undefined,
+    });
+  });
+
+  it('detects a group column from common roster headers', () => {
+    expect(detectRosterColumns([
+      '游戏昵称',
+      '分组',
+      'UID',
+    ])).toEqual({
+      name: '游戏昵称',
+      participantCode: undefined,
+      uid: 'UID',
+      qq: undefined,
+      groupName: '分组',
     });
   });
 
@@ -99,6 +114,29 @@ describe('roster profile column detection', () => {
 
     expect(rows.map(row => row.groupName)).toEqual(['A组', 'B组']);
     expect(rows.map(row => row.name)).toEqual(['同名选手', '同名选手']);
+  });
+
+  it('uses a group column when one worksheet contains several groups', () => {
+    const rows = parseRosterProfilesFromSheets([
+      {
+        name: '选手名单',
+        rows: [
+          ['选手编号', '游戏昵称', '分组', 'UID'],
+          ['A01', '甲选手', 'A组', '180748058'],
+          ['B01', '乙选手', 'B组', '338916899'],
+        ],
+      },
+    ], {
+      name: '游戏昵称',
+      participantCode: '选手编号',
+      uid: 'UID',
+      groupName: '分组',
+    });
+
+    expect(rows.map(row => [row.groupName, row.name])).toEqual([
+      ['A组', '甲选手'],
+      ['B组', '乙选手'],
+    ]);
   });
 
   it('skips a registration summary sheet before importing group sheets', () => {

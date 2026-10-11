@@ -70,6 +70,12 @@ describe('player profile store actions', () => {
 
   it('fills only missing participant codes and preserves existing codes', () => {
     const competition = createNewCompetition('Profiles', 2, 3, 3, 'bo3');
+    competition.groups[0].players.forEach(player => {
+      player.participantCode = '';
+    });
+    competition.groups[1].players.forEach(player => {
+      player.participantCode = '';
+    });
     competition.groups[0].players[0].participantCode = 'A01';
     competition.groups[0].players[2].participantCode = 'A03';
     competition.groups[1].players[0].participantCode = 'B02';
@@ -91,6 +97,33 @@ describe('player profile store actions', () => {
     ]);
   });
 
+  it('creates new groups from worksheet names when only one group exists', () => {
+    const competition = createNewCompetition('Profiles', 1, 2, 3, 'bo5');
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().importPlayerProfiles([
+      { name: '甲一', groupName: 'A组', participantCode: 'A01' },
+      { name: '甲二', groupName: 'A组', participantCode: 'A02' },
+      { name: '乙一', groupName: 'B组', participantCode: 'B01' },
+      { name: '乙二', groupName: 'B组', participantCode: 'B02' },
+      { name: '丙一', groupName: 'C组', participantCode: 'C01' },
+      { name: '丙二', groupName: 'C组', participantCode: 'C02' },
+      { name: '丁一', groupName: 'D组', participantCode: 'D01' },
+      { name: '丁二', groupName: 'D组', participantCode: 'D02' },
+    ]);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups).toHaveLength(4);
+    expect(updated.groups.map(group => group.name)).toEqual(['A组', 'B组', 'C组', 'D组']);
+    expect(updated.groups.map(group => group.players.map(player => player.name))).toEqual([
+      ['甲一', '甲二'],
+      ['乙一', '乙二'],
+      ['丙一', '丙二'],
+      ['丁一', '丁二'],
+    ]);
+    expect(updated.groups.map(group => group.gameType)).toEqual(['bo5', 'bo5', 'bo5', 'bo5']);
+  });
+
   it('does not start a tournament while roster validation fails', () => {
     const competition = createNewCompetition('Profiles', 1, 2, 3, 'bo3');
     competition.groups[0].players[0].participantCode = '';
@@ -108,6 +141,8 @@ describe('player profile store actions', () => {
     competition.groups[0].players.forEach((player, index) => {
       if (index < 32) {
         player.participantCode = `A${String(index + 1).padStart(2, '0')}`;
+      } else {
+        player.participantCode = '';
       }
     });
     useTournamentStore.setState({ competition });

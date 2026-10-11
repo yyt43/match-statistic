@@ -14,6 +14,7 @@ export interface RosterColumnChoices {
   participantCode?: string;
   uid?: string;
   qq?: string;
+  groupName?: string;
 }
 
 export interface RosterWorkbookColumns {
@@ -27,6 +28,7 @@ const ALIASES: Record<keyof RosterColumnChoices, string[]> = {
   participantCode: ['选手编号', '参赛编号', '编号', 'code', 'playercode'],
   uid: ['uid', '玩家uid', '游戏uid', '游戏 uid'],
   qq: ['qq号', 'qq', '联系qq'],
+  groupName: ['小组', '分组', '组别', '赛道', 'group', 'division'],
 };
 
 const RESULT_COLLECTION_HEADERS = ['比分', '截图', '提交时间', '提交者'];
@@ -67,6 +69,7 @@ export function detectRosterColumns(headers: string[]): RosterColumnChoices {
     participantCode: detect(headers, ALIASES.participantCode),
     uid: detect(headers, ALIASES.uid),
     qq: detect(headers, ALIASES.qq),
+    groupName: detect(headers, ALIASES.groupName),
   };
 }
 
@@ -85,7 +88,13 @@ function rowsWithHeaders(sheet: ParsedWorkbookSheet): {
 } {
   const arrayRows = sheet.rows.filter(Array.isArray) as unknown[][];
   const headerAliases = Object.values(ALIASES).flat().map(normalize);
-  const first = arrayRows.find(row => row.some(value => {
+  const first = arrayRows.find(row => {
+    const matches = row.filter(value => {
+      const cell = normalize(String(value ?? ''));
+      return headerAliases.some(alias => cell === alias || cell.includes(alias));
+    });
+    return matches.length >= 2;
+  }) ?? arrayRows.find(row => row.some(value => {
     const cell = normalize(String(value ?? ''));
     return headerAliases.some(alias => cell === alias || cell.includes(alias));
   })) ?? arrayRows.find(row => row.some(value => String(value ?? '').trim()));
@@ -144,6 +153,7 @@ export function parseRosterProfilesFromSheets(
       ),
       uid: resolveColumnForSheet(sheet.headers, columns.uid, ALIASES.uid),
       qq: resolveColumnForSheet(sheet.headers, columns.qq, ALIASES.qq),
+      groupName: resolveColumnForSheet(sheet.headers, columns.groupName, ALIASES.groupName),
     };
     if (!sheetColumns.name) continue;
     const parsedRows: RosterProfileImportRow[] = [];
@@ -157,7 +167,9 @@ export function parseRosterProfilesFromSheets(
       if (qq) profile.qq = qq;
       parsedRows.push({
         name,
-        groupName: sheet.name,
+        groupName: columns.groupName && sheetColumns.groupName
+          ? row[sheetColumns.groupName]?.trim() || sheet.name
+          : sheet.name,
         participantCode: sheetColumns.participantCode
           ? row[sheetColumns.participantCode]?.trim() ?? ''
           : '',

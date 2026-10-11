@@ -77,11 +77,14 @@ export function RosterProfilePanel() {
     const result = importPlayerProfiles(rows);
     const finalCompetition = useTournamentStore.getState().competition;
     const finalSummary = validateRoster(finalCompetition);
-    const importedGroupCount = new Set(
-      rows
-        .map(row => row.groupName?.trim())
-        .filter((name): name is string => !!name)
-    ).size || finalCompetition.groups.length;
+    const importedGroupCount = finalCompetition.groups.filter(group =>
+      group.players.some(player =>
+        rows.some(row =>
+          (row.id && row.id === player.id)
+          || (!row.id && row.name.trim() === player.name.trim())
+        )
+      )
+    ).length || finalCompetition.groups.length;
     const missingCodes = finalSummary.issues.filter(
       issue => issue.code === 'MISSING_PARTICIPANT_CODE'
     ).length;
@@ -135,6 +138,7 @@ export function RosterProfilePanel() {
     ['participantCode', isEnglish ? 'Participant code' : '选手编号'],
     ['uid', 'UID'],
     ['qq', 'QQ'],
+    ['groupName', isEnglish ? 'Group' : '小组'],
   ] as const;
 
   return (

@@ -13,14 +13,19 @@ export function createNewGroup(
   rounds: number = 5,
   gameType: GameType = 'bo1',
   pairingType: PairingType = 'swiss',
-  startPlayerIndex: number = 1
+  startPlayerIndex: number = 1,
+  participantPrefix?: string
 ): TournamentGroup {
   const playerNames: string[] = [];
+  const prefix = participantPrefix?.trim().toUpperCase();
   for (let i = 0; i < playerCount; i++) {
     playerNames.push(`选手${String(startPlayerIndex + i).padStart(3, '0')}`);
   }
 
-  const players = createPlayersFromNames(playerNames);
+  const players = createPlayersFromNames(playerNames).map((player, index) => ({
+    ...player,
+    participantCode: prefix ? `${prefix}${String(index + 1).padStart(2, '0')}` : undefined,
+  }));
   const totalRounds = pairingType === 'single_elimination'
     ? getSingleEliminationRounds(playerCount)
     : rounds;
@@ -53,7 +58,15 @@ export function createNewCompetition(
   const groups: TournamentGroup[] = [];
   for (let i = 0; i < groupCount; i++) {
     const startIdx = i * playerCountPerGroup + 1;
-    groups.push(createNewGroup(`小组${String(i + 1).padStart(2, '0')}`, playerCountPerGroup, roundsPerGroup, gameType, pairingType, startIdx));
+    groups.push(createNewGroup(
+      `小组${String(i + 1).padStart(2, '0')}`,
+      playerCountPerGroup,
+      roundsPerGroup,
+      gameType,
+      pairingType,
+      startIdx,
+      String.fromCharCode(65 + i)
+    ));
   }
 
   return {
