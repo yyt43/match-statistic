@@ -387,7 +387,7 @@ export const translations = {
     onboardingPlayersTitle: '先准备选手名单',
     onboardingPlayersDesc: '可以逐个编辑选手，也可以从文本、Excel、CSV 或 TXT 批量导入。多 Sheet 工作簿会按 Sheet 名自动创建小组。',
     onboardingRankingTitle: '赛果会自动更新排名',
-    onboardingRankingDesc: '胜利、比分、双负、轮空和弃赛都会进入统一的排名计算，并保留比赛历史。',
+    onboardingRankingDesc: '胜利、比分、双负、轮空和弃赛都会进入统一的排名计算，并保留比赛历史；阵容完整后统一启动全部小组。',
     onboardingFlowTitle: '按轮次推进比赛',
     onboardingFlowDesc: '生成对阵、录入赛果并确认本轮完成。需要改判时，撤回按钮会按本轮是否已有赛果自动保留对阵或返回上一轮。',
     onboardingDemoTitle: '直接体验示例赛事',

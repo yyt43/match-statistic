@@ -2,6 +2,7 @@ import { Swords, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, Gr
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { RoundTabs } from '../competition/RoundTabs';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { formatRecordedDoubleLoss } from '../../utils/matchResult';
 import type { Match, MatchResult } from '../../types';
 import { useMemo, useState, useEffect } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
@@ -549,7 +550,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
                           )}
                           {match.result !== 'pending' && match.player1Id !== 'bye' && match.player1Games !== undefined && (
                             <div className="text-base font-bold mt-0.5">
-                              {match.player1Games}
+                              {match.result === 'draw' ? (match.player1Games ?? 0) : match.player1Games}
                             </div>
                           )}
                         </div>
@@ -561,6 +562,11 @@ export function MatchList({ testMode = false }: MatchListProps) {
                           {match.preDrop && getPreDropNote(match) && (
                             <div className="w-32 -mx-2 text-[9px] text-rose-400 text-center leading-tight bg-rose-500/10 border border-rose-500/20 rounded-md px-1.5 py-0.5">
                               {getPreDropNote(match)}
+                            </div>
+                          )}
+                          {match.result === 'draw' && !match.isBye && (
+                            <div className="w-32 -mx-2 text-center text-[9px] leading-tight text-orange-300">
+                              {formatRecordedDoubleLoss(match)}
                             </div>
                           )}
                         </div>

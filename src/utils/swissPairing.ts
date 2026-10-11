@@ -640,10 +640,18 @@ export function calculateAllWinRates(
         const tg1 = effTotalGames.get(match.player1Id)!;
         const wg2 = effWonGames.get(match.player2Id)!;
         const tg2 = effTotalGames.get(match.player2Id)!;
-        effWonGames.set(match.player1Id, wg1 + match.player1Games);
-        effTotalGames.set(match.player1Id, tg1 + match.player1Games + match.player2Games);
-        effWonGames.set(match.player2Id, wg2 + match.player2Games);
-        effTotalGames.set(match.player2Id, tg2 + match.player1Games + match.player2Games);
+        if (match.result === 'draw') {
+          const lossGames = Math.max(match.player1Games, match.player2Games);
+          effWonGames.set(match.player1Id, wg1);
+          effTotalGames.set(match.player1Id, tg1 + lossGames);
+          effWonGames.set(match.player2Id, wg2);
+          effTotalGames.set(match.player2Id, tg2 + lossGames);
+        } else {
+          effWonGames.set(match.player1Id, wg1 + match.player1Games);
+          effTotalGames.set(match.player1Id, tg1 + match.player1Games + match.player2Games);
+          effWonGames.set(match.player2Id, wg2 + match.player2Games);
+          effTotalGames.set(match.player2Id, tg2 + match.player1Games + match.player2Games);
+        }
       }
     }
   }

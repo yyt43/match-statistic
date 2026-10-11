@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import type { GameType } from '../../types';
+import { formatDoubleLoss, getDoubleLossScore } from '../../utils/matchResult';
 
 interface ResultButtonsProps {
   gameType: GameType;
@@ -93,8 +94,14 @@ export function ResultButtons({
           </button>
         </div>
         {!noDraw && (
-          <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-            {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+          <button
+            onClick={() => {
+              const score = getDoubleLossScore('bo1');
+              onResult('draw', score.player1Games, score.player2Games);
+            }}
+            className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30"
+          >
+            {formatDoubleLoss('bo1', isEnglish)}
           </button>
         )}
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
@@ -170,8 +177,14 @@ export function ResultButtons({
         </div>
       </div>
       {!noDraw && (
-        <button onClick={() => onResult('draw', 0, 0)} className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30">
-          {isEnglish ? 'Draw (0-0)' : '双负 (0-0)'}
+        <button
+          onClick={() => {
+            const score = getDoubleLossScore(gameType);
+            onResult('draw', score.player1Games, score.player2Games);
+          }}
+          className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30"
+        >
+          {formatDoubleLoss(gameType, isEnglish)}
         </button>
       )}
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">

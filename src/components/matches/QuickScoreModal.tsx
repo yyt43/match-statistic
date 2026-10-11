@@ -9,6 +9,7 @@ import { getRoundGameType } from '../../utils/swissPairing';
 import { ResultButtons } from './ResultButtons';
 import { buildQuickScoreOptions } from './quickScoreOptions';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
+import { formatRecordedDoubleLoss, getDoubleLossScore } from '../../utils/matchResult';
 
 interface QuickScoreModalProps {
   isOpen: boolean;
@@ -234,7 +235,8 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
         moveSelection(1);
       } else if (event.key.toLowerCase() === 'd' && !noDraw) {
         event.preventDefault();
-        applyResult('draw', 0, 0);
+        const score = getDoubleLossScore(gameType);
+        applyResult('draw', score.player1Games, score.player2Games);
       } else if (shortcutOption) {
         event.preventDefault();
         applyResult(
@@ -271,7 +273,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
         : '';
       return `${isEnglish ? 'Right win' : '右胜'}${score}`;
     }
-    if (entry.match.result === 'draw') return isEnglish ? 'Double loss' : '双负';
+    if (entry.match.result === 'draw') return formatRecordedDoubleLoss(entry.match, isEnglish);
     return isEnglish ? 'Pending' : '待录';
   };
 
@@ -477,7 +479,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                     }`}>
                       {isEnglish ? 'Recorded' : '已录'}{' '}
                       {selectedEntry.match.result === 'draw'
-                        ? '0-0'
+                        ? formatRecordedDoubleLoss(selectedEntry.match, isEnglish)
                         : `${selectedEntry.match.player1Games ?? 0}-${selectedEntry.match.player2Games ?? 0}`}
                     </span>
                   )}

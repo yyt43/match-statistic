@@ -135,7 +135,7 @@ const content: Record<AppLanguage, HelpCopy> = {
         items: [
           { keys: '1 / 2', description: '判定左侧或右侧选手直落获胜，例如 BO3 的 2-0。' },
           { keys: '3+', description: '按详细赛果按钮上的数字提示录入 2-1、3-1 等具体比分。' },
-          { keys: 'D', description: '记录双负。' },
+          { keys: 'D', description: '记录双负，按当前赛制记为双方均以 0-1、0-2、0-3 或 0-4 判负，并完整计入局分与对手网络。' },
           { keys: 'N', description: '跳到下一场待录比赛。' },
           { keys: '← / →', description: '切换上一场或下一场比赛。' },
         ],
@@ -153,7 +153,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     steps: [
       {
         title: '创建比赛',
-        items: ['设置赛事名称和小组数量。', '配置配对方式、比赛局数和轮次。', '导入或录入选手名单，并预览核对。', '单败淘汰确认完整签表后开始本组，或一键启动全部小组。'],
+        items: ['设置赛事名称和小组数量。', '配置配对方式、比赛局数和轮次。', '导入或录入选手名单，并预览核对。', '单败淘汰确认完整签表后，一键同时启动全部小组。'],
       },
       {
         title: '录入赛果',
@@ -267,7 +267,7 @@ const content: Record<AppLanguage, HelpCopy> = {
         items: [
           { keys: '1 / 2', description: 'Record a straight-set win for the left or right player, such as 2-0 in BO3.' },
           { keys: '3+', description: 'Use the number shown on a detailed result button to record scores such as 2-1 or 3-1.' },
-          { keys: 'D', description: 'Record a double-loss.' },
+          { keys: 'D', description: 'Record a double loss as the same maximum loss for both players (0-1, 0-2, 0-3, or 0-4), fully counted in game rates and opponent networks.' },
           { keys: 'N', description: 'Jump to the next pending match.' },
           { keys: '← / →', description: 'Switch to the previous or next match.' },
         ],
@@ -285,7 +285,7 @@ const content: Record<AppLanguage, HelpCopy> = {
     steps: [
       {
         title: 'Create the tournament',
-        items: ['Set the tournament name and number of groups.', 'Configure pairing type, match length, and rounds.', 'Import players or enter names, then verify the preview.', 'For elimination groups, confirm the full bracket before starting one group or all groups.'],
+        items: ['Set the tournament name and number of groups.', 'Configure pairing type, match length, and rounds.', 'Import players or enter names, then verify the preview.', 'For elimination groups, confirm every bracket, then start all groups together.'],
       },
       {
         title: 'Record results',

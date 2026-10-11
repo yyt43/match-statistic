@@ -1,5 +1,6 @@
 import type { Match, MatchResult, Player, TournamentGroup } from '../types';
 import { calculateAllWinRates, getRankedPlayers, getRoundGameType, generatePairings } from '../utils/swissPairing';
+import { normalizeResultScore } from '../utils/matchResult';
 import {
   createEliminationFirstRoundMatches,
   createEliminationNextRoundMatches,
@@ -64,6 +65,14 @@ export function applyMatchResultFast(
   if (matchIndex === -1) return group;
 
   const match = group.matches[matchIndex];
+  const normalizedScore = normalizeResultScore(
+    result,
+    getRoundGameType(group, match.round),
+    player1Games,
+    player2Games
+  );
+  const normalizedPlayer1Games = normalizedScore.player1Games;
+  const normalizedPlayer2Games = normalizedScore.player2Games;
   const oldResult = match.result;
   const oldPreDrop = !!match.preDrop;
 
@@ -132,6 +141,11 @@ export function applyMatchResultFast(
           p1.playedAgainst = p1.playedAgainst.filter(id => id !== p2Id);
           p2.playedAgainst = p2.playedAgainst.filter(id => id !== p1Id);
         }
+        if (!oldPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
+          const lossGames = Math.max(match.player1Games, match.player2Games);
+          p1.totalGames -= lossGames;
+          p2.totalGames -= lossGames;
+        }
         if (isSingleElimination) { p1.eliminated = false; p2.eliminated = false; }
       }
     }
@@ -169,11 +183,11 @@ export function applyMatchResultFast(
           p2.dropped = true;
         }
         if (isSingleElimination) p2.eliminated = true;
-        if (!preDrop && player1Games !== undefined && player2Games !== undefined) {
-          p1.totalGames += player1Games + player2Games;
-          p1.wonGames += player1Games;
-          p2.totalGames += player1Games + player2Games;
-          p2.wonGames += player2Games;
+        if (!preDrop && normalizedPlayer1Games !== undefined && normalizedPlayer2Games !== undefined) {
+          p1.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+          p1.wonGames += normalizedPlayer1Games;
+          p2.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+          p2.wonGames += normalizedPlayer2Games;
         }
       } else if (result === 'player2') {
         p2.points += 1;
@@ -186,11 +200,11 @@ export function applyMatchResultFast(
           p1.dropped = true;
         }
         if (isSingleElimination) p1.eliminated = true;
-        if (!preDrop && player1Games !== undefined && player2Games !== undefined) {
-          p1.totalGames += player1Games + player2Games;
-          p1.wonGames += player1Games;
-          p2.totalGames += player1Games + player2Games;
-          p2.wonGames += player2Games;
+        if (!preDrop && normalizedPlayer1Games !== undefined && normalizedPlayer2Games !== undefined) {
+          p1.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+          p1.wonGames += normalizedPlayer1Games;
+          p2.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+          p2.wonGames += normalizedPlayer2Games;
         }
       } else if (result === 'draw') {
         p1.losses += 1;
@@ -199,13 +213,24 @@ export function applyMatchResultFast(
           p1.playedAgainst.push(p2Id);
           p2.playedAgainst.push(p1Id);
         }
+        if (!preDrop && normalizedPlayer1Games !== undefined && normalizedPlayer2Games !== undefined) {
+          const lossGames = Math.max(normalizedPlayer1Games, normalizedPlayer2Games);
+          p1.totalGames += lossGames;
+          p2.totalGames += lossGames;
+        }
         if (isSingleElimination) { p1.eliminated = true; p2.eliminated = true; }
       }
     }
   }
 
   const updatedMatches = [...group.matches];
-  updatedMatches[matchIndex] = { ...match, result, player1Games, player2Games, preDrop: !!preDrop };
+  updatedMatches[matchIndex] = {
+    ...match,
+    result,
+    player1Games: normalizedPlayer1Games,
+    player2Games: normalizedPlayer2Games,
+    preDrop: !!preDrop,
+  };
 
   const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
   const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');

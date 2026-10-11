@@ -396,7 +396,7 @@ export function ControlPanel({
             className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
           >
             <Play className="h-3.5 w-3.5" />
-            {isEnglish ? 'Start all groups' : '全部小组开赛'}
+            {isEnglish ? 'Start all groups' : '全部小组同时开赛'}
           </button>
         </section>
       )}
