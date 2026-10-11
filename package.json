@@ -1,7 +1,7 @@
 {
   "name": "match-statistic",
   "private": false,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Swiss / playoff tournament manager for card games and small competitive events, with ranking, Excel import, and GitHub Pages deployment.",
   "author": "ShiyiPai",
   "license": "MIT",
@@ -36,6 +36,8 @@
     "deploy": "npm run build && gh-pages -d dist",
     "generate:icons": "node scripts/generate-icons.mjs",
     "generate:readme": "node scripts/generate-readme-assets.mjs",
+    "release:sync": "node scripts/sync-release-metadata.mjs",
+    "release:check": "node scripts/sync-release-metadata.mjs --check",
     "smoke": "node scripts/browser-smoke.mjs",
     "smoke:offline": "node scripts/offline-smoke.mjs",
     "test": "vitest run",
