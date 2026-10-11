@@ -70,7 +70,6 @@ export function ControlPanel({
   const isEnglish = language === 'en';
   const {
     competition,
-    startTournament,
     startAllGroups,
     confirmEliminationBracketsAndStartAll,
     generateNextRound,
@@ -391,26 +390,14 @@ export function ControlPanel({
                 : `还有 ${rosterValidation.issues.length} 项选手档案异常，处理后才能开赛。`}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setStartConfirmTarget('single')}
-              disabled={!rosterValidation.valid}
-              className="flex items-center justify-center gap-1 rounded-lg border border-gold-500/30 bg-gold-500/15 px-2 py-2 text-[10px] font-medium text-gold-400 transition-colors hover:bg-gold-500/25 disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              <Play className="h-3.5 w-3.5" />
-              {isEnglish ? 'Start group' : '本组开赛'}
-            </button>
-            {competition.groups.length > 1 && (
-              <button
-                onClick={() => setStartConfirmTarget('all')}
-                disabled={!rosterValidation.valid}
-                className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <Play className="h-3.5 w-3.5" />
-                {isEnglish ? 'Start all' : '全部开赛'}
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => setStartConfirmTarget('all')}
+            disabled={!rosterValidation.valid}
+            className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <Play className="h-3.5 w-3.5" />
+            {isEnglish ? 'Start all groups' : '全部小组开赛'}
+          </button>
         </section>
       )}
 
@@ -1105,28 +1092,20 @@ export function ControlPanel({
           : '请确认以下赛事信息。确认后将锁定选手档案并生成第一轮对阵。'}
         confirmText={isEnglish ? 'Confirm and start' : '确认并开始比赛'}
         onConfirm={() => {
-          const target = startConfirmTarget;
           setStartConfirmTarget(null);
-          if (target === 'all') {
-            const eliminationIndices = competition.groups
-              .map((group, index) => ({ group, index }))
-              .filter(({ group }) =>
-                group.pairingType === 'single_elimination'
-                && group.status === 'setup'
-                && group.players.length >= 2
-              )
-              .map(({ index }) => index);
-            if (eliminationIndices.length > 0) {
-              setBracketConfirmAll(true);
-              setBracketConfirmIndices(eliminationIndices);
-            } else {
-              startAllGroups();
-            }
-          } else if (currentGroup.pairingType === 'single_elimination') {
-            setBracketConfirmAll(false);
-            setBracketConfirmIndices([competition.currentGroupIndex]);
+          const eliminationIndices = competition.groups
+            .map((group, index) => ({ group, index }))
+            .filter(({ group }) =>
+              group.pairingType === 'single_elimination'
+              && group.status === 'setup'
+              && group.players.length >= 2
+            )
+            .map(({ index }) => index);
+          if (eliminationIndices.length > 0) {
+            setBracketConfirmAll(true);
+            setBracketConfirmIndices(eliminationIndices);
           } else {
-            startTournament(currentGroup.totalRounds);
+            startAllGroups();
           }
         }}
       >
@@ -1139,13 +1118,11 @@ export function ControlPanel({
           </div>
 
           <div className="space-y-2">
-            {startConfirmTarget === 'all' && (
-              <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-[11px] text-slate-400">
-                {isEnglish
-                  ? `${competition.groups.length} groups total, ${startableGroupCount} ready to start.`
-                  : `共 ${competition.groups.length} 个小组，其中 ${startableGroupCount} 个将开始比赛。`}
-              </div>
-            )}
+            <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-[11px] text-slate-400">
+              {isEnglish
+                ? `${competition.groups.length} groups total, ${startableGroupCount} ready to start together.`
+                : `共 ${competition.groups.length} 个小组，其中 ${startableGroupCount} 个将同时开始比赛。`}
+            </div>
             {groupsForStart.map(group => {
               const roundTypes = fitRoundGameTypes(
                 group.roundGameTypes,

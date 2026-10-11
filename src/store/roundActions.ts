@@ -23,11 +23,18 @@ export function startTournamentForGroup(
 }
 
 export function startAllGroupsInCompetition(competition: TournamentCompetition): TournamentCompetition {
+  const groupsToStart = competition.groups.filter(group => group.status === 'setup');
+  if (groupsToStart.some(group => group.players.length < 2)) {
+    return competition;
+  }
+  if (groupsToStart.some(group =>
+    group.pairingType === 'single_elimination' && !group.eliminationBracket?.lockedAt
+  )) {
+    return competition;
+  }
+
   const updatedGroups = competition.groups.map(group => {
     if (group.status !== 'setup' || group.players.length < 2) return group;
-    if (group.pairingType === 'single_elimination' && !group.eliminationBracket?.lockedAt) {
-      return group;
-    }
     const rounds = group.pairingType === 'single_elimination'
       ? getSingleEliminationRounds(group.players.length)
       : group.totalRounds;

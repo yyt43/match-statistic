@@ -417,6 +417,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   startTournament: (totalRounds: number) => {
     const { competition } = get();
+    if (competition.groups.length > 1) {
+      get().startAllGroups();
+      return;
+    }
     const idx = competition.currentGroupIndex;
     if (!validateRoster(competition).valid) return;
     const currentGroup = competition.groups[idx];
