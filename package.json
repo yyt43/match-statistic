@@ -36,6 +36,8 @@
     "deploy": "npm run build && gh-pages -d dist",
     "generate:icons": "node scripts/generate-icons.mjs",
     "generate:readme": "node scripts/generate-readme-assets.mjs",
+    "release:sync": "node scripts/sync-release-metadata.mjs",
+    "release:check": "node scripts/sync-release-metadata.mjs --check",
     "smoke": "node scripts/browser-smoke.mjs",
     "smoke:offline": "node scripts/offline-smoke.mjs",
     "test": "vitest run",
