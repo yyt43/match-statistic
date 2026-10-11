@@ -139,8 +139,8 @@ try {
   if (settingsScrollerHeight < 180) {
     throw new Error(`Player list area is too short: ${settingsScrollerHeight}px`);
   }
-  const startGroupButton = page.getByRole('button', { name: /^Start group/ });
-  const startButtonInScroller = await startGroupButton.evaluate(button =>
+  const startAllGroupsButton = page.getByRole('button', { name: /^Start all groups/ });
+  const startButtonInScroller = await startAllGroupsButton.evaluate(button =>
     Boolean(button.closest('.overflow-y-auto.p-4.space-y-4'))
   );
   if (startButtonInScroller) {
@@ -154,7 +154,7 @@ try {
   await applyAll.waitFor({ state: 'visible' });
   await applyCurrent.click();
 
-  await startGroupButton.click();
+  await startAllGroupsButton.click();
   await waitForText(page, 'Confirm tournament information');
   const startDialog = page.getByRole('dialog').filter({ hasText: 'Confirm tournament information' });
   if (!(await startDialog.innerText()).includes('BO3')) {

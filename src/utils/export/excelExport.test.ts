@@ -80,4 +80,31 @@ describe('excel export data', () => {
     expect(zh.rows[0]).toEqual([1, 'A01', 'Alice', '180748058', '1-0', 'A02', 'Bob', '338916899', '选手1胜']);
     expect(en.rows[0]).toEqual([1, 'A01', 'Alice', '180748058', '1-0', 'A02', 'Bob', '338916899', 'Player 1 win']);
   });
+
+  it('exports the actual double-loss score and the precise double-loss label', () => {
+    const group = createGroup();
+    group.gameType = 'bo3';
+    group.roundGameTypes = ['bo3'];
+    group.matches[0] = {
+      ...group.matches[0],
+      result: 'draw',
+      player1Games: 2,
+      player2Games: 2,
+    };
+
+    const zh = getMatchTableData(group, 1, 'zh');
+    const en = getMatchTableData(group, 1, 'en');
+
+    expect(zh.rows[0][4]).toBe('2-2');
+    expect(zh.rows[0][8]).toBe('双负（双方均以0-2判负）');
+    expect(en.rows[0][4]).toBe('2-2');
+    expect(en.rows[0][8]).toBe('Double loss (both ruled 0-2)');
+
+    const legacy = getMatchTableData({
+      ...group,
+      matches: [{ ...group.matches[0], player1Games: 0, player2Games: 0 }],
+    }, 1, 'zh');
+    expect(legacy.rows[0][4]).toBe('0-0');
+    expect(legacy.rows[0][8]).toBe('双负（旧口径0-0）');
+  });
 });

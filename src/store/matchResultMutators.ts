@@ -1,4 +1,5 @@
-import type { Match, MatchResult, Player } from '../types';
+import type { GameType, Match, MatchResult, Player } from '../types';
+import { getDoubleLossGames, normalizeResultScore } from '../utils/matchResult';
 
 export function revertMatchResult(
   playerMap: Map<string, Player>,
@@ -75,10 +76,16 @@ export function revertMatchResult(
   }
 
   if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-    p1.totalGames -= match.player1Games + match.player2Games;
-    p1.wonGames -= match.player1Games;
-    p2.totalGames -= match.player1Games + match.player2Games;
-    p2.wonGames -= match.player2Games;
+    if (res === 'draw') {
+      const lossGames = getDoubleLossGames(match) ?? 0;
+      p1.totalGames -= lossGames;
+      p2.totalGames -= lossGames;
+    } else {
+      p1.totalGames -= match.player1Games + match.player2Games;
+      p1.wonGames -= match.player1Games;
+      p2.totalGames -= match.player1Games + match.player2Games;
+      p2.wonGames -= match.player2Games;
+    }
   }
 }
 
@@ -89,7 +96,8 @@ export function applyMatchResultToMap(
   isPreDrop: boolean,
   isSingleElimination: boolean,
   player1Games?: number,
-  player2Games?: number
+  player2Games?: number,
+  gameType: GameType = 'bo1'
 ): void {
   const isPlayoff = !!match.isPlayoff;
   const p1Id = match.player1Id;
@@ -158,10 +166,20 @@ export function applyMatchResultToMap(
     }
   }
 
-  if (!isPreDrop && player1Games !== undefined && player2Games !== undefined) {
-    p1.totalGames += player1Games + player2Games;
-    p1.wonGames += player1Games;
-    p2.totalGames += player1Games + player2Games;
-    p2.wonGames += player2Games;
+  const normalizedScore = normalizeResultScore(res, gameType, player1Games, player2Games);
+  const normalizedPlayer1Games = normalizedScore.player1Games;
+  const normalizedPlayer2Games = normalizedScore.player2Games;
+
+  if (!isPreDrop && normalizedPlayer1Games !== undefined && normalizedPlayer2Games !== undefined) {
+    if (res === 'draw') {
+      const lossGames = Math.max(normalizedPlayer1Games, normalizedPlayer2Games);
+      p1.totalGames += lossGames;
+      p2.totalGames += lossGames;
+    } else {
+      p1.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+      p1.wonGames += normalizedPlayer1Games;
+      p2.totalGames += normalizedPlayer1Games + normalizedPlayer2Games;
+      p2.wonGames += normalizedPlayer2Games;
+    }
   }
 }

@@ -4,6 +4,7 @@ import { sortPlayers } from '../swissPairing';
 import { translations, formatText, type AppLanguage } from '../../i18n/data';
 import { writeExcelWorkbook, type ExcelExportOptions } from './excelWorkbook';
 import { buildEliminationBracketExportRows } from '../elimination';
+import { formatRecordedDoubleLoss } from '../matchResult';
 
 type TranslationTable = Record<keyof typeof translations['zh'], string>;
 
@@ -31,7 +32,9 @@ function getPlayerUid(players: Player[], playerId: string): string {
 function getMatchScore(match: Match): string {
   if (match.isBye) return '-';
   if (match.result === 'pending') return 'VS';
-  if (match.result === 'draw') return '0-0';
+  if (match.result === 'draw') {
+    return `${match.player1Games ?? 0}-${match.player2Games ?? 0}`;
+  }
   if (match.player1Games !== undefined && match.player2Games !== undefined) {
     return `${match.player1Games}-${match.player2Games}`;
   }
@@ -40,10 +43,12 @@ function getMatchScore(match: Match): string {
   return '';
 }
 
-function getMatchResultText(match: Match, t: TranslationTable): string {
+function getMatchResultText(match: Match, t: TranslationTable, language: AppLanguage): string {
   if (match.isBye) return t.byeResult;
   if (match.result === 'pending') return t.pendingResult;
-  if (match.result === 'draw') return t.drawResult;
+  if (match.result === 'draw') {
+    return formatRecordedDoubleLoss(match, language === 'en');
+  }
   if (match.result === 'player1') return t.player1Win;
   if (match.result === 'player2') return t.player2Win;
   return '';
@@ -58,7 +63,9 @@ function formatPlayerMatchHistoryTextI18n(player: Player, matches: Match[], t: T
     .map(m => {
       if (m.isBye) return t.byeResult;
       if (m.result === 'pending') return t.pendingResult;
-      if (m.result === 'draw') return t.drawResult;
+      if (m.result === 'draw') {
+        return formatRecordedDoubleLoss(m);
+      }
       if (m.result === 'player1') return m.player1Id === player.id ? 'W' : 'L';
       if (m.result === 'player2') return m.player2Id === player.id ? 'W' : 'L';
       return '';
@@ -189,7 +196,7 @@ export function getMatchTableData(group: TournamentGroup, round: number, languag
     match.isBye ? '' : getPlayerCode(group.players, match.player2Id),
     match.isBye ? '-' : getPlayerName(group.players, match.player2Id, t),
     match.isBye ? '' : getPlayerUid(group.players, match.player2Id),
-    getMatchResultText(match, t),
+    getMatchResultText(match, t, language),
   ]);
 
   return { headers, rows };

@@ -244,7 +244,7 @@ The quick-score list and selected-match header display the recorded left-right s
 - Ranking rules: use the default format preset or configure a custom tiebreak chain
   - BO1: wins -> SOS -> SOSOS
   - BO3 / BO5 / BO7: wins -> SOS -> player game win rate -> opponent game win rate
-- Draws: supported in Swiss and regular pairings; a fixed elimination bracket forbids double-loss results and every match must produce an advancing winner
+- Double losses: supported in Swiss and regular pairings; new entries are recorded as a symmetric maximum loss for both players (`0-1`, `0-2`, `0-3`, or `0-4`) and count fully in game rates and opponent networks. Existing `0:0` entries remain unchanged and are marked as the legacy format. A fixed elimination bracket forbids double-loss results and every match must produce an advancing winner
 
 ### Fixed elimination brackets
 

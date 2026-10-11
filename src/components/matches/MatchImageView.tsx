@@ -3,6 +3,7 @@ import type { Match } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
+import { getDoubleLossGames } from '../../utils/matchResult';
 
 export function MatchImageView() {
   const currentGroup = useCurrentGroup();
@@ -31,7 +32,10 @@ export function MatchImageView() {
     if (match.isBye) {
       return playerNum === 1 ? String(match.player1Games ?? 1) : '0';
     }
-    if (match.result === 'draw') return '0';
+    if (match.result === 'draw') {
+      const score = getDoubleLossGames(match) ?? 0;
+      return String(score);
+    }
     if (isMultiGame && match.player1Games !== undefined && match.player2Games !== undefined) {
       return playerNum === 1 ? String(match.player1Games) : String(match.player2Games);
     }

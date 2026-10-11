@@ -31,6 +31,7 @@ import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupA
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 import { createNewCompetition } from './tournamentFactory';
 import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
+import { normalizeResultScore } from '../utils/matchResult';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
 import { createCompetitionActions } from './actions/competitionActions';
 import { createSnapshotActions } from './actions/snapshotActions';
@@ -151,10 +152,16 @@ function rollbackRoundPlayerStats(
     }
 
     if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
-      p1.totalGames -= match.player1Games + match.player2Games;
-      p1.wonGames -= match.player1Games;
-      p2.totalGames -= match.player1Games + match.player2Games;
-      p2.wonGames -= match.player2Games;
+      if (match.result === 'draw') {
+        const lossGames = Math.max(match.player1Games, match.player2Games);
+        p1.totalGames -= lossGames;
+        p2.totalGames -= lossGames;
+      } else {
+        p1.totalGames -= match.player1Games + match.player2Games;
+        p1.wonGames -= match.player1Games;
+        p2.totalGames -= match.player1Games + match.player2Games;
+        p2.wonGames -= match.player2Games;
+      }
     }
   }
 
@@ -417,6 +424,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   startTournament: (totalRounds: number) => {
     const { competition } = get();
+    if (competition.groups.length > 1) {
+      get().startAllGroups();
+      return;
+    }
     const idx = competition.currentGroupIndex;
     if (!validateRoster(competition).valid) return;
     const currentGroup = competition.groups[idx];
@@ -974,6 +985,15 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       return;
     }
 
+    const normalizedScore = normalizeResultScore(
+      result,
+      getRoundGameType(storedGroup, storedMatch.round),
+      player1Games,
+      player2Games
+    );
+    const normalizedPlayer1Games = normalizedScore.player1Games;
+    const normalizedPlayer2Games = normalizedScore.player2Games;
+
     const playoffsCleared = hasPlayoffData(storedGroup)
       && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
     const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
@@ -990,15 +1010,24 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     }
 
     if (result !== 'pending') {
-      applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
+      applyMatchResultToMap(
+        playerMap,
+        match,
+        result,
+        !!preDrop,
+        isSingleElimination,
+        normalizedPlayer1Games,
+        normalizedPlayer2Games,
+        getRoundGameType(group, match.round)
+      );
     }
 
     let updatedMatches = [...group.matches];
     updatedMatches[matchIndex] = {
       ...match,
       result,
-      player1Games,
-      player2Games,
+      player1Games: normalizedPlayer1Games,
+      player2Games: normalizedPlayer2Games,
       preDrop: !!preDrop,
       resultSource: match.resultSource ?? 'manual',
     };
@@ -1124,6 +1153,15 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       return;
     }
 
+    const normalizedScore = normalizeResultScore(
+      result,
+      getRoundGameType(storedGroup, storedMatch.round),
+      player1Games,
+      player2Games
+    );
+    const normalizedPlayer1Games = normalizedScore.player1Games;
+    const normalizedPlayer2Games = normalizedScore.player2Games;
+
     const playoffsCleared = hasPlayoffData(storedGroup)
       && hasRegularResultChanged(storedMatch, result, player1Games, player2Games, preDrop);
     const group = playoffsCleared ? clearPlayoffs(storedGroup) : storedGroup;
@@ -1140,15 +1178,24 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     }
 
     if (result !== 'pending') {
-      applyMatchResultToMap(playerMap, match, result, !!preDrop, isSingleElimination, player1Games, player2Games);
+      applyMatchResultToMap(
+        playerMap,
+        match,
+        result,
+        !!preDrop,
+        isSingleElimination,
+        normalizedPlayer1Games,
+        normalizedPlayer2Games,
+        getRoundGameType(group, match.round)
+      );
     }
 
     let updatedMatches = [...group.matches];
     updatedMatches[matchIndex] = {
       ...match,
       result,
-      player1Games,
-      player2Games,
+      player1Games: normalizedPlayer1Games,
+      player2Games: normalizedPlayer2Games,
       preDrop: !!preDrop,
       resultSource: match.resultSource ?? 'manual',
     };
