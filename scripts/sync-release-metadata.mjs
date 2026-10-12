@@ -54,8 +54,11 @@ for (const file of metadataFiles) {
 
 const changelogPath = resolve(root, 'CHANGELOG.md');
 const changelog = readFileSync(changelogPath, 'utf8');
-const versionHeading = new RegExp(`^## \\[${version.replace(/\./g, '\\.')}\\]`, 'm');
-if (!versionHeading.test(changelog)) {
+const expectedVersionHeading = `## [${version}]`;
+const hasVersionHeading = changelog
+  .split(/\r?\n/)
+  .some(line => line.trim().startsWith(expectedVersionHeading));
+if (!hasVersionHeading) {
   updates.push(`CHANGELOG.md 缺少 ${releaseTag} 条目`);
 }
 
