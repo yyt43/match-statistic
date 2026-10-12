@@ -25,7 +25,9 @@ const checks = [
   {
     name: 'total gzip',
     actual: totalGzip,
-    limit: 440 * 1024,
+    // 0.6.0 基线实测 436 KB；多阶段赛事与诗意杯 S3（晋级引擎、赛段设置页、规则说明）
+    // 增加约 28 KB，故将总量上限调到 480 KB，保留约 16 KB 余量。
+    limit: 480 * 1024,
   },
   {
     name: 'largest asset',
