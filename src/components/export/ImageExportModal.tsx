@@ -11,6 +11,7 @@ import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
+import { getGroupDisplayName } from '../../utils/multiStage';
 
 type ExportType = 'ranking' | 'match' | 'bracket';
 
@@ -219,7 +220,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
-                    {group.name}
+                    {getGroupDisplayName(competition, group)}
                   </button>
                 ))}
               </div>

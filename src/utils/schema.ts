@@ -86,24 +86,28 @@ function validateCompetitionPlayerIdentifiers(
   for (let groupIndex = 0; groupIndex < competition.groups.length; groupIndex += 1) {
     const group = asRecord(competition.groups[groupIndex]);
     if (!group || !Array.isArray(group.players)) continue;
+    // 多阶段赛事中同一名选手会在多个赛段出现，编号/UID 只在本赛段内要求唯一。
+    const scope = typeof group.stageId === 'string' ? group.stageId : '';
     for (let playerIndex = 0; playerIndex < group.players.length; playerIndex += 1) {
       const player = asRecord(group.players[playerIndex]);
       if (!player) continue;
       const code = typeof player.participantCode === 'string' ? player.participantCode.trim() : '';
       if (code) {
-        if (codes.has(code)) {
+        const scopedCode = `${scope}::${code}`;
+        if (codes.has(scopedCode)) {
           errors.push(`groups.${groupIndex}.players.${playerIndex}.participantCode: duplicate "${code}"`);
         } else {
-          codes.add(code);
+          codes.add(scopedCode);
         }
       }
       const profile = asRecord(player.profile);
       const uid = typeof profile?.uid === 'string' ? profile.uid.trim() : '';
       if (uid) {
-        if (uids.has(uid)) {
+        const scopedUid = `${scope}::${uid}`;
+        if (uids.has(scopedUid)) {
           errors.push(`groups.${groupIndex}.players.${playerIndex}.profile.uid: duplicate "${uid}"`);
         } else {
-          uids.add(uid);
+          uids.add(scopedUid);
         }
       }
     }

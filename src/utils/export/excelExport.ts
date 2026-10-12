@@ -1,10 +1,31 @@
 import type { Player, Match, GameType, PairingType, TournamentGroup } from '../../types';
+import type { FinalStandingPlace } from '../advancement';
+import type { StageAdvancementRecord } from '../../types';
 import { getEliminationTitleI18n, getEliminatedRound } from '../ranking';
 import { sortPlayers } from '../swissPairing';
 import { translations, formatText, type AppLanguage } from '../../i18n/data';
 import { writeExcelWorkbook, type ExcelExportOptions } from './excelWorkbook';
 import { buildEliminationBracketExportRows } from '../elimination';
 import { formatRecordedDoubleLoss } from '../matchResult';
+
+/** 多阶段赛事导出：工作表名可带赛段前缀，并可追加汇总工作表。 */
+export interface ExcelExportExtras {
+  groupLabel?: (group: TournamentGroup) => string;
+  extraSheets?: Array<{ name: string; rows: (string | number)[][] }>;
+}
+
+function getSheetLabel(group: TournamentGroup, extras?: ExcelExportExtras): string {
+  const label = extras?.groupLabel?.(group) ?? group.name;
+  // Excel 工作表名上限 31 个字符
+  return label.length > 24 ? label.slice(0, 24) : label;
+}
+
+function withExtras(
+  sheets: Array<{ name: string; rows: (string | number)[][] }>,
+  extras?: ExcelExportExtras
+): Array<{ name: string; rows: (string | number)[][] }> {
+  return extras?.extraSheets?.length ? [...sheets, ...extras.extraSheets] : sheets;
+}
 
 type TranslationTable = Record<keyof typeof translations['zh'], string>;
 
@@ -255,7 +276,8 @@ export async function exportAllGroupsBracketsToExcel(
   groups: TournamentGroup[],
   competitionName: string,
   language: AppLanguage = 'zh',
-  options?: ExcelExportOptions
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
 ): Promise<void> {
   const sheetName = language === 'en' ? 'Bracket' : '淘汰签表';
   const sheets = groups
@@ -263,11 +285,11 @@ export async function exportAllGroupsBracketsToExcel(
     .map(group => {
       const { headers, rows } = getEliminationBracketTableData(group, language);
       return {
-        name: `${group.name}-${sheetName}`,
+        name: `${getSheetLabel(group, extras)}-${sheetName}`,
         rows: [headers, ...rows],
       };
     });
-  await writeExcelWorkbook(sheets, `${competitionName}-${sheetName}.xlsx`, options);
+  await writeExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${sheetName}.xlsx`, options);
 }
 
 export async function exportRankingToExcel(
@@ -344,7 +366,8 @@ export async function exportGroupSummaryToExcel(
   group: TournamentGroup,
   competitionName: string,
   language: AppLanguage = 'zh',
-  options?: ExcelExportOptions
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
 ): Promise<void> {
   const t = translations[language];
   const { headers, rows } = getRankingTableData(group, language);
@@ -366,26 +389,32 @@ export async function exportGroupSummaryToExcel(
     const mData: (string | number)[][] = [mHeaders, ...mRows];
     sheets.push({ name: formatText(t.roundN, { round }), rows: mData });
   }
-  await writeExcelWorkbook(sheets, `${competitionName}-${group.name}-${t.summary}.xlsx`, options);
+  await writeExcelWorkbook(
+    withExtras(sheets, extras),
+    `${competitionName}-${getSheetLabel(group, extras)}-${t.summary}.xlsx`,
+    options
+  );
 }
 
 export async function exportAllGroupsToExcel(
   groups: TournamentGroup[],
   competitionName: string,
   language: AppLanguage = 'zh',
-  options?: ExcelExportOptions
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
   groups.forEach(group => {
     const { headers, rows } = getRankingTableData(group, language);
     const data: (string | number)[][] = [headers, ...rows];
-    sheets.push({ name: `${group.name}-${t.ranking}`, rows: data });
+    const label = getSheetLabel(group, extras);
+    sheets.push({ name: `${label}-${t.ranking}`, rows: data });
     if (group.eliminationBracket) {
       const { headers: bracketHeaders, rows: bracketRows } =
         getEliminationBracketTableData(group, language);
       sheets.push({
-        name: `${group.name}-${language === 'en' ? 'Bracket' : '淘汰签表'}`,
+        name: `${label}-${language === 'en' ? 'Bracket' : '淘汰签表'}`,
         rows: [bracketHeaders, ...bracketRows],
       });
     }
@@ -393,17 +422,18 @@ export async function exportAllGroupsToExcel(
       const { headers: mHeaders, rows: mRows } = getMatchTableData(group, round, language);
       if (mRows.length === 0) continue;
       const mData: (string | number)[][] = [mHeaders, ...mRows];
-      sheets.push({ name: `${group.name}-${formatText(t.roundN, { round })}`, rows: mData });
+      sheets.push({ name: `${label}-${formatText(t.roundN, { round })}`, rows: mData });
     }
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.summary}.xlsx`, options);
+  await writeExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${t.summary}.xlsx`, options);
 }
 
 export async function exportAllGroupsRankingToExcel(
   groups: TournamentGroup[],
   competitionName: string,
   language: AppLanguage = 'zh',
-  options?: ExcelExportOptions
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
@@ -411,9 +441,13 @@ export async function exportAllGroupsRankingToExcel(
     if (group.currentRound === 0) return;
     const { headers, rows } = getRankingTableData(group, language);
     const data: (string | number)[][] = [headers, ...rows];
-    sheets.push({ name: `${group.name}-${t.ranking}`, rows: data });
+    sheets.push({ name: `${getSheetLabel(group, extras)}-${t.ranking}`, rows: data });
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`, options);
+  await writeExcelWorkbook(
+    withExtras(sheets, extras),
+    `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`,
+    options
+  );
 }
 
 /** 导出所有小组本轮对阵表 */
@@ -421,7 +455,8 @@ export async function exportAllGroupsCurrentRoundMatchesToExcel(
   groups: TournamentGroup[],
   competitionName: string,
   language: AppLanguage = 'zh',
-  options?: ExcelExportOptions
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
 ): Promise<void> {
   const t = translations[language];
   const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
@@ -431,18 +466,88 @@ export async function exportAllGroupsCurrentRoundMatchesToExcel(
     if (rows.length === 0) return;
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({
-      name: `${group.name}-${formatText(t.roundN, { round: group.currentRound })}`,
+      name: `${getSheetLabel(group, extras)}-${formatText(t.roundN, { round: group.currentRound })}`,
       rows: data,
     });
   });
-  await writeExcelWorkbook(sheets, `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`, options);
+  await writeExcelWorkbook(
+    withExtras(sheets, extras),
+    `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`,
+    options
+  );
 }
 
 export async function exportSingleSheetToExcel(
   sheetName: string,
   rows: (string | number)[][],
   fileName: string,
+  options?: ExcelExportOptions,
+  extras?: ExcelExportExtras
+): Promise<void> {
+  await writeExcelWorkbook(withExtras([{ name: sheetName, rows }], extras), fileName, options);
+}
+
+/** 多阶段赛事汇总工作表：最终名次 + 晋级记录。 */
+export function buildMultiStageSummarySheets(
+  standings: FinalStandingPlace[],
+  records: StageAdvancementRecord[],
+  stageNames: Map<string, string>,
+  language: AppLanguage = 'zh'
+): Array<{ name: string; rows: (string | number)[][] }> {
+  const isEnglish = language === 'en';
+  const sheets: Array<{ name: string; rows: (string | number)[][] }> = [];
+
+  if (standings.length > 0) {
+    sheets.push({
+      name: isEnglish ? 'Final standings' : '最终名次',
+      rows: [
+        isEnglish ? ['Place', 'Code', 'Name'] : ['名次', '编号', '昵称'],
+        ...standings.flatMap(entry =>
+          entry.players.map(player => [entry.place, player.participantCode ?? '', player.name])
+        ),
+      ],
+    });
+  }
+
+  if (records.length > 0) {
+    sheets.push({
+      name: isEnglish ? 'Advancement' : '晋级记录',
+      rows: [
+        isEnglish
+          ? ['Source stage', 'Target stage', 'Confirmed at', 'Place', 'Group', 'Code', 'Name']
+          : ['来源赛段', '目标赛段', '确认时间', '名次', '小组', '编号', '昵称'],
+        ...records.flatMap(record =>
+          record.seats.map(seat => [
+            stageNames.get(record.sourceStageId) ?? record.sourceStageId,
+            stageNames.get(seat.targetStageId ?? '') ?? seat.targetStageId ?? '',
+            new Date(record.confirmedAt).toLocaleString(),
+            seat.targetSlot !== undefined ? seat.targetSlot + 1 : seat.finalRank,
+            seat.originGroupName ?? seat.sourceGroupName,
+            seat.participantCode ?? '',
+            seat.name,
+          ])
+        ),
+      ],
+    });
+  }
+
+  return sheets;
+}
+
+/** 需要单独导出汇总工作簿时使用。 */
+export async function exportMultiStageSummaryToExcel(
+  standings: FinalStandingPlace[],
+  records: StageAdvancementRecord[],
+  stageNames: Map<string, string>,
+  competitionName: string,
+  language: AppLanguage = 'zh',
   options?: ExcelExportOptions
 ): Promise<void> {
-  await writeExcelWorkbook([{ name: sheetName, rows }], fileName, options);
+  const sheets = buildMultiStageSummarySheets(standings, records, stageNames, language);
+  if (sheets.length === 0) return;
+  await writeExcelWorkbook(
+    sheets,
+    `${competitionName}-${language === 'en' ? 'summary' : '汇总'}.xlsx`,
+    options
+  );
 }
