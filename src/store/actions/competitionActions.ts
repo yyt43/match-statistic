@@ -9,7 +9,10 @@ import { logAudit } from '../../utils/auditLog';
 
 export function createCompetitionActions(
   set: StoreSet
-): Pick<CompetitionState, 'initCompetition' | 'loadSavedCompetition' | 'importCompetition' | 'resetCompetition'> {
+): Pick<
+  CompetitionState,
+  'initCompetition' | 'initMultiStageCompetition' | 'loadSavedCompetition' | 'importCompetition' | 'resetCompetition'
+> {
   return {
     initCompetition: (name, groupCount, playerCountPerGroup, roundsPerGroup, gameType, pairingType) => {
       const competition = createNewCompetition(
@@ -24,6 +27,20 @@ export function createCompetitionActions(
         { competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } },
         { history: 'replace' }
       );
+    },
+
+    initMultiStageCompetition: competition => {
+      const normalized = normalizeCompetitionGroups(competition);
+      set(
+        {
+          competition: normalized,
+          viewRound: 0,
+          isRandomGenerating: false,
+          randomGenerateProgress: { total: 0, current: 0 },
+        },
+        { history: 'replace' }
+      );
+      void logAudit('tournament-import', `Created ${normalized.name}`, { name: normalized.name });
     },
 
     loadSavedCompetition: async () => {

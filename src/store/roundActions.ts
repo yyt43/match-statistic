@@ -13,7 +13,7 @@ export function startTournamentForGroup(
   const group = competition.groups[groupIdx];
   if (!group || group.players.length < 2) return competition;
 
-  const rounds = group.pairingType === 'single_elimination'
+  const rounds = group.pairingType === 'single_elimination' && !group.roundsLocked
     ? getSingleEliminationRounds(group.players.length)
     : totalRoundsOverride ?? group.totalRounds;
 
@@ -22,8 +22,15 @@ export function startTournamentForGroup(
   return { ...competition, groups: updatedGroups };
 }
 
-export function startAllGroupsInCompetition(competition: TournamentCompetition): TournamentCompetition {
-  const groupsToStart = competition.groups.filter(group => group.status === 'setup');
+export function startAllGroupsInCompetition(
+  competition: TournamentCompetition,
+  groupIndices?: number[]
+): TournamentCompetition {
+  const indices = groupIndices ?? competition.groups.map((_, index) => index);
+  const groupsToStart = indices
+    .map(index => competition.groups[index])
+    .filter((group): group is TournamentGroup => Boolean(group))
+    .filter(group => group.status === 'setup');
   if (groupsToStart.some(group => group.players.length < 2)) {
     return competition;
   }
@@ -33,13 +40,20 @@ export function startAllGroupsInCompetition(competition: TournamentCompetition):
     return competition;
   }
 
-  const updatedGroups = competition.groups.map(group => {
-    if (group.status !== 'setup' || group.players.length < 2) return group;
-    const rounds = group.pairingType === 'single_elimination'
+  const updatedGroups = [...competition.groups];
+  for (const index of indices) {
+    const group = updatedGroups[index];
+    if (!group || group.status !== 'setup' || group.players.length < 2) continue;
+    const rounds = group.pairingType === 'single_elimination' && !group.roundsLocked
       ? getSingleEliminationRounds(group.players.length)
       : group.totalRounds;
-    return { ...group, totalRounds: rounds, status: 'in_progress' as TournamentStatus, currentRound: 0 };
-  });
+    updatedGroups[index] = {
+      ...group,
+      totalRounds: rounds,
+      status: 'in_progress' as TournamentStatus,
+      currentRound: 0,
+    };
+  }
   return { ...competition, groups: updatedGroups };
 }
 

@@ -3,6 +3,7 @@ import type {
   PlayerFieldDefinition,
   PlayerSchemaId,
   TournamentCompetition,
+  TournamentGroup,
 } from '../types';
 
 export interface RosterValidationIssue {
@@ -35,6 +36,70 @@ export interface RosterValidationSummary {
 
 export const PARTICIPANT_CODE_PATTERN = '^[A-Z](0[1-9]|[1-9][0-9])$';
 export const PARTICIPANT_CODE_MAX = 99;
+
+export function getParticipantCodePrefix(
+  groupName: string | undefined,
+  groupIndex: number
+): string {
+  const fallback = String.fromCharCode(65 + Math.max(0, groupIndex) % 26);
+  const normalized = groupName?.trim() ?? '';
+  if (!normalized) return fallback;
+
+  const explicit = normalized.match(/^(?:group|组|小组)?\s*([A-Z])(?:\s*组)?$/i);
+  if (explicit) return explicit[1].toUpperCase();
+
+  const sequenced = normalized.match(/^(?:group|小组|第)?\s*([0-9]{1,2})\s*(?:组)?$/i);
+  if (sequenced) {
+    const sequence = Math.max(1, Number(sequenced[1]));
+    return String.fromCharCode(65 + (sequence - 1) % 26);
+  }
+
+  const firstLatin = normalized.match(/[A-Z]/i)?.[0];
+  return firstLatin?.toUpperCase() ?? fallback;
+}
+
+export function collectParticipantNumbers(
+  groups: TournamentGroup[],
+  prefix: string
+): Set<number> {
+  const used = new Set<number>();
+  const pattern = new RegExp(`^${prefix}([0-9]{1,2})$`, 'i');
+  for (const group of groups) {
+    for (const player of group.players) {
+      const match = player.participantCode?.trim().match(pattern);
+      if (match) used.add(Number(match[1]));
+    }
+  }
+  return used;
+}
+
+export function assignMissingParticipantCodes(
+  players: Player[],
+  prefix: string,
+  usedNumbers: Set<number>
+): { players: Player[]; assigned: number; unresolved: number } {
+  let assigned = 0;
+  let unresolved = 0;
+  const nextPlayers = players.map(player => {
+    if (player.participantCode?.trim()) return player;
+
+    let number = 1;
+    while (number <= PARTICIPANT_CODE_MAX && usedNumbers.has(number)) number += 1;
+    if (number > PARTICIPANT_CODE_MAX) {
+      unresolved += 1;
+      return player;
+    }
+
+    usedNumbers.add(number);
+    assigned += 1;
+    return {
+      ...player,
+      participantCode: `${prefix}${String(number).padStart(2, '0')}`,
+    };
+  });
+
+  return { players: nextPlayers, assigned, unresolved };
+}
 
 export const UNIFIED_PLAYER_FIELDS: PlayerFieldDefinition[] = [
   {
@@ -157,10 +222,12 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
   const participantCodes = new Map<string, string>();
   const uidToPlayerId = new Map<string, string>();
   const playerIdToUid = new Map<string, string>();
+  const playerScopeById = new Map<string, string>();
   const playerGroupName = new Map<string, string>();
   let playerCount = 0;
 
   competition.groups.forEach((group, groupIndex) => {
+    const scope = group.stageId ?? '';
     group.players.forEach(player => {
       playerCount += 1;
       playerGroupName.set(player.id, group.name);
@@ -178,7 +245,8 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
       }
 
       if (code) {
-        const previous = participantCodes.get(code);
+        const scopedCode = `${scope}::${code}`;
+        const previous = participantCodes.get(scopedCode);
         if (previous && previous !== player.id) {
           issues.push({
             code: 'DUPLICATE_PARTICIPANT_CODE',
@@ -189,7 +257,7 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
             fieldKey: 'participantCode',
           });
         } else {
-          participantCodes.set(code, player.id);
+          participantCodes.set(scopedCode, player.id);
         }
       } else {
         issues.push({
@@ -205,6 +273,7 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
   });
 
   competition.groups.forEach((group, groupIndex) => {
+    const scope = group.stageId ?? '';
     group.players.forEach(player => {
       const code = player.participantCode?.trim() ?? '';
       const playerLabel = `${group.name} / ${code || '未编号'} / ${player.name}`;
@@ -235,7 +304,8 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
           fieldKey: 'uid',
         });
       } else if (uid) {
-        const previous = uidToPlayerId.get(uid);
+        const scopedUid = `${scope}::${uid}`;
+        const previous = uidToPlayerId.get(scopedUid);
         if (previous && previous !== player.id) {
           issues.push({
             code: 'DUPLICATE_UID',
@@ -246,8 +316,9 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
             fieldKey: 'uid',
           });
         } else {
-          uidToPlayerId.set(uid, player.id);
+          uidToPlayerId.set(scopedUid, player.id);
           playerIdToUid.set(player.id, uid);
+          playerScopeById.set(player.id, scope);
         }
       }
 
@@ -265,7 +336,8 @@ export function validateRoster(competition: TournamentCompetition): RosterValida
   });
 
   for (const [playerId, uid] of playerIdToUid) {
-    if (uidToPlayerId.get(uid) !== playerId) {
+    const scope = playerScopeById.get(playerId) ?? '';
+    if (uidToPlayerId.get(`${scope}::${uid}`) !== playerId) {
       issues.push({
         code: 'UID_ID_MISMATCH',
         message: `${playerGroupName.get(playerId) ?? '未知组别'} / ${uid} 与 Player.id 映射不一致`,

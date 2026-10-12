@@ -2,6 +2,7 @@ import { Trophy, Swords, Medal, Redo2, Undo2 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
+import { getOrderedStages, getStageGroups } from '../../utils/multiStage';
 
 export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
   const currentGroup = useCurrentGroup();
@@ -12,9 +13,13 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
   const undo = useTournamentStore(state => state.undo);
   const redo = useTournamentStore(state => state.redo);
   const { language, t } = useLanguagePreference();
+  // 概览统计只算当前赛段：单阶段赛事没有赛段，等同整场。
+  const stages = getOrderedStages(competition);
+  const currentStage = stages.find(stage => stage.groupIds.includes(currentGroup.id));
+  const stageGroups = currentStage ? getStageGroups(competition, currentStage) : competition.groups;
   const isStarted = currentGroup.currentRound > 0;
   const isSetup = currentGroup.status === 'setup';
-  const totalPlayers = competition.groups.reduce((sum, group) => sum + group.players.length, 0);
+  const totalPlayers = stageGroups.reduce((sum, group) => sum + group.players.length, 0);
   const titleText = isStarted ? `${competition.name} - ${currentGroup.name}` : t.appName;
   const savedTime = lastSavedAt
     ? new Date(lastSavedAt).toLocaleTimeString(language === 'en' ? 'en-US' : 'zh-CN', {
@@ -121,7 +126,7 @@ export function Header({ lastSavedAt }: { lastSavedAt?: string | null }) {
               {isSetup && (
                 <div className="glass-panel rounded-xl px-3 py-2 text-center sm:px-4 sm:py-2.5">
                   <div className="text-xl font-bold font-mono text-sky-400 sm:text-2xl">
-                    {competition.groups.length}
+                    {stageGroups.length}
                   </div>
                   <div className="text-xs text-slate-400">{t.groupCountLabel}</div>
                 </div>

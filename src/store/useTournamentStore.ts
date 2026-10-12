@@ -1,6 +1,7 @@
 import { advancePlayoffs, clearPlayoffs, recordPlayoffResult, type ThreePlayerFormats } from '../utils/playoffs';
 import { create } from 'zustand';
 import type {
+  StageAdvancementPreview,
   TournamentCompetition,
   TournamentGroup,
   Player,
@@ -33,11 +34,17 @@ import { createNewCompetition } from './tournamentFactory';
 import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
 import { normalizeResultScore } from '../utils/matchResult';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
+import { getCurrentStageGroupIndices } from '../utils/multiStage';
+import {
+  getUnconfirmedUpstreamStageIds,
+  isStageResultLocked,
+} from '../utils/advancement';
 import { createCompetitionActions } from './actions/competitionActions';
 import { createSnapshotActions } from './actions/snapshotActions';
 import { createGroupActions } from './actions/groupActions';
 import { createPlayerActions } from './actions/playerActions';
 import { createImportActions } from './actions/importActions';
+import { createAdvancementActions } from './actions/advancementActions';
 import { logAudit } from '../utils/auditLog';
 import {
   cloneCompetition,
@@ -179,6 +186,10 @@ export interface CompetitionState {
 
   // 赛事级别操作
   initCompetition: (name: string, groupCount?: number, playerCountPerGroup?: number, roundsPerGroup?: number, gameType?: GameType, pairingType?: PairingType) => void;
+  initMultiStageCompetition: (competition: TournamentCompetition) => void;
+  previewStageAdvancement: (stageId?: string) => StageAdvancementPreview;
+  confirmStageAdvancement: (preview: StageAdvancementPreview) => boolean;
+  revertStageAdvancement: (stageId?: string) => boolean;
   loadSavedCompetition: () => Promise<boolean>;
   importCompetition: (competition: TournamentCompetition) => void;
   updateCompetitionName: (name: string) => void;
@@ -348,6 +359,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   ...createGroupActions(set, get),
   ...createPlayerActions(set, get),
   ...createImportActions(set, get),
+  ...createAdvancementActions(set, get),
 
   undo: () => {
     const state = get();
@@ -449,22 +461,33 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   startAllGroups: () => {
     const { competition } = get();
     if (!validateRoster(competition).valid) return;
-    const hasUnconfirmedEliminationGroup = competition.groups.some(group =>
-      group.status === 'setup'
-      && group.players.length >= 2
-      && group.pairingType === 'single_elimination'
-      && !group.eliminationBracket?.lockedAt
-    );
+    // 上游赛段还没确认晋级时，下游不允许开赛。
+    const stageId = competition.groups[competition.currentGroupIndex]?.stageId;
+    if (stageId && getUnconfirmedUpstreamStageIds(competition, stageId).length > 0) return;
+    const stageIndices = getCurrentStageGroupIndices(competition);
+    const targetIndices = stageIndices ?? competition.groups.map((_, index) => index);
+    const hasUnconfirmedEliminationGroup = targetIndices.some(index => {
+      const group = competition.groups[index];
+      return !!group
+        && group.status === 'setup'
+        && group.players.length >= 2
+        && group.pairingType === 'single_elimination'
+        && !group.eliminationBracket?.lockedAt;
+    });
     if (hasUnconfirmedEliminationGroup) return;
-    let updated = startAllGroupsInCompetition(competition);
-    updated = {
-      ...updated,
-      rosterLockedAt: updated.rosterLockedAt ?? new Date().toISOString(),
-    };
+    let updated = startAllGroupsInCompetition(competition, stageIndices);
+    // 多阶段赛事的后续赛段还要继续导入名单，因此不锁定整场名单。
+    if (!stageIndices) {
+      updated = {
+        ...updated,
+        rosterLockedAt: updated.rosterLockedAt ?? new Date().toISOString(),
+      };
+    }
     set({ competition: updated }, { label: '开始全部小组' });
 
-    for (let i = 0; i < updated.groups.length; i++) {
+    for (const i of targetIndices) {
       const g = updated.groups[i];
+      if (!g) continue;
       if (g.pairingType === 'single_elimination' && !g.eliminationBracket?.lockedAt) continue;
       if (g.status === 'in_progress' && g.currentRound === 0) {
         updated = generateNextRoundForCompetition(updated, i);
@@ -943,6 +966,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const storedGroup = competition.groups[idx];
+    if (storedGroup?.stageId && isStageResultLocked(competition, storedGroup.stageId)) return;
 
     const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
@@ -1114,6 +1138,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const storedGroup = competition.groups[groupIdx];
     if (!storedGroup) return;
+    if (storedGroup.stageId && isStageResultLocked(competition, storedGroup.stageId)) return;
 
     const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
