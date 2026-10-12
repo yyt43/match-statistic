@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createNewCompetition } from '../store/tournamentFactory';
 import {
   getDefaultPlayerFields,
+  getParticipantCodePrefix,
   normalizeUid,
   sortPlayersByParticipantCode,
   validateRoster,
@@ -80,5 +81,20 @@ describe('player profile schema', () => {
       { id: '2', name: 'two', points: 0, wins: 0, losses: 0, totalGames: 0, wonGames: 0, winRate: 0, opponentWinRate: 0, opponentOpponentWinRate: 0, gameWinRate: 0, opponentGameWinRate: 0, playedAgainst: [] },
     ];
     expect(sortPlayersByParticipantCode(players).map(player => player.id)).toEqual(['1', '3', '2']);
+  });
+});
+
+describe('participant code prefixes', () => {
+  it('derives the prefix from the group name instead of the group position', () => {
+    expect(getParticipantCodePrefix('小组01', 0)).toBe('A');
+    expect(getParticipantCodePrefix('小组03', 1)).toBe('C');
+    expect(getParticipantCodePrefix('D组', 0)).toBe('D');
+    expect(getParticipantCodePrefix('Group C', 2)).toBe('C');
+    expect(getParticipantCodePrefix('第4组', 0)).toBe('D');
+  });
+
+  it('falls back to the group position when the name carries no letter or number', () => {
+    expect(getParticipantCodePrefix('甲组', 2)).toBe('C');
+    expect(getParticipantCodePrefix(undefined, 1)).toBe('B');
   });
 });

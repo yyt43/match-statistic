@@ -11,6 +11,11 @@ import type { StoreGet, StoreSet } from './actionTypes';
 import { createNewGroup, generateId } from '../tournamentFactory';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import {
+  assignMissingParticipantCodes,
+  collectParticipantNumbers,
+  getParticipantCodePrefix,
+} from '../../utils/playerProfiles';
+import {
   getDefaultTiebreakRules,
   getDefaultTiebreakTemplate,
   normalizeTiebreakRules,
@@ -81,14 +86,14 @@ export function createGroupActions(
           if (!Number.isNaN(index) && index > maxPlayerIndex) maxPlayerIndex = index;
         }
       }
-      const newGroup = createNewGroup(
-        `小组${String(competition.groups.length + 1).padStart(2, '0')}`,
-        32,
-        5,
-        'bo1',
-        'swiss',
-        maxPlayerIndex + 1
-      );
+      const groupName = `小组${String(competition.groups.length + 1).padStart(2, '0')}`;
+      const created = createNewGroup(groupName, 32, 5, 'bo1', 'swiss', maxPlayerIndex + 1);
+      const prefix = getParticipantCodePrefix(groupName, competition.groups.length);
+      const usedNumbers = collectParticipantNumbers(competition.groups, prefix);
+      const newGroup: TournamentGroup = {
+        ...created,
+        players: assignMissingParticipantCodes(created.players, prefix, usedNumbers).players,
+      };
       persist({ ...competition, groups: [...competition.groups, newGroup] }, '添加小组');
     },
 
@@ -129,14 +134,21 @@ export function createGroupActions(
         const added: TournamentGroup[] = [];
         for (let index = currentCount; index < targetCount; index++) {
           const startIndex = maxPlayerIndex + 1 + (index - currentCount) * referencePlayerCount;
-          added.push(createNewGroup(
-            `小组${String(index + 1).padStart(2, '0')}`,
+          const groupName = `小组${String(index + 1).padStart(2, '0')}`;
+          const created = createNewGroup(
+            groupName,
             referencePlayerCount,
             referenceRounds,
             referenceGameType,
             referencePairingType,
             startIndex
-          ));
+          );
+          const prefix = getParticipantCodePrefix(groupName, index);
+          const usedNumbers = collectParticipantNumbers([...competition.groups, ...added], prefix);
+          added.push({
+            ...created,
+            players: assignMissingParticipantCodes(created.players, prefix, usedNumbers).players,
+          });
         }
         groups = [...competition.groups, ...added];
       } else {

@@ -1,7 +1,7 @@
 import type { GameType, PairingType, TournamentCompetition, TournamentGroup } from '../types';
 import { createPlayersFromNames, getSingleEliminationRounds } from '../utils/swissPairing';
 import { getDefaultTiebreakRules, getDefaultTiebreakTemplate } from '../utils/tiebreak';
-import { getDefaultPlayerFields } from '../utils/playerProfiles';
+import { getDefaultPlayerFields, getParticipantCodePrefix } from '../utils/playerProfiles';
 
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -58,14 +58,15 @@ export function createNewCompetition(
   const groups: TournamentGroup[] = [];
   for (let i = 0; i < groupCount; i++) {
     const startIdx = i * playerCountPerGroup + 1;
+    const groupName = `小组${String(i + 1).padStart(2, '0')}`;
     groups.push(createNewGroup(
-      `小组${String(i + 1).padStart(2, '0')}`,
+      groupName,
       playerCountPerGroup,
       roundsPerGroup,
       gameType,
       pairingType,
       startIdx,
-      String.fromCharCode(65 + i)
+      getParticipantCodePrefix(groupName, i)
     ));
   }
 

@@ -6,11 +6,13 @@ import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { generateId } from '../tournamentFactory';
 import { logAudit } from '../../utils/auditLog';
 import {
+  assignMissingParticipantCodes,
+  collectParticipantNumbers,
   getDefaultPlayerFields,
+  getParticipantCodePrefix,
   getPlayerFields,
   isRosterLocked,
   normalizeUid,
-  PARTICIPANT_CODE_MAX,
   PARTICIPANT_CODE_PATTERN,
   validateRoster,
 } from '../../utils/playerProfiles';
@@ -313,7 +315,7 @@ export function createPlayerActions(
           new RegExp(PARTICIPANT_CODE_PATTERN).test(player.participantCode ?? '')
         );
         if (hasParticipantCodes) {
-          const prefix = String.fromCharCode(65 + index);
+          const prefix = getParticipantCodePrefix(group.name, index);
           const codedPlayers = nextPlayers.filter(player =>
             player.participantCode?.trim().toUpperCase().startsWith(prefix)
           );
@@ -384,35 +386,20 @@ export function createPlayerActions(
 
       let assigned = 0;
       let unresolved = 0;
+      const usedByPrefix = new Map<string, Set<number>>();
       const groups = competition.groups.map((group, groupIndex) => {
-        const prefix = String.fromCharCode(65 + groupIndex);
-        const usedNumbers = new Set<number>();
-        for (const existingGroup of competition.groups) {
-          for (const player of existingGroup.players) {
-            const match = player.participantCode?.trim().match(
-              new RegExp(`^${prefix}([0-9]{1,2})$`, 'i')
-            );
-            if (match) usedNumbers.add(Number(match[1]));
-          }
+        const prefix = getParticipantCodePrefix(group.name, groupIndex);
+        let usedNumbers = usedByPrefix.get(prefix);
+        if (!usedNumbers) {
+          usedNumbers = collectParticipantNumbers(competition.groups, prefix);
+          usedByPrefix.set(prefix, usedNumbers);
         }
 
-        const players = group.players.map(player => {
-          if (player.participantCode?.trim()) return player;
-          let number = 1;
-          while (number <= PARTICIPANT_CODE_MAX && usedNumbers.has(number)) number += 1;
-          if (number > PARTICIPANT_CODE_MAX) {
-            unresolved += 1;
-            return player;
-          }
-          usedNumbers.add(number);
-          assigned += 1;
-          return {
-            ...player,
-            participantCode: `${prefix}${String(number).padStart(2, '0')}`,
-          };
-        });
+        const result = assignMissingParticipantCodes(group.players, prefix, usedNumbers);
+        assigned += result.assigned;
+        unresolved += result.unresolved;
 
-        return { ...group, players };
+        return { ...group, players: result.players };
       });
 
       if (assigned > 0) {
@@ -455,9 +442,13 @@ export function createPlayerActions(
 
       const players = [...group.players];
       if (newCount > currentCount) {
+        const prefix = getParticipantCodePrefix(group.name, index);
+        const usedNumbers = collectParticipantNumbers(competition.groups, prefix);
+        const appended: Player[] = [];
         for (let playerIndex = currentCount + 1; playerIndex <= newCount; playerIndex++) {
-          players.push(createPlayer(`选手${String(playerIndex).padStart(3, '0')}`));
+          appended.push(createPlayer(`选手${String(playerIndex).padStart(3, '0')}`));
         }
+        players.push(...assignMissingParticipantCodes(appended, prefix, usedNumbers).players);
       } else {
         players.splice(newCount);
       }
