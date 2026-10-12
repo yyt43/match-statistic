@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import type { TournamentCompetition } from '../../types';
+import type { AppLanguage } from '../../i18n/data';
 import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2, GitBranch } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import {
@@ -12,6 +14,7 @@ import {
   exportEliminationBracketToExcel,
   exportGroupSummaryToExcel,
   exportSingleSheetToExcel,
+  buildMultiStageSummarySheets,
 } from '../../utils/export/excelExport';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { TournamentGroup } from '../../types';
@@ -19,6 +22,22 @@ import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
+import { getGroupDisplayName } from '../../utils/multiStage';
+import { buildFinalStandings } from '../../utils/advancement';
+import { getOrderedStages } from '../../utils/multiStage';
+
+/** 多阶段导出：工作表名带赛段，并把汇总工作表并入同一个工作簿。 */
+function buildExportExtras(competition: TournamentCompetition, language: AppLanguage) {
+  return {
+    groupLabel: (group: TournamentGroup) => getGroupDisplayName(competition, group),
+    extraSheets: buildMultiStageSummarySheets(
+      buildFinalStandings(competition),
+      competition.stageAdvancements ?? [],
+      new Map(getOrderedStages(competition).map(stage => [stage.id, stage.name])),
+      language
+    ),
+  };
+}
 
 type ExportType = 'ranking' | 'match' | 'summary' | 'bracket';
 
@@ -106,9 +125,21 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     try {
       if (isSummary) {
         if (exportAllGroups) {
-          await exportAllGroupsToExcel(availableGroups, competition.name, language, options);
+          await exportAllGroupsToExcel(
+            availableGroups,
+            competition.name,
+            language,
+            options,
+            buildExportExtras(competition, language)
+          );
         } else {
-          await exportGroupSummaryToExcel(previewGroup, competition.name, language, options);
+          await exportGroupSummaryToExcel(
+            previewGroup,
+            competition.name,
+            language,
+            options,
+            buildExportExtras(competition, language)
+          );
         }
         return;
       }
@@ -119,8 +150,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
           return;
         }
         setExportPhase('saving');
+        const extras = buildExportExtras(competition, language);
         if (exportAllGroups) {
-          await exportAllGroupsBracketsToExcel(availableGroups, competition.name, language, options);
+          await exportAllGroupsBracketsToExcel(availableGroups, competition.name, language, options, extras);
         } else {
           await exportEliminationBracketToExcel(previewGroup, competition.name, language, options);
         }
@@ -128,11 +160,12 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       }
 
       setExportPhase('building');
+      const extras = buildExportExtras(competition, language);
       if (exportAllGroups) {
         if (isRanking) {
-          await exportAllGroupsRankingToExcel(availableGroups, competition.name, language, options);
+          await exportAllGroupsRankingToExcel(availableGroups, competition.name, language, options, extras);
         } else {
-          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name, language, options);
+          await exportAllGroupsCurrentRoundMatchesToExcel(availableGroups, competition.name, language, options, extras);
         }
       } else {
         setExportPhase('saving');
@@ -144,7 +177,9 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         const fileName = isRanking
           ? `${competition.name}-${previewGroup.name}-${t.ranking}.xlsx`
           : `${competition.name}-${previewGroup.name}-${formatText(t.roundN, { round: viewRound })} ${t.matchTable}.xlsx`;
-        await exportSingleSheetToExcel(sheetName, data, fileName, options);
+        await exportSingleSheetToExcel(sheetName, data, fileName, options, {
+          extraSheets: buildExportExtras(competition, language).extraSheets,
+        });
       }
     } catch (err) {
       if (!isAbortError(err)) {
@@ -259,7 +294,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
-                    {group.name}
+                    {getGroupDisplayName(competition, group)}
                   </button>
                 ))}
               </div>

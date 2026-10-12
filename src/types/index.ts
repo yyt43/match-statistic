@@ -190,6 +190,106 @@ export interface TournamentGroup {
   playoffBrackets?: PlayoffBracket[];
   /** 新版固定单败签表；旧赛事没有该字段时继续使用旧流程。 */
   eliminationBracket?: EliminationBracket;
+  /** 所属赛段 id；单阶段赛事没有该字段。 */
+  stageId?: string;
+  /** 轮数由模板固定（如突围赛只打一轮），开赛时不再按人数重算。 */
+  roundsLocked?: boolean;
+  /** 模板预设的选手位置数，名单由上游晋级生成且尚未落库时用于展示。 */
+  plannedPlayerCount?: number;
+}
+
+/** 赛事类型：旧赛事和新建单阶段赛事都是 legacy。 */
+export type CompetitionFormat = 'legacy' | 'multi_stage';
+
+/** 专用流程标识，用于锁定模板（例如诗意杯 S3）。 */
+export type CompetitionWorkflow = 'standard' | 'poetry_cup_s3';
+
+export type AdvancementRoute = 'direct' | 'breakout' | 'breakout_direct';
+
+/** 结构化的晋级规则：来源赛段第 fromRank-toRank 名中满足胜场条件的选手晋级。 */
+export interface StageAdvancementRule {
+  id: string;
+  fromRank: number;
+  toRank: number;
+  minWins?: number;
+  maxWins?: number;
+  destination: 'main' | 'breakout';
+}
+
+/** 固定签位：来源小组的第 rank 名进入目标赛段的第 targetSlot 个位置。 */
+export interface StageSeedRule {
+  sourceGroupName: string;
+  rank: number;
+  targetSlot: number;
+}
+
+/** 突围配对：来源小组内的名次两两对阵。 */
+export interface StageBreakoutConfig {
+  pairings: Array<[number, number]>;
+}
+
+export interface StageAdvancementSeat {
+  playerId: string;
+  name: string;
+  participantCode?: string;
+  uid?: string;
+  qq?: string;
+  sourceStageId: string;
+  sourceGroupId: string;
+  sourceGroupName: string;
+  /** 在来源赛段内该小组的最终名次。 */
+  finalRank: number;
+  route: AdvancementRoute;
+  /** 该席位写入哪个下游赛段。 */
+  targetStageId?: string;
+  /** 目标赛段的固定签位下标。 */
+  targetSlot?: number;
+  /** 小组赛阶段的名次，用于固定签位映射（跨突围赛仍保留）。 */
+  originGroupName?: string;
+  originRank?: number;
+}
+
+export interface StageAdvancementPairing {
+  sourceGroupId: string;
+  player1Id: string;
+  player2Id: string;
+  targetStageId?: string;
+}
+
+export interface StageAdvancementPreview {
+  sourceStageId: string;
+  targetStageIds: string[];
+  seats: StageAdvancementSeat[];
+  breakoutPairings: StageAdvancementPairing[];
+  errors: string[];
+  warnings: string[];
+}
+
+export interface StageAdvancementRecord {
+  id: string;
+  sourceStageId: string;
+  confirmedAt: string;
+  seats: StageAdvancementSeat[];
+  breakoutPairings: StageAdvancementPairing[];
+}
+
+/** 多阶段赛事中的赛段定义；单阶段赛事没有该字段。 */
+export interface TournamentStage {
+  id: string;
+  name: string;
+  order: number;
+  kind: PairingType;
+  groupIds: string[];
+  /** 上游赛段 id，仅用于展示赛段依赖。 */
+  sourceStageIds?: string[];
+  /** 锁定模板赛段，界面不提供结构编辑。 */
+  locked?: boolean;
+  /** 该赛段的晋级规则：满足条件的结果写入下游赛段。 */
+  advancementRules?: StageAdvancementRule[];
+  /** 本赛段为突围赛时的配对规则。 */
+  breakout?: StageBreakoutConfig;
+  /** 固定签位映射，用于淘汰赛。 */
+  seedRules?: StageSeedRule[];
 }
 
 export interface TournamentCompetition {
@@ -201,4 +301,12 @@ export interface TournamentCompetition {
   playerSchemaId?: PlayerSchemaId;
   playerFields?: PlayerFieldDefinition[];
   rosterLockedAt?: string;
+  /** 缺省视为单阶段赛事。 */
+  format?: CompetitionFormat;
+  /** 缺省视为通用流程。 */
+  workflow?: CompetitionWorkflow;
+  /** 多阶段赛事的赛段序列；单阶段赛事没有该字段。 */
+  stages?: TournamentStage[];
+  /** 晋级确认记录，用于复核、回退。 */
+  stageAdvancements?: StageAdvancementRecord[];
 }

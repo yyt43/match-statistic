@@ -1,5 +1,6 @@
 import { PlayoffPanel } from './PlayoffPanel';
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import {
@@ -9,8 +10,7 @@ import {
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
 import type { GameType, PairingType, TiebreakRule, TiebreakTemplate } from '../../types';
-import { exportCompetitionToFile, importCompetitionFromFile } from '../../utils/export/fileStorage';
-import { downloadErrorReport } from '../../utils/errorReport';
+import { exportCompetitionToFile } from '../../utils/export/fileStorage';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { validateRoster } from '../../utils/playerProfiles';
 import {
@@ -26,6 +26,10 @@ import { PlayerManagerList } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
 import { resolveRoundUndoMode } from './roundUndoMode';
 import { EliminationBracketConfirmModal } from './EliminationBracketConfirmModal';
+import { CompetitionRulesSummary } from './CompetitionRulesSummary';
+import { StageAdvancementPanel } from './StageAdvancementPanel';
+import { FinalStandingsPanel } from './FinalStandingsPanel';
+import { getCompetitionKind, getOrderedStages, getStageGroups } from '../../utils/multiStage';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -66,6 +70,7 @@ export function ControlPanel({
 }: ControlPanelProps) {
   const currentGroup = useCurrentGroup();
   const isCurrentRoundComplete = useIsCurrentRoundComplete();
+  const navigate = useNavigate();
   const { language, t } = useLanguagePreference();
   const isEnglish = language === 'en';
   const {
@@ -83,9 +88,27 @@ export function ControlPanel({
     removeGroup,
     applyGroupConfiguration,
     updateGroupName,
-    importCompetition,
     setCurrentGroup,
   } = useTournamentStore();
+
+  const competitionKind = getCompetitionKind(competition);
+  const rulesTabLabel = competitionKind === 'poetry_cup_s3'
+    ? (isEnglish ? 'S3 rules' : 'S3 规则说明')
+    : competitionKind === 'multi_stage'
+      ? (isEnglish ? 'Rules' : '规则说明')
+      : null;
+  const stagedLayout = rulesTabLabel !== null;
+  const stageList = getOrderedStages(competition);
+  const currentStage = stageList.find(stage => stage.groupIds.includes(currentGroup.id));
+  const visibleGroups = stageList.length > 0
+    ? [
+        ...(currentStage ? getStageGroups(competition, currentStage) : []),
+        // 兜底：不属于任何赛段的小组也要能切换，避免数据被界面藏起来。
+        ...competition.groups.filter(group =>
+          !group.stageId || !stageList.some(stage => stage.id === group.stageId)
+        ),
+      ]
+    : competition.groups;
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
@@ -118,9 +141,6 @@ export function ControlPanel({
   // 数字输入框字符串缓冲（允许清空编辑中间态）
   const [playerCountInput, setPlayerCountInput] = useState<string>(String(currentGroup.players.length));
   const [totalRoundsInput, setTotalRoundsInput] = useState<string>(String(currentGroup.totalRounds));
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importErrorFile, setImportErrorFile] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const controlScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,7 +152,6 @@ export function ControlPanel({
     setEditingGroupIndex(null);
     setEditGroupNameValue('');
     setIsEditingName(false);
-    setImportError(null);
   }, [competition.id]);
 
   useEffect(() => {
@@ -318,64 +337,13 @@ export function ControlPanel({
           </button>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => exportCompetitionToFile(competition)}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {isEnglish ? 'Export data' : '导出比赛数据'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={async event => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              if (competition.groups.some(group => group.status !== 'setup')) {
-                setImportError(t.importBlockedStarted);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                return;
-              }
-              setImportError(null);
-              try {
-                const data = await importCompetitionFromFile(file);
-                importCompetition(data);
-              } catch (error) {
-                setImportError(error instanceof Error ? error.message : t.importFailed);
-                setImportErrorFile(file.name);
-              }
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={competition.groups.some(group => group.status !== 'setup')}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-            title={competition.groups.some(group => group.status !== 'setup')
-              ? (isEnglish ? 'Reset the event before importing.' : '请先重置比赛数据再导入')
-              : ''}
-          >
-            <FileUp className="h-3.5 w-3.5" />
-            {isEnglish ? 'Import data' : '导入比赛数据'}
-          </button>
-        </div>
-
-        {importError && (
-          <div className="space-y-1 rounded-lg bg-rose-500/10 px-2 py-2 text-[11px] text-rose-400">
-            <div>{importError}</div>
-            <button
-              onClick={() => downloadErrorReport('tournament-json-import', importError, {
-                fileName: importErrorFile,
-              })}
-              className="underline hover:text-rose-300"
-            >
-              {t.downloadErrorReport}
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => exportCompetitionToFile(competition)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {isEnglish ? 'Export data' : '导出比赛数据'}
+        </button>
       </section>
 
       {isSetup && currentGroup.players.length >= 2 && (
@@ -474,73 +442,37 @@ export function ControlPanel({
             <Download className="w-3.5 h-3.5" />
             {isEnglish ? 'Export tournament data' : '导出比赛数据'}
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-
-              // 比赛进行中禁止导入
-              if (competition.groups.some(g => g.status !== 'setup')) {
-                setImportError(t.importBlockedStarted);
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = '';
-                }
-                return;
-              }
-
-              setImportError(null);
-              try {
-                const data = await importCompetitionFromFile(file);
-                importCompetition(data);
-              } catch (err) {
-                setImportError(err instanceof Error ? err.message : t.importFailed);
-                setImportErrorFile(file.name);
-              }
-
-              // 清空文件输入
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
-            }}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={competition.groups.some(g => g.status !== 'setup')}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors text-xs border border-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-slate-800/50 disabled:hover:text-slate-300"
-            title={competition.groups.some(g => g.status !== 'setup') ? (isEnglish ? 'The tournament has started. Reset data before importing.' : '比赛已开始，请先重置比赛数据再导入') : ''}
-          >
-            <FileUp className="w-3.5 h-3.5" />
-            {isEnglish ? 'Import tournament data' : '导入比赛数据'}
-          </button>
         </div>
-        {importError && (
-          <div className="mt-2 px-3 py-2 bg-rose-500/10 text-rose-400 rounded-lg text-xs space-y-2">
-            <div>{importError}</div>
-            <button
-              onClick={() => downloadErrorReport('tournament-json-import', importError, {
-                fileName: importErrorFile,
-              })}
-              className="text-[11px] underline hover:text-rose-300"
-            >
-              {t.downloadErrorReport}
-            </button>
-          </div>
-        )}
-        {competition.groups.some(g => g.status !== 'setup') && !importError && (
-          <div className="mt-2 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[11px] flex items-center gap-1.5 border border-amber-500/20">
-            <AlertTriangle className="w-3 h-3 shrink-0" />
-            {isEnglish ? 'The tournament has started. Import is disabled until data is reset.' : '比赛已开始，导入功能已禁用，请先重置比赛数据'}
-          </div>
-        )}
       </div>
       )}
 
       {/* 当前小组指示器 */}
       <div className="px-4 py-2.5 border-b border-slate-700/50 bg-slate-800/20">
+        {stageList.length > 0 && (
+          <div className="mb-2 flex min-w-0 gap-1 overflow-x-auto">
+            {stageList.map(stage => {
+              const isActiveStage = currentStage?.id === stage.id;
+              const firstGroupIndex = competition.groups.findIndex(
+                group => group.id === stage.groupIds[0]
+              );
+              return (
+                <button
+                  key={stage.id}
+                  onClick={() => {
+                    if (firstGroupIndex >= 0) setCurrentGroup(firstGroupIndex);
+                  }}
+                  className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                    isActiveStage
+                      ? 'border-indigo-400/60 bg-indigo-500/20 text-indigo-200'
+                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                >
+                  {stage.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500 shrink-0">{isEnglish ? 'Current group' : '当前小组'}</span>
           {editingGroupIndex === competition.currentGroupIndex ? (
@@ -566,12 +498,15 @@ export function ControlPanel({
             />
           ) : (
             <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-              {competition.groups.map((group, index) => {
-                const isActive = index === competition.currentGroupIndex;
+              {visibleGroups.map((group, index) => {
+                const groupIndex = stageList.length > 0
+                  ? competition.groups.findIndex(item => item.id === group.id)
+                  : index;
+                const isActive = groupIndex === competition.currentGroupIndex;
                 return (
                   <button
                     key={group.id}
-                    onClick={() => setCurrentGroup(index)}
+                    onClick={() => setCurrentGroup(groupIndex)}
                     className={`shrink-0 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
                       isActive
                         ? 'border-gold-500/50 bg-gold-500/15 text-gold-400'
@@ -584,13 +519,15 @@ export function ControlPanel({
               })}
             </div>
           )}
-          <button
-            onClick={() => addGroup()}
-            className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-1 text-emerald-300 hover:bg-emerald-500/20"
-            title={isEnglish ? 'Add group' : '添加小组'}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          {stageList.length === 0 && (
+            <button
+              onClick={() => addGroup()}
+              className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-1 text-emerald-300 hover:bg-emerald-500/20"
+              title={isEnglish ? 'Add group' : '添加小组'}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             onClick={() => {
               setEditingGroupIndex(competition.currentGroupIndex);
@@ -601,14 +538,16 @@ export function ControlPanel({
           >
             <Edit2 className="h-3.5 w-3.5" />
           </button>
-          <button
-            onClick={() => removeGroup(competition.currentGroupIndex)}
-            disabled={competition.groups.length <= 1}
-            className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
-            title={isEnglish ? 'Delete current group' : '删除当前小组'}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
+          {stageList.length === 0 && (
+            <button
+              onClick={() => removeGroup(competition.currentGroupIndex)}
+              disabled={competition.groups.length <= 1}
+              className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+              title={isEnglish ? 'Delete current group' : '删除当前小组'}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          )}
           <span className="text-slate-600 shrink-0">
             {currentGroup.players.length}{isEnglish ? '' : '人'}
           </span>
@@ -624,25 +563,27 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className="grid grid-cols-3 border-b border-slate-700/50 bg-slate-800/40 xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
+      <div className="grid grid-cols-1 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
         {isSetup && (
           <button
             onClick={() => {
               setShowFormatManager(!showFormatManager);
               controlScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs xl:order-none ${
+            className={`order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
               showFormatManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span className="truncate">{isEnglish ? 'Format' : '赛制管理'}</span>
+            {rulesTabLabel
+              ? <ShieldCheck className="w-3.5 h-3.5" />
+              : <Settings className="w-3.5 h-3.5" />}
+            <span className="truncate">{rulesTabLabel ?? (isEnglish ? 'Format' : '赛制管理')}</span>
           </button>
         )}
         {isSetup && (
           <button
             onClick={() => setShowPlayerManager(current => !current)}
-            className={`order-3 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs xl:order-none ${
+            className={`order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
               showPlayerManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -651,7 +592,7 @@ export function ControlPanel({
           </button>
         )}
         {setupLayout && (
-          <div className="order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:px-2 sm:text-xs xl:order-none">
+          <div className="order-3 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:order-none sm:px-2 sm:text-xs">
             <Settings className="w-3.5 h-3.5 text-gold-400" />
             {isEnglish ? 'Data' : '赛事数据'}
           </div>
@@ -659,25 +600,30 @@ export function ControlPanel({
       </div>
       )}
 
-      <div className={setupLayout ? 'grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[340px_minmax(460px,1fr)_280px]' : 'contents'}>
+      <div className={setupLayout
+        ? (stagedLayout
+            ? 'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)]'
+            : 'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]')
+        : 'contents'}>
       {setupLayout && (
-        <div className="order-1 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 xl:order-none xl:col-start-3 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-l">
+        <div className="order-3 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 sm:order-none sm:col-start-3 sm:row-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-l">
           {competitionDataContent}
         </div>
       )}
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? 'order-2 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible xl:order-none xl:col-span-2 xl:col-start-1 xl:row-start-1 xl:min-h-0 xl:grid-cols-[340px_minmax(460px,1fr)] xl:overflow-hidden'
+          ? 'order-1 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理 */}
         {isSetup && (
           <div className={setupLayout
-            ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 xl:col-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r'
+            ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:col-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r'
             : 'space-y-3'}
           >
-            {showFormatManager && (
+            {rulesTabLabel && showFormatManager && <CompetitionRulesSummary />}
+            {!rulesTabLabel && showFormatManager && (
               <div className="space-y-3">
                 <div className="space-y-2">
                   <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
@@ -909,7 +855,7 @@ export function ControlPanel({
           <div
             data-testid="player-management-scroll"
             className={setupLayout
-              ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 xl:col-start-2 xl:min-h-0 xl:overflow-y-auto'
+              ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:min-h-0 sm:overflow-y-auto'
               : ''}
           >
             {showPlayerManager && <PlayerManagerList />}
@@ -973,6 +919,8 @@ export function ControlPanel({
           )}
 
           <DropoutManager />
+          <StageAdvancementPanel />
+          <FinalStandingsPanel />
 
           {isCompleted && (
             <div className="text-center py-3">
@@ -1051,7 +999,10 @@ export function ControlPanel({
         title={t.confirmResetTitle}
         message={t.confirmResetMsg}
         confirmText={t.resetNow}
-        onConfirm={() => resetCompetition()}
+        onConfirm={() => {
+          resetCompetition();
+          navigate('/');
+        }}
       />
 
       {/* 撤回确认（替代 window.confirm） */}

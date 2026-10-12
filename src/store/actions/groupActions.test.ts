@@ -106,4 +106,51 @@ describe('group configuration actions', () => {
     expect(useTournamentStore.getState().competition.groups[0].eliminationBracket).toBeUndefined();
     expect(useTournamentStore.getState().competition.groups[0].pairingType).toBe('swiss');
   });
+
+  it('numbers placeholder players when a new group is added', () => {
+    const competition = createNewCompetition('Groups', 1, 2, 3, 'bo1');
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().addGroup();
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups).toHaveLength(2);
+    expect(updated.groups[1].players.slice(0, 2).map(player => player.participantCode)).toEqual([
+      'B01',
+      'B02',
+    ]);
+  });
+
+  it('numbers placeholder players when the group count grows', () => {
+    const competition = createNewCompetition('Groups', 1, 2, 3, 'bo1');
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().setGroupCount(3);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups.map(group => group.players[0].participantCode)).toEqual([
+      'A01',
+      'B01',
+      'C01',
+    ]);
+  });
+
+  it('skips numbers already used by another group with the same prefix', () => {
+    const competition = createNewCompetition('Groups', 2, 2, 3, 'bo1');
+    competition.groups[0].name = '小组03';
+    competition.groups[0].players.forEach((player, index) => {
+      player.participantCode = `C0${index + 1}`;
+    });
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().addGroup();
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups[2].name).toBe('小组03');
+    expect(updated.groups[2].players.slice(0, 3).map(player => player.participantCode)).toEqual([
+      'C03',
+      'C04',
+      'C05',
+    ]);
+  });
 });

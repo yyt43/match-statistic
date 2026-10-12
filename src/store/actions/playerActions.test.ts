@@ -156,6 +156,49 @@ describe('player profile store actions', () => {
     expect(codes.slice(-2)).toEqual(['A33', 'A34']);
   });
 
+  it('fills missing codes with the letter of the renamed group', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo1');
+    competition.groups[0].name = 'D组';
+    competition.groups[0].players.forEach(player => {
+      player.participantCode = '';
+    });
+    useTournamentStore.setState({ competition });
+
+    const result = useTournamentStore.getState().generateMissingParticipantCodes();
+
+    expect(result).toEqual({ assigned: 2, unresolved: 0 });
+    expect(
+      useTournamentStore.getState().competition.groups[0].players
+        .map(player => player.participantCode)
+    ).toEqual(['D01', 'D02']);
+  });
+
+  it('numbers placeholder players added after setup from their own group letter', () => {
+    const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo1');
+    competition.groups[0].players = competition.groups[0].players.map((player, index) => ({
+      ...player,
+      participantCode: index === 0 ? 'A01' : 'A04',
+    }));
+    competition.groups[1].name = 'C组';
+    competition.groups[1].players = competition.groups[1].players.map((player, index) => ({
+      ...player,
+      participantCode: index === 0 ? 'C03' : 'C07',
+    }));
+    competition.currentGroupIndex = 1;
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().setPlayerCount(4);
+
+    const updated = useTournamentStore.getState().competition;
+    expect(updated.groups[0].players.map(player => player.participantCode)).toEqual(['A01', 'A04']);
+    expect(updated.groups[1].players.map(player => player.participantCode)).toEqual([
+      'C03',
+      'C07',
+      'C01',
+      'C02',
+    ]);
+  });
+
   it('assigns workbook rows to groups matching their sheet names', () => {
     const competition = createNewCompetition('Profiles', 2, 2, 3, 'bo3');
     competition.groups[0].name = '甲组';

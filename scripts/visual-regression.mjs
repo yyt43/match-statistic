@@ -61,6 +61,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.addInitScript(() => localStorage.setItem('tournament-onboarding-v1', '1'));
   await page.goto(appUrl, { waitUntil: 'networkidle' });
+  // 首页是赛事类型选择，先进入单阶段赛事工作区再打开帮助页。
+  await page.getByRole('button', { name: '进入设置' }).first().click();
   await page.getByTitle('帮助与说明').first().click();
   await page.getByText('功能概览').waitFor();
   await page.evaluate(() => document.fonts.ready);

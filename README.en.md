@@ -25,6 +25,10 @@ This project is suited for tournament management, club events, team activities, 
 ## Key Highlights
 
 - Multi-group tournament management: manage multiple groups, formats, and rounds in one event
+- Event type selection: single-stage, multi-stage (test feature), or Poetry Cup S3 (dedicated); the single-stage flow stays unchanged
+- Multi-stage events: configure stages and formats first, then work in the same workspace, with one advancement confirmation per stage
+- Poetry Cup S3 locked template: group stage (groups A-D, 32 players each, 5 Swiss rounds of BO3), breakout stage (4-1 players from ranks 3-6, paired 3 vs 6 and 4 vs 5), playoffs (fixed 16-player seeds)
+- Advancement engine: calculate, preview, confirm; revertible, and upstream results lock once the downstream stage has started
 - Shared format draft: apply one configuration to the current group or all groups, with a pre-start event summary
 - Dedicated pre-start workspace: hide rankings and match tables, keep group actions in the current-group bar, and use format, players, and event-data columns
 - Swiss / single-elimination support: elimination brackets follow roster order by default, can be adjusted before play, then lock into a fixed advancement path
@@ -148,6 +152,15 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - Multi-group tournament support: create multiple groups inside one event (1–20 groups)
 - Overview of all players: preview all group rosters before the event starts and detect duplicate names or empty groups
 - Player management: one unified workbook import for nickname, participant code, UID, and QQ, followed by direct editing in the same list
+
+### Multi-stage events and Poetry Cup S3 (test feature)
+
+- Event type: pick single-stage, multi-stage, or Poetry Cup S3 on the home page. Single-stage keeps the previous workspace and flow untouched.
+- Stages and formats: define stage order and configure format (Swiss / single elimination), groups, players per group, rounds, per-round match length, and roster source. S3 uses a locked three-stage template where the referee only imports rosters.
+- Format tab: for these two types the tab becomes a read-only rules summary covering every stage, with the full S3 rule text.
+- Advancement: calculate, review the preview, then confirm to write rosters and fixed seeds into downstream stages. Reverting clears the downstream rosters, matches, and bracket and removes the record.
+- Safeguards: downstream stages cannot start before the upstream advancement is confirmed; upstream results lock once the downstream stage has started.
+- Exports: Excel sheet names carry the stage prefix (for example `小组赛 · A组-排行榜`) and include `最终名次` and `晋级记录` sheets; the image export offers a final-standings view; imported JSON is matched to the right event type automatically.
 
 ## Unified Player Workbook Import
 
