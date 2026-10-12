@@ -563,16 +563,14 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className={stagedLayout
-        ? 'grid grid-cols-1 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)]'
-        : 'grid grid-cols-3 border-b border-slate-700/50 bg-slate-800/40 xl:grid-cols-[340px_minmax(460px,1fr)_280px]'}>
+      <div className="grid grid-cols-1 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
         {isSetup && (
           <button
             onClick={() => {
               setShowFormatManager(!showFormatManager);
               controlScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`${stagedLayout ? 'order-1 sm:order-none' : 'order-2 xl:order-none'} flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs ${
+            className={`order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
               showFormatManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -585,7 +583,7 @@ export function ControlPanel({
         {isSetup && (
           <button
             onClick={() => setShowPlayerManager(current => !current)}
-            className={`${stagedLayout ? 'order-2 sm:order-none' : 'order-3 xl:order-none'} flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:px-2 sm:text-xs ${
+            className={`order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
               showPlayerManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -594,7 +592,7 @@ export function ControlPanel({
           </button>
         )}
         {setupLayout && (
-          <div className={`${stagedLayout ? 'order-3 sm:order-none' : 'order-1 xl:order-none'} flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:px-2 sm:text-xs`}>
+          <div className="order-3 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:order-none sm:px-2 sm:text-xs">
             <Settings className="w-3.5 h-3.5 text-gold-400" />
             {isEnglish ? 'Data' : '赛事数据'}
           </div>
@@ -605,29 +603,23 @@ export function ControlPanel({
       <div className={setupLayout
         ? (stagedLayout
             ? 'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)]'
-            : 'grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[340px_minmax(460px,1fr)_280px]')
+            : 'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]')
         : 'contents'}>
       {setupLayout && (
-        <div className={stagedLayout
-          ? 'order-3 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 sm:order-none sm:col-start-3 sm:row-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-l'
-          : 'order-1 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 xl:order-none xl:col-start-3 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-l'}>
+        <div className="order-3 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 sm:order-none sm:col-start-3 sm:row-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-l">
           {competitionDataContent}
         </div>
       )}
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? (stagedLayout
-              ? 'order-1 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden'
-              : 'order-2 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible xl:order-none xl:col-span-2 xl:col-start-1 xl:row-start-1 xl:min-h-0 xl:grid-cols-[340px_minmax(460px,1fr)] xl:overflow-hidden')
+          ? 'order-1 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理 */}
         {isSetup && (
           <div className={setupLayout
-            ? (stagedLayout
-                ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:col-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r'
-                : 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 xl:col-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-b-0 xl:border-r')
+            ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:col-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r'
             : 'space-y-3'}
           >
             {rulesTabLabel && showFormatManager && <CompetitionRulesSummary />}
@@ -863,9 +855,7 @@ export function ControlPanel({
           <div
             data-testid="player-management-scroll"
             className={setupLayout
-              ? (stagedLayout
-                  ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:min-h-0 sm:overflow-y-auto'
-                  : 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 xl:col-start-2 xl:min-h-0 xl:overflow-y-auto')
+              ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:min-h-0 sm:overflow-y-auto'
               : ''}
           >
             {showPlayerManager && <PlayerManagerList />}
