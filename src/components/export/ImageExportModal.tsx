@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Download, Camera, Trophy, Swords, Users, Calendar, AlertTriangle, GitBranch } from 'lucide-react';
 import { RankingImageView } from './RankingImageView';
+import { FinalStandingsImageView } from './FinalStandingsImageView';
 import { MatchImageView } from '../matches/MatchImageView';
 import { EliminationBracketTree } from '../competition/EliminationBracketTree';
 import { generateImage } from '../../utils/export/imageExport';
@@ -12,8 +13,9 @@ import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
 import { getGroupDisplayName } from '../../utils/multiStage';
+import { buildFinalStandings } from '../../utils/advancement';
 
-type ExportType = 'ranking' | 'match' | 'bracket';
+type ExportType = 'ranking' | 'match' | 'bracket' | 'standings';
 
 interface ImageExportModalProps {
   isOpen: boolean;
@@ -52,6 +54,8 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
 
   const availableGroups = competition.groups.filter(g => g.currentRound > 0);
   const allGroups = competition.groups;
+  const standings = buildFinalStandings(competition);
+  const hasStandings = standings.length > 0;
   const hasMultipleGroups = allGroups.length > 1;
   const hasAvailableGroups = availableGroups.length > 1;
 
@@ -88,6 +92,14 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
 
     try {
       if (exportAllGroups) {
+        if (activeType === 'standings') {
+          await generateImage(
+            'standings-image',
+            `${competition.name}-${language === 'en' ? 'standings' : '最终名次'}`,
+            { signal: controller.signal, onProgress: setExportProgress }
+          );
+          return;
+        }
         for (let i = 0; i < groupsToExport.length; i++) {
           setGeneratingGroupIdx(i);
           const groupIdx = competition.groups.indexOf(groupsToExport[i]);
@@ -112,6 +124,14 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           });
         }
       } else {
+        if (activeType === 'standings') {
+          await generateImage(
+            'standings-image',
+            `${competition.name}-${language === 'en' ? 'standings' : '最终名次'}`,
+            { signal: controller.signal, onProgress: setExportProgress }
+          );
+          return;
+        }
         const elementId = activeType === 'ranking'
           ? 'ranking-image'
           : activeType === 'match'
@@ -193,9 +213,22 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
               <GitBranch className="w-4 h-4" />
               {language === 'en' ? 'Bracket' : '淘汰签表'}
             </button>
+            {hasStandings && (
+              <button
+                onClick={() => setActiveType('standings')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeType === 'standings'
+                    ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
+                    : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+                }`}
+              >
+                <Trophy className="w-4 h-4" />
+                {language === 'en' ? 'Final standings' : '最终名次'}
+              </button>
+            )}
           </div>
 
-          {hasMultipleGroups && (
+          {hasMultipleGroups && activeType !== 'standings' && (
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-slate-500 shrink-0" />
               <div className="flex gap-1.5 flex-wrap">
@@ -262,6 +295,11 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             </div>
           )}
           {exportAllGroups ? (
+            activeType === 'standings' ? (
+              <div className="flex justify-center min-w-fit">
+                <FinalStandingsImageView />
+              </div>
+            ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="w-12 h-12 text-gold-400/50 mb-4" />
               <p className="text-slate-300 font-medium mb-2">
@@ -279,13 +317,16 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
                 <p>· {formatText(t.exportAllGroupsTip4, { count: availableGroups.length })}</p>
               </div>
             </div>
+            )
           ) : (
             <div className="flex justify-center min-w-fit">
-              {activeType === 'ranking'
-                ? <RankingImageView />
-                : activeType === 'match'
-                  ? <MatchImageView />
-                  : (
+              {activeType === 'standings' ? (
+                <FinalStandingsImageView />
+              ) : activeType === 'ranking' ? (
+                <RankingImageView />
+              ) : activeType === 'match' ? (
+                <MatchImageView />
+              ) : (
                     <div
                       id="bracket-image"
                       className="rounded-xl border border-slate-700/60 bg-slate-900 p-4"
