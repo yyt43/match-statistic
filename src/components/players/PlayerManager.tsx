@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
 import { isRosterLocked, sortPlayersByParticipantCode } from '../../utils/playerProfiles';
+import { getUnconfirmedUpstreamStageIds } from '../../utils/advancement';
 
 export function PlayerManagerList() {
   const currentGroup = useCurrentGroup();
@@ -14,7 +15,10 @@ export function PlayerManagerList() {
   // 名单由上游晋级生成且尚未补齐时，把空缺席位显示成「待定」，方便裁判核对还差谁。
   const pendingSlots = Math.max(
     0,
-    (currentGroup.plannedPlayerCount ?? 0) - currentGroup.players.length
+    // 只有仍有上游赛段未确认晋级时，才可能存在后续补入的席位。
+    currentGroup.stageId && getUnconfirmedUpstreamStageIds(competition, currentGroup.stageId).length > 0
+      ? (currentGroup.plannedPlayerCount ?? 0) - currentGroup.players.length
+      : 0
   );
 
   return (
