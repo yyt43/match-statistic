@@ -33,6 +33,7 @@ function fitRoundGameTypes(
 }
 
 function effectiveRounds(stage: MultiStageDraftStage): number {
+  if (stage.fixedRounds !== undefined) return stage.fixedRounds;
   return stage.kind === 'single_elimination'
     ? getSingleEliminationRounds(stage.playerCountPerGroup)
     : stage.rounds;
@@ -282,14 +283,13 @@ export default function MultiStageSetup() {
                     onChange={value => updateStage(stage.id, { rounds: value })}
                   />
                 ) : (
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-slate-500">
-                      {isEnglish ? 'Rounds (auto)' : '轮数（自动）'}
-                    </span>
-                    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 py-1.5 text-center text-sm tabular-nums text-slate-400">
-                      {effectiveRounds(stage)}
-                    </div>
-                  </div>
+                  <Stepper
+                    label={isEnglish ? 'Rounds' : '轮数'}
+                    value={stage.fixedRounds ?? effectiveRounds(stage)}
+                    min={1}
+                    max={8}
+                    onChange={value => updateStage(stage.id, { fixedRounds: value, rounds: value })}
+                  />
                 )}
                 <label className="block space-y-1.5">
                   <span className="text-xs text-slate-500">{isEnglish ? 'Roster source' : '名单来源'}</span>
