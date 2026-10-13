@@ -183,8 +183,8 @@ export function ControlPanel({
   const isInProgress = currentGroup.status === 'in_progress';
   const isCompleted = currentGroup.status === 'completed';
   const roundUndoMode = resolveRoundUndoMode(currentGroup.currentRound, currentGroup.matches);
-  // 任一小组已开始比赛时，禁止调整小组数量
-  const hasAnyRound = competition.groups.some(g => g.currentRound > 0);
+  // 底部录分入口只看当前小组：后续赛段还没开赛时不应出现录入按钮。
+  const currentGroupHasRound = currentGroup.currentRound > 0;
   const draftPlayerCount = Math.max(
     2,
     Math.min(200, parseInt(playerCountInput, 10) || currentGroup.players.length)
@@ -909,11 +909,11 @@ export function ControlPanel({
 
       {/* 底部固定操作区：开赛、录分、导入结果和生成下一轮始终可见 */}
       {(
-        hasAnyRound
+        currentGroupHasRound
         || (isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds)
       ) && (
         <div className="shrink-0 space-y-2 border-t border-slate-700/50 bg-slate-800/60 p-3">
-          {hasAnyRound && (
+          {currentGroupHasRound && (
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setShowQuickScore(true)}
