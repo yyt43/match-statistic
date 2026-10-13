@@ -26,6 +26,7 @@ import { PlayerManagerList } from '../players/PlayerManager';
 import { TiebreakSettings } from './TiebreakSettings';
 import { resolveRoundUndoMode } from './roundUndoMode';
 import { EliminationBracketConfirmModal } from './EliminationBracketConfirmModal';
+import { EliminationBracketTree } from './EliminationBracketTree';
 import { CompetitionRulesSummary } from './CompetitionRulesSummary';
 import { StageAdvancementPanel } from './StageAdvancementPanel';
 import { FinalStandingsPanel } from './FinalStandingsPanel';
@@ -378,6 +379,48 @@ export function ControlPanel({
       </section>
 
       {startEventSection}
+
+      {/* 下一阶段的选手与对阵预览：突围赛等只打一轮的赛段直接列出对阵，其余显示签表 */}
+      {isSetup && currentGroup.players.length >= 2 && (
+        <section className="space-y-2 border-t border-slate-700/50 pt-3">
+          <div className="text-xs font-medium text-slate-300">
+            {currentGroup.roundsLocked
+              ? (isEnglish ? 'Pairings' : '对阵')
+              : (isEnglish ? 'Bracket' : '对阵签表')}
+          </div>
+          {currentGroup.roundsLocked ? (
+            <ul className="space-y-1.5">
+              {Array.from(
+                { length: Math.ceil(currentGroup.players.length / 2) },
+                (_, index) => index
+              ).map(index => {
+                const first = currentGroup.players[index * 2];
+                const second = currentGroup.players[index * 2 + 1];
+                return (
+                  <li
+                    key={`${first?.id ?? index}-pair`}
+                    className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-300"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    </span>
+                    <span className="shrink-0 text-slate-500">vs</span>
+                    <span className="min-w-0 flex-1 truncate text-right">
+                      {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            currentGroup.eliminationBracket && (
+              <div className="overflow-x-auto rounded-lg bg-slate-900/40 p-2">
+                <EliminationBracketTree group={currentGroup} isEnglish={isEnglish} />
+              </div>
+            )
+          )}
+        </section>
+      )}
 
       {isSetup && (
         <section className="border-t border-slate-700/50 pt-3">
