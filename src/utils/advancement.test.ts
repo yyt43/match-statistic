@@ -339,6 +339,12 @@ describe('stage advancement', () => {
               ...group,
               status: 'completed' as const,
               currentRound: 3,
+              eliminationBracket: {
+                id: 'bracket',
+                size: 8,
+                slots: [],
+                source: 'roster_order' as const,
+              },
               matches: [1, 2, 3].map(round => ({
                 id: `playoff-r${round}`,
                 round,
@@ -363,5 +369,24 @@ describe('stage advancement', () => {
     expect(standings[0].players[0].name).toBe('先手3');
     expect(standings.map(item => item.place)).toEqual(['1', '2', '3-4', '5-8']);
     expect(standings[3].players).toHaveLength(1);
+  });
+
+  it('keeps the final standings empty until the playoff bracket is decided', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
+      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+    ]));
+
+    // 只有小组赛有比赛记录时不应产生名次
+    expect(buildFinalStandings(competition)).toEqual([]);
+
+    // 刚确认晋级、淘汰赛签表还没开打时同样不显示名次
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+    const playoffGroup = confirmed.groups.find(group => group.stageId === 'stage-playoff')!;
+    expect(playoffGroup.players.length).toBeGreaterThan(0);
+    expect(buildFinalStandings(confirmed)).toEqual([]);
   });
 });

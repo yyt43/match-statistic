@@ -581,23 +581,32 @@ export function buildFinalStandings(
   const stages = getOrderedStages(competition);
   if (stages.length === 0) return [];
 
+  // 只认有固定签位的淘汰赛赛段，且必须已经打完签表最后一轮，避免小组赛阶段就报出"最终名次"。
   const playoffStage = [...stages].reverse().find(stage =>
-    getStageGroups(competition, stage).some(
-      group => group.players.length > 0 && group.matches.some(match => match.round > 0)
-    )
+    (stage.seedRules?.length ?? 0) > 0
+    || getStageGroups(competition, stage).some(group => group.eliminationBracket)
   );
   if (!playoffStage) return [];
 
-  const group = getStageGroups(competition, playoffStage).find(
-    item => item.players.length > 0 && item.matches.some(match => match.round > 0)
-  );
+  const group = getStageGroups(competition, playoffStage).find(item => item.eliminationBracket);
   if (!group) return [];
 
+  const decidedMatches = group.matches.filter(match => match.round > 0);
+  const bracketRounds = (group.eliminationBracket?.size ?? 0) > 1
+    ? Math.round(Math.log2(group.eliminationBracket?.size ?? 1))
+    : 0;
+  const lastRound = decidedMatches.length > 0
+    ? Math.max(...decidedMatches.map(match => match.round))
+    : 0;
+  if (bracketRounds === 0 || lastRound < bracketRounds) return [];
+  if (decidedMatches.some(match => match.round === lastRound && match.result === 'pending')) {
+    return [];
+  }
+
   const playerById = new Map(group.players.map(player => [player.id, player]));
-  const lastRound = Math.max(...group.matches.map(match => match.round));
   const standings: FinalStandingPlace[] = [];
   for (let round = lastRound; round >= 1; round -= 1) {
-    const matches = group.matches.filter(match => match.round === round);
+    const matches = decidedMatches.filter(match => match.round === round);
     const losers = matches
       .map(match => {
         if (match.result === 'player1') return playerById.get(match.player2Id);
@@ -619,7 +628,7 @@ export function buildFinalStandings(
     });
   }
 
-  const finalMatch = group.matches.find(match => match.round === lastRound);
+  const finalMatch = decidedMatches.find(match => match.round === lastRound);
   const championId = finalMatch?.result === 'player1'
     ? finalMatch.player1Id
     : finalMatch?.result === 'player2'
