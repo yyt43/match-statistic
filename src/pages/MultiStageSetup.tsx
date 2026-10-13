@@ -323,6 +323,35 @@ export default function MultiStageSetup() {
               </div>
 
               <div className="space-y-2">
+                {stage.kind === 'single_elimination' && (
+                  <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={!!stage.breakout}
+                      onChange={event => updateStage(stage.id, {
+                        breakout: event.target.checked
+                          ? { pairings: [[3, 6], [4, 5]] }
+                          : undefined,
+                      })}
+                      className="h-3.5 w-3.5 accent-gold-500"
+                    />
+                    <span>
+                      {isEnglish
+                        ? 'This stage is a play-in stage (pair across the source groups)'
+                        : '本赛段为附加赛（按来源小组配对）'}
+                    </span>
+                    {stage.breakout && (
+                      <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300">
+                        {isEnglish ? 'Ranks' : '名次'} {stage.breakout.pairings
+                          .map(pair => `${pair[0]}-${pair[1]}`)
+                          .join('、')}
+                      </span>
+                    )}
+                  </label>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <span className="text-xs text-slate-500">
                   {isEnglish ? 'Advancement rules' : '晋级条件'}
                 </span>
@@ -411,7 +440,7 @@ export default function MultiStageSetup() {
                         className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40"
                       >
                         <option value="main">{isEnglish ? 'Advance' : '直接晋级'}</option>
-                        <option value="breakout">{isEnglish ? 'Breakout' : '进入突围'}</option>
+                        <option value="breakout">{isEnglish ? 'Play-in' : '进入附加赛'}</option>
                       </select>
                       <button
                         type="button"

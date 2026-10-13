@@ -22,7 +22,7 @@ function describeSeat(seat: StageAdvancementSeat, isEnglish: boolean): string {
     return `${group} ${isEnglish ? `rank ${rank}` : `第${rank}名`} · ${code} · ${isEnglish ? 'advances directly' : '直接晋级'}`;
   }
   if (seat.route === 'breakout') {
-    return `${group} ${isEnglish ? `rank ${rank}` : `第${rank}名`} · ${code} · ${isEnglish ? 'breakout match' : '参加突围对局'}`;
+    return `${group} ${isEnglish ? `rank ${rank}` : `第${rank}名`} · ${code} · ${isEnglish ? 'play-in match' : '参加附加赛对局'}`;
   }
   return `${group} ${isEnglish ? `rank ${rank}` : `第${rank}名`} · ${code}`;
 }
