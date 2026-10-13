@@ -157,9 +157,14 @@ export default function MultiStageSetup() {
               <Layers className="h-5 w-5 text-indigo-900" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-slate-100">
-                {isEnglish ? 'Multi-stage rules' : '多阶段赛制设置'}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-lg font-semibold text-slate-100">
+                  {isEnglish ? 'Multi-stage rules' : '多阶段赛制设置'}
+                </h1>
+                <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">
+                  {isEnglish ? 'Test feature' : '测试功能'}
+                </span>
+              </div>
               <p className="text-xs text-slate-400">
                 {isEnglish
                   ? 'Define stages and formats, then continue in the standard setup.'

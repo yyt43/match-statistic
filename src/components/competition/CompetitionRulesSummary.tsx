@@ -26,6 +26,11 @@ export function CompetitionRulesSummary() {
         {isS3
           ? (isEnglish ? 'Poetry Cup S3 rules' : 'S3 规则说明')
           : (isEnglish ? 'Stage rules' : '规则说明')}
+        {!isS3 && (
+          <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">
+            {isEnglish ? 'Test feature' : '测试功能'}
+          </span>
+        )}
       </div>
 
       {isS3 && (
