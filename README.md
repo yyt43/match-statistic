@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.6.0
+当前版本：v0.6.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.0)
+[![Release](https://img.shields.io/badge/Release-v0.6.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.1)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -181,6 +181,12 @@
 - **赛事类型**：首页选择单阶段赛事 / 多阶段赛事 / 诗意杯 S3。单阶段赛事进入原有工作区，不改动原有流程；多阶段与 S3 额外记录赛段信息。
 
 - **赛段与赛制**：多阶段赛事在设置页定义赛段顺序，逐段配置赛制（瑞士轮 / 单败淘汰）、小组数、每组人数、轮数、逐轮 BO 制与名单来源；S3 使用锁定的三段模板，裁判只导入名单。
+
+- **规则编辑器**：设置页按「赛段设置 / 赛段关系 / 赛段内规则 / 晋级规则」分区；名单来源可多选上游赛段（例如淘汰赛同时接收小组赛直进与突围赛晋级），晋级去向按赛段名称选择，并支持可编辑的跨组配对与签表对位。
+
+- **规则检查**：开赛前自动体检赛段结构、名单来源、晋级条件与签表对位；必错项会禁用开赛按钮，提示项只做提醒。
+
+- **赛事流程图**：箭头按选手的真实晋级方向绘制（例如小组赛分别指向突围赛与淘汰赛），设置页与运行页规则说明中都能查看。
 
 - **赛制管理选项卡**：多阶段赛事下该栏改为「规则说明」，只读展示全部赛段的赛制、小组、人数、轮次与局制；S3 另附完整规则说明。
 

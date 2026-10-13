@@ -213,7 +213,8 @@ export interface StageAdvancementRule {
   toRank: number;
   minWins?: number;
   maxWins?: number;
-  destination: 'main' | 'breakout';
+  /** 晋级去向：目标赛段的 id（裁判在设置页按赛段名称选择）。 */
+  targetStageId: string;
 }
 
 /** 固定签位：来源小组的第 rank 名进入目标赛段的第 targetSlot 个位置。 */

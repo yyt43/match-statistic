@@ -1,6 +1,7 @@
 import { Lock, ShieldCheck } from 'lucide-react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
+import { EventFlowDiagram } from './EventFlowDiagram';
 import {
   describeGroupConfig,
   describeStageKind,
@@ -40,6 +41,27 @@ export function CompetitionRulesSummary() {
           ))}
         </ul>
       )}
+
+      {/* 赛段关系图：箭头按选手的晋级方向绘制 */}
+      <div className="rounded-lg bg-slate-800/50 p-3">
+        <div className="mb-2 text-[10px] text-slate-500">
+          {isEnglish ? 'Advancement path' : '晋级路径'}
+        </div>
+        <EventFlowDiagram
+          direction="vertical"
+          isEnglish={isEnglish}
+          stages={stages.map(stage => ({
+            id: stage.id,
+            name: stage.name,
+            kind: stage.kind,
+            sourceStageIds: stage.sourceStageIds,
+            advancementRules: stage.advancementRules,
+            note: isEnglish
+              ? `${stage.groupIds.length} groups`
+              : `${stage.groupIds.length} 组`,
+          }))}
+        />
+      </div>
 
       <ol className="space-y-2">
         {stages.map((stage, index) => (
