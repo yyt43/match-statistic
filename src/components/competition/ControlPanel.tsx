@@ -222,10 +222,12 @@ export function ControlPanel({
     draftGameType
   );
   const rosterValidation = validateRoster(competition);
-  const groupsForStart = startConfirmTarget === 'all'
-    ? competition.groups
-    : [currentGroup];
-  const startableGroupCount = competition.groups.filter(group =>
+  // 开赛弹窗只列当前赛段的小组：其它赛段（例如还没打到的突围赛/淘汰赛）不应出现在这里。
+  const startScopeGroups = stageList.length > 0
+    ? (currentStage ? getStageGroups(competition, currentStage) : [])
+    : competition.groups;
+  const groupsForStart = startConfirmTarget === 'all' ? startScopeGroups : [currentGroup];
+  const startableGroupCount = startScopeGroups.filter(group =>
     group.status === 'setup' && group.players.length >= 2
   ).length;
 
@@ -862,7 +864,7 @@ export function ControlPanel({
           <div
             data-testid="player-management-scroll"
             className={setupLayout
-              ? 'min-w-0 overflow-x-auto overflow-y-visible p-4 sm:min-h-full sm:overflow-y-auto'
+              ? 'min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:row-start-1 sm:min-h-full sm:overflow-y-auto'
               : ''}
           >
             <PlayerManagerList />
@@ -1052,14 +1054,17 @@ export function ControlPanel({
         confirmText={isEnglish ? 'Confirm and start' : '确认并开始比赛'}
         onConfirm={() => {
           setStartConfirmTarget(null);
+          // 只处理当前赛段的小组：其它赛段的签表不应出现在这次确认里。
+          const scopeIndices = new Set(
+            startScopeGroups.map(group => competition.groups.indexOf(group))
+          );
           const eliminationIndices = competition.groups
             .map((group, index) => ({ group, index }))
-            .filter(({ group }) =>
-              group.pairingType === 'single_elimination'
+            .filter(({ group, index }) =>
+              scopeIndices.has(index)
+              && group.pairingType === 'single_elimination'
               && group.status === 'setup'
               && group.players.length >= 2
-              // 晋级引擎已经写入并锁定签表时不再重复确认，直接开赛。
-              && !group.eliminationBracket?.lockedAt
             )
             .map(({ index }) => index);
           if (eliminationIndices.length > 0) {
@@ -1081,8 +1086,8 @@ export function ControlPanel({
           <div className="space-y-2">
             <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-[11px] text-slate-400">
               {isEnglish
-                ? `${competition.groups.length} groups total, ${startableGroupCount} ready to start together.`
-                : `共 ${competition.groups.length} 个小组，其中 ${startableGroupCount} 个将同时开始比赛。`}
+                ? `${startScopeGroups.length} groups in this stage, ${startableGroupCount} ready to start together.`
+                : `本赛段共 ${startScopeGroups.length} 个小组，其中 ${startableGroupCount} 个将同时开始比赛。`}
             </div>
             {groupsForStart.map(group => {
               const roundTypes = fitRoundGameTypes(

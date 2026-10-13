@@ -606,7 +606,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     if (!validateRoster(competition).valid) return;
 
+    // 与 startAllGroups 一致：只开当前赛段的小组，避免其它赛段的空小组把开赛整体拦下。
+    const scopeIndices = getCurrentStageGroupIndices(competition)
+      ?? competition.groups.map((_, index) => index);
+    const scope = new Set(scopeIndices);
     const indices = Array.from(new Set(groupIndices)).filter(index =>
+      scope.has(index)
+      &&
       competition.groups[index]?.pairingType === 'single_elimination'
       && competition.groups[index]?.status === 'setup'
       && !competition.groups[index]?.eliminationBracket?.lockedAt
@@ -627,8 +633,8 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
         return bracket ? { ...group, eliminationBracket: bracket } : group;
       }),
     };
-    updated = startAllGroupsInCompetition(updated);
-    for (let index = 0; index < updated.groups.length; index += 1) {
+    updated = startAllGroupsInCompetition(updated, scopeIndices);
+    for (const index of scopeIndices) {
       const group = updated.groups[index];
       if (group.status === 'in_progress' && group.currentRound === 0) {
         updated = generateNextRoundForCompetition(updated, index);

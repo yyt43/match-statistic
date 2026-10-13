@@ -8,6 +8,7 @@ import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 import { OnboardingModal } from '../components/common/OnboardingModal';
+import { getOrderedStages, getStageGroups } from '../utils/multiStage';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
@@ -38,6 +39,13 @@ export default function Home() {
   const redo = useTournamentStore(state => state.redo);
   const currentGroup = useCurrentGroup();
   const { language, setLanguage, t } = useLanguagePreference();
+  // 界面布局按“当前赛段”决定：上一阶段打完、切到下一阶段时回到设置风格界面。
+  const stageList = getOrderedStages(competition);
+  const activeStage = stageList.find(stage => stage.groupIds.includes(currentGroup.id));
+  const activeStageGroups = activeStage
+    ? getStageGroups(competition, activeStage)
+    : competition.groups;
+  const isCurrentStageSetup = activeStageGroups.every(group => group.status === 'setup');
   const {
     lastSavedAt,
     syncedFromOtherTab,
@@ -246,7 +254,7 @@ export default function Home() {
             </button>
           </div>
 
-          {competition.groups.every(group => group.status === 'setup') ? (
+          {isCurrentStageSetup ? (
             <div className="mx-auto max-w-7xl">
               <div className="h-auto xl:h-[calc(100vh-250px)] xl:min-h-[720px] xl:overflow-hidden">
                 <ControlPanel
