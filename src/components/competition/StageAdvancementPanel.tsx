@@ -34,6 +34,10 @@ export function StageAdvancementPanel() {
   const confirmStageAdvancement = useTournamentStore(state => state.confirmStageAdvancement);
   const revertStageAdvancement = useTournamentStore(state => state.revertStageAdvancement);
   const [preview, setPreview] = useState<StageAdvancementPreview | null>(null);
+  const [excludedSeats, setExcludedSeats] = useState<Set<string>>(new Set());
+  const [adjustReason, setAdjustReason] = useState('');
+  const seatKey = (seat: StageAdvancementSeat, index: number) =>
+    `${seat.targetStageId ?? ''}:${seat.participantCode ?? seat.playerId}:${index}`;
 
   const stages = getOrderedStages(competition);
   const currentGroup = competition.groups[competition.currentGroupIndex];
@@ -157,24 +161,54 @@ export function StageAdvancementPanel() {
                       </span>
                     </div>
                     <ul className="space-y-1">
-                      {seats.map((seat, index) => (
-                        <li
-                          key={`${seat.targetStageId}-${seat.participantCode}-${index}`}
-                          className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-400"
-                        >
-                          <span className="w-6 shrink-0 text-right font-mono text-[10px] text-slate-500">
-                            {seat.targetSlot !== undefined ? seat.targetSlot + 1 : index + 1}
-                          </span>
-                          <span className="min-w-0 truncate">{describeSeat(seat, isEnglish)}</span>
-                        </li>
-                      ))}
+                      {seats.map((seat, index) => {
+                        const key = seatKey(seat, preview.seats.indexOf(seat));
+                        const isExcluded = excludedSeats.has(key);
+                        return (
+                          <li
+                            key={`${seat.targetStageId}-${seat.participantCode}-${index}`}
+                            className={`flex items-center gap-2 rounded px-2 py-1 text-[11px] ${
+                              isExcluded
+                                ? 'bg-rose-500/10 text-slate-500 line-through'
+                                : 'bg-slate-800/50 text-slate-400'
+                            }`}
+                          >
+                            <span className="w-6 shrink-0 text-right font-mono text-[10px] text-slate-500">
+                              {seat.targetSlot !== undefined ? seat.targetSlot + 1 : index + 1}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">{describeSeat(seat, isEnglish)}</span>
+                            <button
+                              onClick={() => {
+                                setExcludedSeats(current => {
+                                  const next = new Set(current);
+                                  if (next.has(key)) next.delete(key);
+                                  else next.add(key);
+                                  return next;
+                                });
+                              }}
+                              className="shrink-0 rounded border border-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400 transition-colors hover:border-rose-500/40 hover:text-rose-300"
+                            >
+                              {isExcluded
+                                ? (isEnglish ? 'Restore' : '恢复')
+                                : (isEnglish ? 'Exclude' : '取消席位')}
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 );
               })}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-700/50 px-4 py-3">
+            <div className="space-y-2 border-t border-slate-700/50 px-4 py-3">
+              <input
+                value={adjustReason}
+                onChange={event => setAdjustReason(event.target.value)}
+                placeholder={isEnglish ? 'Reason for manual adjustment (optional)' : '人工调整理由（可选）'}
+                className="w-full rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-2 text-xs text-slate-200 outline-none focus:border-gold-500/40"
+              />
+              <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setPreview(null)}
                 className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50"
@@ -183,8 +217,16 @@ export function StageAdvancementPanel() {
               </button>
               <button
                 onClick={() => {
-                  confirmStageAdvancement(preview);
+                  confirmStageAdvancement({
+                    ...preview,
+                    seats: preview.seats.filter(
+                      (seat, index) => !excludedSeats.has(seatKey(seat, index))
+                    ),
+                    reason: adjustReason.trim() || undefined,
+                  });
                   setPreview(null);
+                  setExcludedSeats(new Set());
+                  setAdjustReason('');
                 }}
                 disabled={preview.errors.length > 0 || preview.seats.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
@@ -192,6 +234,7 @@ export function StageAdvancementPanel() {
                 <Check className="h-3.5 w-3.5" />
                 {isEnglish ? 'Confirm and write' : '确认并落库'}
               </button>
+              </div>
             </div>
           </div>
         </div>

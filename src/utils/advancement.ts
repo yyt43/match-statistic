@@ -522,6 +522,7 @@ export function confirmStageAdvancement(
     confirmedAt: new Date().toISOString(),
     seats: preview.seats.map(seat => ({ ...seat })),
     breakoutPairings: preview.breakoutPairings.map(pairing => ({ ...pairing })),
+    reason: preview.reason,
   };
   const records = (competition.stageAdvancements ?? []).filter(
     item => item.sourceStageId !== preview.sourceStageId

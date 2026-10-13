@@ -11,6 +11,11 @@ export function PlayerManagerList() {
   const rosterLocked = isRosterLocked(competition);
   const sortedPlayers = sortPlayersByParticipantCode(currentGroup.players);
   const groupIndex = competition.currentGroupIndex;
+  // 名单由上游晋级生成且尚未补齐时，把空缺席位显示成「待定」，方便裁判核对还差谁。
+  const pendingSlots = Math.max(
+    0,
+    (currentGroup.plannedPlayerCount ?? 0) - currentGroup.players.length
+  );
 
   return (
     <div className="space-y-3">
@@ -67,6 +72,19 @@ export function PlayerManagerList() {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+          </div>
+        ))}
+
+        {Array.from({ length: pendingSlots }, (_, index) => (
+          <div
+            key={`pending-slot-${index}`}
+            className="grid items-center gap-2 rounded-lg border border-dashed border-slate-700/50 bg-slate-800/10 px-3 py-2 text-slate-500 grid-cols-[24px_58px_minmax(100px,1fr)_104px_82px_28px]"
+          >
+            <span className="font-mono text-xs">{sortedPlayers.length + index + 1}.</span>
+            <span className="text-[11px]">{isEnglish ? 'TBD' : '待定'}</span>
+            <span className="col-span-4 text-[11px]">
+              {isEnglish ? 'Waiting for the upstream stage' : '等待上一赛段晋级'}
+            </span>
           </div>
         ))}
       </div>
