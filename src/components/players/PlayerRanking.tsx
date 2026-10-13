@@ -189,7 +189,9 @@ export function PlayerRanking() {
                       <span className={`text-xs font-bold ${
                         rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-300' : 'text-amber-500'
                       }`}>
-                        {getEliminationTitleI18n(rank, currentGroup.totalRounds, language)}
+                        {currentGroup.status === 'completed'
+                          ? getEliminationTitleI18n(rank, currentGroup.totalRounds, language)
+                          : '-'}
                       </span>
                     </div>
                     <div className="col-span-2 flex items-center justify-center">

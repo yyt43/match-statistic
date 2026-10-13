@@ -158,7 +158,9 @@ export function getRankingTableData(group: TournamentGroup, language: AppLanguag
         participantCode,
         displayName,
         uid,
-        getEliminationTitleI18n(rank, group.totalRounds, language),
+        group.status === 'completed'
+          ? getEliminationTitleI18n(rank, group.totalRounds, language)
+          : '-',
         `${player.wins}-${player.losses}`,
         eliminatedText,
       ];
