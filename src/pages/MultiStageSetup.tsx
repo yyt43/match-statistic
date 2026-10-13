@@ -65,7 +65,18 @@ function Stepper({
           −
         </button>
         <span className="min-w-[3rem] flex-1 rounded border border-slate-700/50 bg-slate-800/30 py-1 text-center text-sm tabular-nums text-slate-200">
-          {value}
+          <input
+            type="number"
+            value={value}
+            min={min}
+            max={max}
+            onChange={event => {
+              const next = Number(event.target.value);
+              if (Number.isNaN(next)) return;
+              onChange(Math.max(min, Math.min(max, next)));
+            }}
+            className="w-full bg-transparent text-center text-sm tabular-nums text-slate-200 outline-none"
+          />
         </span>
         <button
           type="button"
@@ -309,6 +320,133 @@ export default function MultiStageSetup() {
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-xs text-slate-500">
+                  {isEnglish ? 'Advancement rules' : '晋级条件'}
+                </span>
+                <div className="space-y-1.5">
+                  {(stage.advancementRules ?? []).map(rule => (
+                    <div key={rule.id} className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                      <span>{isEnglish ? 'Rank' : '名次'}</span>
+                      <input
+                        type="number"
+                        value={rule.fromRank}
+                        min={1}
+                        max={64}
+                        onChange={event => {
+                          const next = Math.max(1, Number(event.target.value) || 1);
+                          updateStage(stage.id, {
+                            advancementRules: (stage.advancementRules ?? []).map(item =>
+                              item.id === rule.id ? { ...item, fromRank: next } : item
+                            ),
+                          });
+                        }}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                      />
+                      <span>-</span>
+                      <input
+                        type="number"
+                        value={rule.toRank}
+                        min={1}
+                        max={64}
+                        onChange={event => {
+                          const next = Math.max(1, Number(event.target.value) || 1);
+                          updateStage(stage.id, {
+                            advancementRules: (stage.advancementRules ?? []).map(item =>
+                              item.id === rule.id ? { ...item, toRank: next } : item
+                            ),
+                          });
+                        }}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                      />
+                      <span>{isEnglish ? 'wins' : '胜场'}</span>
+                      <input
+                        type="number"
+                        value={rule.minWins ?? ''}
+                        min={0}
+                        max={20}
+                        placeholder={isEnglish ? 'any' : '不限'}
+                        onChange={event => {
+                          const raw = event.target.value;
+                          updateStage(stage.id, {
+                            advancementRules: (stage.advancementRules ?? []).map(item =>
+                              item.id === rule.id
+                                ? { ...item, minWins: raw === '' ? undefined : Math.max(0, Number(raw) || 0) }
+                                : item
+                            ),
+                          });
+                        }}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                      />
+                      <span>-</span>
+                      <input
+                        type="number"
+                        value={rule.maxWins ?? ''}
+                        min={0}
+                        max={20}
+                        placeholder={isEnglish ? 'any' : '不限'}
+                        onChange={event => {
+                          const raw = event.target.value;
+                          updateStage(stage.id, {
+                            advancementRules: (stage.advancementRules ?? []).map(item =>
+                              item.id === rule.id
+                                ? { ...item, maxWins: raw === '' ? undefined : Math.max(0, Number(raw) || 0) }
+                                : item
+                            ),
+                          });
+                        }}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                      />
+                      <select
+                        value={rule.destination}
+                        onChange={event => updateStage(stage.id, {
+                          advancementRules: (stage.advancementRules ?? []).map(item =>
+                            item.id === rule.id
+                              ? { ...item, destination: event.target.value as 'main' | 'breakout' }
+                              : item
+                          ),
+                        })}
+                        className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40"
+                      >
+                        <option value="main">{isEnglish ? 'Advance' : '直接晋级'}</option>
+                        <option value="breakout">{isEnglish ? 'Breakout' : '进入突围'}</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => updateStage(stage.id, {
+                          advancementRules: (stage.advancementRules ?? []).filter(item => item.id !== rule.id),
+                        })}
+                        className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                      >
+                        {isEnglish ? 'Remove' : '删除'}
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => updateStage(stage.id, {
+                      advancementRules: [
+                        ...(stage.advancementRules ?? []),
+                        {
+                          id: `rule-${Date.now()}`,
+                          fromRank: 1,
+                          toRank: 2,
+                          destination: 'main',
+                        },
+                      ],
+                    })}
+                    className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400"
+                  >
+                    {isEnglish ? 'Add rule' : '添加条件'}
+                  </button>
+                  <p className="text-[10px] leading-relaxed text-slate-500">
+                    {isEnglish
+                      ? 'Rules are evaluated per source group: ranks in range (and wins in range when set) advance to the downstream stage.'
+                      : '按来源小组逐个判定：名次落在区间内（若填写胜场则同时满足）的选手晋级到下游赛段。'}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">
