@@ -278,13 +278,24 @@ export default function MultiStageSetup() {
                   max={8}
                   onChange={value => updateStage(stage.id, { groupCount: value })}
                 />
-                <Stepper
-                  label={isEnglish ? 'Players per group' : '每组人数'}
-                  value={stage.playerCountPerGroup}
-                  min={2}
-                  max={128}
-                  onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
-                />
+                {stage.sourceStageIds?.length ? (
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'Players per group' : '每组人数'}
+                    </span>
+                    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-tight text-slate-400">
+                      {isEnglish ? 'Decided by advancement' : '由晋级人数决定'}
+                    </div>
+                  </div>
+                ) : (
+                  <Stepper
+                    label={isEnglish ? 'Players per group' : '每组人数'}
+                    value={stage.playerCountPerGroup}
+                    min={2}
+                    max={128}
+                    onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
+                  />
+                )}
                 {stage.kind === 'swiss' ? (
                   <Stepper
                     label={isEnglish ? 'Rounds' : '轮数'}
