@@ -4,7 +4,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   // GitHub Pages 部署：仓库名为 <repo-name>，base 需设为 '/<repo-name>/'
   // 若部署到自定义域名或用户名.github.io 根路径，则改为 './'
   base: './',
@@ -50,9 +50,8 @@ export default defineConfig({
   plugins: [
     react({
       babel: {
-        plugins: [
-          'react-dev-locator',
-        ],
+        // 只在开发服务器注入组件定位属性，生产包不携带源码路径。
+        plugins: command === 'serve' ? ['react-dev-locator'] : [],
       },
     }),
     tsconfigPaths(),
@@ -76,4 +75,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))
