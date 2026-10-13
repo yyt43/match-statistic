@@ -237,6 +237,37 @@ export function EliminationBracketConfirmModal({
             <div className="py-20 text-center text-sm text-slate-500">
               {isEnglish ? 'Preparing bracket...' : '正在准备签表...'}
             </div>
+          ) : group.roundsLocked ? (
+            // 只打一轮的赛段（突围赛）不是逐轮签表，直接列出对阵。
+            <ul className="mx-auto max-w-2xl space-y-2">
+              {Array.from(
+                { length: Math.ceil(group.players.length / 2) },
+                (_, index) => index
+              ).map(index => {
+                const first = group.players[index * 2];
+                const second = group.players[index * 2 + 1];
+                return (
+                  <li
+                    key={`${first?.id ?? index}-pair`}
+                    className="flex items-center gap-3 rounded-lg bg-slate-800/60 px-3 py-2 text-sm text-slate-200"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                      {first?.profile?.origin && (
+                        <span className="ml-1.5 text-[11px] text-slate-500">{first.profile.origin}</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-500">vs</span>
+                    <span className="min-w-0 flex-1 truncate text-right">
+                      {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                      {second?.profile?.origin && (
+                        <span className="ml-1.5 text-[11px] text-slate-500">{second.profile.origin}</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
             <EliminationBracketTree
               group={{ ...group, eliminationBracket: bracket }}

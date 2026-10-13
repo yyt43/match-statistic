@@ -338,6 +338,56 @@ export function ControlPanel({
     )
     : null;
 
+  // 下一阶段的选手与对阵预览：只打一轮的赛段直接列出对阵，其余显示签表。
+  const stageBracketPreview = isSetup && currentGroup.players.length >= 2
+    ? (
+      <section className="mb-3 space-y-2 rounded-lg border-t border-slate-700/50 pt-3">
+        <div className="text-xs font-medium text-slate-300">
+          {currentGroup.roundsLocked
+            ? (isEnglish ? 'Pairings' : '对阵')
+            : (isEnglish ? 'Bracket' : '对阵签表')}
+        </div>
+        {currentGroup.roundsLocked ? (
+          <ul className="space-y-1.5">
+            {Array.from(
+              { length: Math.ceil(currentGroup.players.length / 2) },
+              (_, index) => index
+            ).map(index => {
+              const first = currentGroup.players[index * 2];
+              const second = currentGroup.players[index * 2 + 1];
+              return (
+                <li
+                  key={`${first?.id ?? index}-pair`}
+                  className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-300"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    {first?.profile?.origin && (
+                      <span className="ml-1 text-[10px] text-slate-500">{first.profile.origin}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-slate-500">vs</span>
+                  <span className="min-w-0 flex-1 truncate text-right">
+                    {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    {second?.profile?.origin && (
+                      <span className="ml-1 text-[10px] text-slate-500">{second.profile.origin}</span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          currentGroup.eliminationBracket && (
+            <div className="min-w-[520px] overflow-x-auto rounded-lg bg-slate-900/40 p-3">
+              <EliminationBracketTree group={currentGroup} isEnglish={isEnglish} />
+            </div>
+          )
+        )}
+      </section>
+    )
+    : null;
+
   const competitionDataContent = (
     <div className="space-y-4">
       <section className="space-y-3">
@@ -392,54 +442,6 @@ export function ControlPanel({
       </section>
 
       {startEventSection}
-
-      {/* 下一阶段的选手与对阵预览：突围赛等只打一轮的赛段直接列出对阵，其余显示签表 */}
-      {isSetup && currentGroup.players.length >= 2 && (
-        <section className="space-y-2 border-t border-slate-700/50 pt-3">
-          <div className="text-xs font-medium text-slate-300">
-            {currentGroup.roundsLocked
-              ? (isEnglish ? 'Pairings' : '对阵')
-              : (isEnglish ? 'Bracket' : '对阵签表')}
-          </div>
-          {currentGroup.roundsLocked ? (
-            <ul className="space-y-1.5">
-              {Array.from(
-                { length: Math.ceil(currentGroup.players.length / 2) },
-                (_, index) => index
-              ).map(index => {
-                const first = currentGroup.players[index * 2];
-                const second = currentGroup.players[index * 2 + 1];
-                return (
-                  <li
-                    key={`${first?.id ?? index}-pair`}
-                    className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-300"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                      {first?.profile?.origin && (
-                        <span className="ml-1 text-[10px] text-slate-500">{first.profile.origin}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-slate-500">vs</span>
-                    <span className="min-w-0 flex-1 truncate text-right">
-                      {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                      {second?.profile?.origin && (
-                        <span className="ml-1 text-[10px] text-slate-500">{second.profile.origin}</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            currentGroup.eliminationBracket && (
-              <div className="overflow-x-auto rounded-lg bg-slate-900/40 p-2">
-                <EliminationBracketTree group={currentGroup} isEnglish={isEnglish} />
-              </div>
-            )
-          )}
-        </section>
-      )}
 
       {isSetup && (
         <section className="border-t border-slate-700/50 pt-3">
@@ -822,6 +824,7 @@ export function ControlPanel({
               ? 'min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:row-start-1 sm:min-h-full sm:overflow-y-auto'
               : ''}
           >
+            {stageBracketPreview}
             <PlayerManagerList />
           </div>
         )}
