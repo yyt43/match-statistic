@@ -193,7 +193,9 @@ export function RankingImageView() {
                           fontWeight: 700,
                           color: rank === 1 ? '#facc15' : rank === 2 ? '#cbd5e1' : '#f59e0b',
                         }}>
-                          {getEliminationTitleI18n(rank, currentGroup.totalRounds, language)}
+                          {currentGroup.status === 'completed'
+                            ? getEliminationTitleI18n(rank, currentGroup.totalRounds, language)
+                            : '-'}
                         </span>
                       </td>
                       <td style={{ ...tdCenter, fontFamily: 'monospace', fontWeight: 700, color: '#fff' }}>

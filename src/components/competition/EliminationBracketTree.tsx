@@ -86,11 +86,16 @@ export function EliminationBracketTree({
 
   const firstRoundCount = view.rounds[0].nodes.length;
   const bodyHeight = Math.max(firstRoundCount * ROW_HEIGHT, ROW_HEIGHT);
-  const bracketWidth = view.rounds.length * NODE_WIDTH
-    + Math.max(0, view.rounds.length - 1) * COLUMN_GAP;
+  // 只画已经生成的轮次：开赛前只有首轮，逐轮推进后再补下一轮，不预画到冠军。
+  const generatedRounds = group.status === 'setup' && group.matches.length === 0
+    ? 1
+    : Math.max(1, group.currentRound, ...group.matches.map(match => match.round));
+  const rounds = view.rounds.slice(0, Math.max(1, Math.min(view.rounds.length, generatedRounds)));
+  const bracketWidth = rounds.length * NODE_WIDTH
+    + Math.max(0, rounds.length - 1) * COLUMN_GAP;
   const championWidth = view.championId ? CHAMPION_GAP + CHAMPION_WIDTH : 0;
   const totalWidth = bracketWidth + championWidth;
-  const finalRound = view.rounds[view.rounds.length - 1];
+  const finalRound = rounds[rounds.length - 1];
   const finalCenterY = getNodeCenterY(finalRound.round, 0);
   const championX = getColumnX(finalRound.round) + NODE_WIDTH + CHAMPION_GAP;
   const champion = view.championId ? playerMap.get(view.championId) : undefined;
@@ -99,7 +104,7 @@ export function EliminationBracketTree({
     <div className="overflow-x-auto pb-2" data-testid="elimination-bracket-tree">
       <div className="relative" style={{ width: totalWidth }}>
         <div className="relative" style={{ height: HEADER_HEIGHT }}>
-          {view.rounds.map(round => (
+          {rounds.map(round => (
             <div
               key={round.round}
               className="absolute top-0 flex h-8 items-center justify-center rounded-md border border-slate-700/60 bg-slate-900/95 px-2 text-xs font-medium text-slate-300"
@@ -125,7 +130,7 @@ export function EliminationBracketTree({
             width={totalWidth}
             height={bodyHeight}
           >
-            {view.rounds.slice(1).flatMap(round =>
+            {rounds.slice(1).flatMap(round =>
               round.nodes.map(node => {
                 const parentX = getColumnX(round.round);
                 const parentY = getNodeCenterY(round.round, node.matchIndex);
@@ -163,7 +168,7 @@ export function EliminationBracketTree({
             )}
           </svg>
 
-          {view.rounds.flatMap(round =>
+          {rounds.flatMap(round =>
             round.nodes.map(node => {
               const match = node.match;
               const firstSlot = round.round === 1 ? node.matchIndex * 2 : -1;
