@@ -360,7 +360,8 @@ export function buildEliminationBracketExportRows(
   group: TournamentGroup,
   language: AppLanguage = 'zh'
 ): EliminationBracketExportRow[] {
-  const view = getEliminationBracketView(group);
+  const fullView = getEliminationBracketView(group);
+  const view = { rounds: getVisibleBracketRounds(group, fullView.rounds) };
   const playerMap = new Map(group.players.map(player => [player.id, player]));
   const rows: EliminationBracketExportRow[] = [];
 
@@ -403,6 +404,15 @@ export function buildEliminationBracketExportRows(
   }
 
   return rows;
+}
+
+/**
+ * 界面与导出共用的可见轮次：按赛段设置的轮数显示，且不超过已经生成的轮次。
+ */
+export function getVisibleBracketRounds<T>(group: TournamentGroup, rounds: T[]): T[] {
+  if (rounds.length === 0) return rounds;
+  const configured = group.totalRounds > 0 ? group.totalRounds : rounds.length;
+  return rounds.slice(0, Math.max(1, Math.min(rounds.length, configured)));
 }
 
 export function createEliminationFirstRoundMatches(
