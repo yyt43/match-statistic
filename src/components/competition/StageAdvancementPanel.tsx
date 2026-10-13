@@ -4,6 +4,8 @@ import type { StageAdvancementPreview, StageAdvancementSeat } from '../../types'
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
 import { getOrderedStages } from '../../utils/multiStage';
+import { getStageGroups } from '../../utils/multiStage';
+import { buildRankedGroup } from '../../store/competitionState';
 import {
   findAdvancementRecord,
   getUnconfirmedUpstreamStageIds,
@@ -36,6 +38,7 @@ export function StageAdvancementPanel() {
   const [preview, setPreview] = useState<StageAdvancementPreview | null>(null);
   const [excludedSeats, setExcludedSeats] = useState<Set<string>>(new Set());
   const [adjustReason, setAdjustReason] = useState('');
+  const [extraSeats, setExtraSeats] = useState<StageAdvancementSeat[]>([]);
   const seatKey = (seat: StageAdvancementSeat, index: number) =>
     `${seat.targetStageId ?? ''}:${seat.participantCode ?? seat.playerId}:${index}`;
 
@@ -46,6 +49,15 @@ export function StageAdvancementPanel() {
     ? stages.filter(stage => stage.sourceStageIds?.includes(currentStage.id))
     : [];
   if (!currentStage || downstream.length === 0) return null;
+
+  // 可补选的候选：来源赛段所有选手，按小组与名次列出。
+  const candidates = getStageGroups(competition, currentStage).flatMap(group =>
+    buildRankedGroup(group).players.map((player, index) => ({
+      group,
+      player,
+      rank: index + 1,
+    }))
+  );
 
   const record = findAdvancementRecord(competition, currentStage.id);
   const stageComplete = isStageComplete(competition, currentStage);
@@ -196,6 +208,91 @@ export function StageAdvancementPanel() {
                         );
                       })}
                     </ul>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <select
+                        value=""
+                        onChange={event => {
+                          const value = event.target.value;
+                          if (!value) return;
+                          const [groupId, rankText] = value.split('|');
+                          const entry = candidates.find(item =>
+                            item.group.id === groupId && item.rank === Number(rankText)
+                          );
+                          if (!entry) return;
+                          const usedSlots = new Set(
+                            [...preview.seats, ...extraSeats]
+                              .filter(item => item.targetStageId === stage.id)
+                              .map(item => item.targetSlot)
+                              .filter((slot): slot is number => slot !== undefined)
+                          );
+                          let slot = 0;
+                          while (usedSlots.has(slot)) slot += 1;
+                          setExtraSeats(current => [
+                            ...current,
+                            {
+                              playerId: entry.player.id,
+                              name: entry.player.name,
+                              participantCode: entry.player.participantCode,
+                              uid: entry.player.profile?.uid,
+                              qq: entry.player.profile?.qq,
+                              sourceStageId: currentStage?.id ?? '',
+                              sourceGroupId: entry.group.id,
+                              sourceGroupName: entry.group.name,
+                              finalRank: entry.rank,
+                              route: 'direct',
+                              targetStageId: stage.id,
+                              targetSlot: slot,
+                              originGroupName: entry.group.name,
+                              originRank: entry.rank,
+                            },
+                          ]);
+                        }}
+                        className="min-w-0 flex-1 rounded border border-slate-700/60 bg-slate-800/60 px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-gold-500/40"
+                      >
+                        <option value="">
+                          {isEnglish ? 'Add a seat from the source stage…' : '从来源赛段添加席位…'}
+                        </option>
+                        {candidates
+                          .filter(entry =>
+                            ![...preview.seats, ...extraSeats].some(seat =>
+                              seat.participantCode === entry.player.participantCode
+                            )
+                          )
+                          .map(entry => (
+                            <option
+                              key={`${entry.group.id}-${entry.rank}`}
+                              value={`${entry.group.id}|${entry.rank}`}
+                            >
+                              {entry.group.name} #{entry.rank} · {entry.player.participantCode ?? ''} {entry.player.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {extraSeats.filter(seat => seat.targetStageId === stage.id).map(seat => (
+                      <div
+                        key={`extra-${seat.playerId}-${seat.targetSlot ?? ''}`}
+                        className="flex items-center gap-2 rounded bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200"
+                      >
+                        <span className="w-6 shrink-0 text-right font-mono text-[10px] text-emerald-400/70">
+                          {(seat.targetSlot ?? 0) + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {isEnglish ? 'Added' : '人工添加'}：{seat.participantCode ?? ''} {seat.name}
+                        </span>
+                        <button
+                          onClick={() => setExtraSeats(current =>
+                            current.filter(item =>
+                              !(item.playerId === seat.playerId && item.targetSlot === seat.targetSlot)
+                            )
+                          )}
+                          className="shrink-0 rounded border border-emerald-500/30 px-1.5 py-0.5 text-[10px] hover:border-rose-500/40 hover:text-rose-300"
+                        >
+                          {isEnglish ? 'Remove' : '移除'}
+                        </button>
+                      </div>
+                    ))}
                   </section>
                 );
               })}
@@ -219,13 +316,17 @@ export function StageAdvancementPanel() {
                 onClick={() => {
                   confirmStageAdvancement({
                     ...preview,
-                    seats: preview.seats.filter(
-                      (seat, index) => !excludedSeats.has(seatKey(seat, index))
-                    ),
+                    seats: [
+                      ...preview.seats.filter(
+                        (seat, index) => !excludedSeats.has(seatKey(seat, index))
+                      ),
+                      ...extraSeats,
+                    ],
                     reason: adjustReason.trim() || undefined,
                   });
                   setPreview(null);
                   setExcludedSeats(new Set());
+                  setExtraSeats([]);
                   setAdjustReason('');
                 }}
                 disabled={preview.errors.length > 0 || preview.seats.length === 0}
