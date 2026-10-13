@@ -25,6 +25,10 @@ export function createDefaultStageDraft(stageNumber: number): MultiStageDraftSta
     rounds: 5,
     gameType: 'bo3',
     roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
+    // 默认：本组前 2 名直接晋级，裁判可在设置页调整。
+    advancementRules: [
+      { id: `rule-${generateId()}`, fromRank: 1, toRank: 2, destination: 'main' },
+    ],
   };
 }
 
