@@ -390,7 +390,7 @@ export function ControlPanel({
   return (
     <div className={`flex flex-col border border-slate-700/40 rounded-2xl bg-slate-800/40 ${
       setupLayout
-        ? 'min-h-[1450px] overflow-visible xl:h-full xl:min-h-0 xl:overflow-hidden'
+        ? 'overflow-visible xl:h-full xl:min-h-0 xl:overflow-hidden'
         : 'h-full overflow-hidden'
     }`}>
       {/* 赛事名称 */}
@@ -609,20 +609,20 @@ export function ControlPanel({
             : 'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]')
         : 'contents'}>
       {setupLayout && (
-        <div className="order-3 min-h-[720px] min-w-0 border-b border-slate-700/50 p-4 sm:order-none sm:col-start-3 sm:row-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-l">
+        <div className="order-3 min-w-0 border-b border-slate-700/50 p-4 sm:order-none sm:col-start-3 sm:row-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-l">
           {competitionDataContent}
         </div>
       )}
       <div
         ref={controlScrollRef}
         className={setupLayout
-          ? 'order-1 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
+          ? 'order-1 grid min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
         {/* 赛制管理：折叠后不再占位 */}
         {isSetup && showFormatManager && (
           <div className={setupLayout
-            ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:col-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r'
+            ? 'min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:min-h-full sm:overflow-y-auto sm:border-b-0 sm:border-r'
             : 'space-y-3'}
           >
             {rulesTabLabel ? <CompetitionRulesSummary /> : (
@@ -857,7 +857,7 @@ export function ControlPanel({
           <div
             data-testid="player-management-scroll"
             className={setupLayout
-              ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:min-h-0 sm:overflow-y-auto'
+              ? 'min-w-0 overflow-x-auto overflow-y-visible p-4 sm:min-h-full sm:overflow-y-auto'
               : ''}
           >
             <PlayerManagerList />
