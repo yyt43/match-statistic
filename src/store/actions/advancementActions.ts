@@ -30,7 +30,22 @@ export function createAdvancementActions(
       const { competition } = get();
       const updated = confirmStageAdvancement(competition, preview);
       if (updated === competition) return false;
-      set({ competition: updated }, { label: '确认晋级' });
+      // 确认后直接跳到下一赛段的第一个小组，裁判不必再手动切换。
+      const nextStage = (updated.stages ?? [])
+        .filter(stage => preview.targetStageIds.includes(stage.id))
+        .sort((a, b) => a.order - b.order)[0];
+      const nextGroupId = nextStage?.groupIds[0];
+      const nextGroupIndex = nextGroupId
+        ? updated.groups.findIndex(group => group.id === nextGroupId)
+        : -1;
+      set(
+        {
+          competition: nextGroupIndex >= 0
+            ? { ...updated, currentGroupIndex: nextGroupIndex }
+            : updated,
+        },
+        { label: '确认晋级' }
+      );
       return true;
     },
 
