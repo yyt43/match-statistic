@@ -31,6 +31,7 @@ import { CompetitionRulesSummary } from './CompetitionRulesSummary';
 import { StageAdvancementPanel } from './StageAdvancementPanel';
 import { FinalStandingsPanel } from './FinalStandingsPanel';
 import { getCompetitionKind, getOrderedStages, getStageGroups } from '../../utils/multiStage';
+import { getUnconfirmedUpstreamStageIds } from '../../utils/advancement';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -300,12 +301,26 @@ export function ControlPanel({
   );
 
   // 开赛入口：开赛设置页与运行页都要能用（多阶段赛事的后续赛段在运行页里开赛）。
+  const pendingUpstreamNames = (currentGroup.stageId
+    ? getUnconfirmedUpstreamStageIds(competition, currentGroup.stageId)
+    : []
+  )
+    .map(stageId => stageList.find(stage => stage.id === stageId)?.name)
+    .filter((name): name is string => Boolean(name));
+  const canStartCurrentStage = rosterValidation.valid && pendingUpstreamNames.length === 0;
   const startEventSection = isSetup && currentGroup.players.length >= 2
     ? (
       <section className="space-y-2 border-t border-slate-700/50 pt-3">
         <div className="text-xs font-medium text-slate-300">
           {isEnglish ? 'Start event' : '开始比赛'}
         </div>
+        {pendingUpstreamNames.length > 0 && (
+          <div className="rounded-md border border-sky-500/25 bg-sky-500/10 px-2 py-1.5 text-[10px] text-sky-300">
+            {isEnglish
+              ? `Waiting for ${pendingUpstreamNames.join(', ')} to confirm its advancers.`
+              : `等待${pendingUpstreamNames.join('、')}确认晋级后才能开赛。`}
+          </div>
+        )}
         {!rosterValidation.valid && (
           <div className="rounded-md border border-rose-500/25 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
             {isEnglish
@@ -315,7 +330,7 @@ export function ControlPanel({
         )}
         <button
           onClick={() => setStartConfirmTarget('all')}
-          disabled={!rosterValidation.valid}
+          disabled={!canStartCurrentStage}
           className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <Play className="h-3.5 w-3.5" />
