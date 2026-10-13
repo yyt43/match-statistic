@@ -299,10 +299,13 @@ export function ControlPanel({
   const competitionDataContent = (
     <div className="space-y-4">
       <section className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
-          <Settings className="h-3.5 w-3.5 text-gold-400" />
-          {isEnglish ? 'Tournament data' : '赛事数据'}
-        </div>
+        {/* 设置布局下已有「赛事数据」标签，这里不再重复标题 */}
+        {!setupLayout && (
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
+            <Settings className="h-3.5 w-3.5 text-gold-400" />
+            {isEnglish ? 'Tournament data' : '赛事数据'}
+          </div>
+        )}
 
         {isEditingName ? (
           <div className="flex items-center gap-2">
@@ -563,7 +566,7 @@ export function ControlPanel({
       )}
 
       {setupLayout && (
-      <div className="grid grid-cols-1 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
+      <div className="grid grid-cols-3 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
         {isSetup && (
           <button
             onClick={() => {
@@ -616,14 +619,13 @@ export function ControlPanel({
           ? 'order-1 grid min-h-[620px] min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
-        {/* 赛制管理 */}
-        {isSetup && (
+        {/* 赛制管理：折叠后不再占位 */}
+        {isSetup && showFormatManager && (
           <div className={setupLayout
             ? 'min-h-[560px] min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:col-start-1 sm:min-h-0 sm:overflow-y-auto sm:border-b-0 sm:border-r'
             : 'space-y-3'}
           >
-            {rulesTabLabel && showFormatManager && <CompetitionRulesSummary />}
-            {!rulesTabLabel && showFormatManager && (
+            {rulesTabLabel ? <CompetitionRulesSummary /> : (
               <div className="space-y-3">
                 <div className="space-y-2">
                   <label className="text-xs text-slate-500">{isEnglish ? 'Pairing type' : '配对方式'}</label>
@@ -851,14 +853,14 @@ export function ControlPanel({
           </div>
         )}
 
-        {isSetup && (
+        {isSetup && showPlayerManager && (
           <div
             data-testid="player-management-scroll"
             className={setupLayout
               ? 'min-h-[560px] min-w-0 overflow-x-auto overflow-y-visible p-4 sm:col-start-2 sm:min-h-0 sm:overflow-y-auto'
               : ''}
           >
-            {showPlayerManager && <PlayerManagerList />}
+            <PlayerManagerList />
           </div>
         )}
 

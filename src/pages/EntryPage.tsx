@@ -109,14 +109,14 @@ export default function EntryPage() {
     },
     {
       kind: 'multi_stage',
-      title: isEnglish ? 'Multi-stage event' : '多阶段赛事',
+      title: isEnglish ? 'Multi-stage event (test feature)' : '多阶段赛事（测试功能）',
       description: isEnglish
         ? 'Configure stages and formats first, then work in the same workspace.'
         : '先设置赛段与赛制，再进入相同的赛事工作区。',
       highlights: isEnglish
         ? ['Define stage order and formats', 'Several groups per stage', 'Format tab shows the rules summary']
         : ['自定义赛段顺序与赛制', '每个赛段可包含多个小组', '赛制管理显示规则说明'],
-      badge: isEnglish ? 'Test feature' : '测试功能',
+      badge: isEnglish ? 'Not final' : '功能未定稿',
     },
     {
       kind: 'poetry_cup_s3',
