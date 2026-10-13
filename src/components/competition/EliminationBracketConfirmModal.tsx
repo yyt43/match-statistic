@@ -93,7 +93,8 @@ export function EliminationBracketConfirmModal({
   const handleConfirm = () => {
     if (!canConfirm) return;
     if (group.eliminationBracket?.lockedAt) {
-      onClose();
+      // 签表已锁定（例如晋级引擎写入的固定签位）时，确认即开赛，不再只关闭弹窗。
+      onConfirm();
       return;
     }
     if (groupIndices.length > 1) {
