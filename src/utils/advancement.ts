@@ -53,7 +53,15 @@ export function isStageComplete(
   stage: TournamentStage
 ): boolean {
   const groups = getStageGroups(competition, stage);
-  return groups.length > 0 && groups.every(group => group.status === 'completed');
+  if (groups.length === 0) return false;
+  return groups.every(group => {
+    if (group.status === 'completed') return true;
+    // 兜底：最后一轮全部录完即视为完成，避免状态未及时翻转导致无法晋级。
+    if (group.totalRounds <= 0 || group.currentRound < group.totalRounds) return false;
+    const lastRoundMatches = group.matches.filter(match => match.round === group.currentRound);
+    return lastRoundMatches.length > 0
+      && lastRoundMatches.every(match => match.result !== 'pending');
+  });
 }
 
 /** 上级赛段是否还没确认晋级，用于阻止下游提前开赛。 */
@@ -416,11 +424,12 @@ export function computeStageAdvancement(
   };
 }
 
-function clonePlayerInto(player: Player, code: string): Player {
+function clonePlayerInto(player: Player, code: string, origin?: string): Player {
   return {
     ...player,
     id: generateId(),
     participantCode: code,
+    profile: origin ? { ...(player.profile ?? {}), origin } : player.profile,
     dropped: false,
     points: 0,
     wins: 0,
@@ -473,7 +482,10 @@ function materializeTargetStage(
   seats.forEach((seat, index) => {
     const source = findSourcePlayer(competition, seat);
     if (!source) return;
-    const cloned = clonePlayerInto(source, seat.participantCode ?? '');
+    const originLabel = seat.originGroupName && seat.originRank !== undefined
+      ? `${seat.originGroupName} #${seat.originRank}`
+      : undefined;
+    const cloned = clonePlayerInto(source, seat.participantCode ?? '', originLabel);
     players.push(cloned);
     slotIds.set(seat.targetSlot ?? index, cloned.id);
   });

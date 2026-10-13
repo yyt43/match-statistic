@@ -307,7 +307,27 @@ export function ControlPanel({
           </div>
         )}
         <button
-          onClick={() => setStartConfirmTarget('all')}
+          onClick={() => {
+            // 单败赛段直接进签表确认，其余赛段走一次开赛确认：整体只需确认一次。
+            const scopeIndices = new Set(
+              startScopeGroups.map(group => competition.groups.indexOf(group))
+            );
+            const eliminationIndices = competition.groups
+              .map((group, index) => ({ group, index }))
+              .filter(({ group, index }) =>
+                scopeIndices.has(index)
+                && group.pairingType === 'single_elimination'
+                && group.status === 'setup'
+                && group.players.length >= 2
+              )
+              .map(({ index }) => index);
+            if (eliminationIndices.length > 0) {
+              setBracketConfirmAll(true);
+              setBracketConfirmIndices(eliminationIndices);
+              return;
+            }
+            setStartConfirmTarget('all');
+          }}
           disabled={!canStartCurrentStage}
           className="flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2 py-2 text-[10px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-30"
         >
@@ -396,10 +416,16 @@ export function ControlPanel({
                   >
                     <span className="min-w-0 flex-1 truncate">
                       {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                      {first?.profile?.origin && (
+                        <span className="ml-1 text-[10px] text-slate-500">{first.profile.origin}</span>
+                      )}
                     </span>
                     <span className="shrink-0 text-slate-500">vs</span>
                     <span className="min-w-0 flex-1 truncate text-right">
                       {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                      {second?.profile?.origin && (
+                        <span className="ml-1 text-[10px] text-slate-500">{second.profile.origin}</span>
+                      )}
                     </span>
                   </li>
                 );
