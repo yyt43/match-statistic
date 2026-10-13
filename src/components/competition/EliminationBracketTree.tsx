@@ -1,6 +1,6 @@
 import { CircleDot, Trophy } from 'lucide-react';
 import type { TournamentGroup } from '../../types';
-import { getEliminationBracketView } from '../../utils/elimination';
+import { getEliminationBracketView, getVisibleBracketRounds } from '../../utils/elimination';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface EliminationBracketTreeProps {
@@ -87,10 +87,8 @@ export function EliminationBracketTree({
   const firstRoundCount = view.rounds[0].nodes.length;
   const bodyHeight = Math.max(firstRoundCount * ROW_HEIGHT, ROW_HEIGHT);
   // 只画已经生成的轮次：开赛前只有首轮，逐轮推进后再补下一轮，不预画到冠军。
-  const generatedRounds = group.status === 'setup' && group.matches.length === 0
-    ? 1
-    : Math.max(1, group.currentRound, ...group.matches.map(match => match.round));
-  const rounds = view.rounds.slice(0, Math.max(1, Math.min(view.rounds.length, generatedRounds)));
+  // 显示轮数按赛段设置，并与导出共用同一口径。
+  const rounds = getVisibleBracketRounds(group, view.rounds);
   const bracketWidth = rounds.length * NODE_WIDTH
     + Math.max(0, rounds.length - 1) * COLUMN_GAP;
   const championWidth = view.championId ? CHAMPION_GAP + CHAMPION_WIDTH : 0;

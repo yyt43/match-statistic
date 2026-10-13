@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.5.1
+Current version: v0.6.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.5.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.5.1)
+[![Release](https://img.shields.io/badge/Release-v0.6.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.0)
 
 ![Project preview](./docs/social-preview.png)
 
