@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.6.0
+Current version: v0.6.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.0)
+[![Release](https://img.shields.io/badge/Release-v0.6.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.1)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -157,6 +157,9 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 
 - Event type: pick single-stage, multi-stage, or Poetry Cup S3 on the home page. Single-stage keeps the previous workspace and flow untouched.
 - Stages and formats: define stage order and configure format (Swiss / single elimination), groups, players per group, rounds, per-round match length, and roster source. S3 uses a locked three-stage template where the referee only imports rosters.
+- Rule editor: the setup page is split into stage settings, stage relationships, in-stage rules, and advancement rules. A stage can take several upstream sources (for example the playoffs receiving group qualifiers plus breakout winners), each rule targets a stage by name, and cross-group pairings plus bracket slots are editable.
+- Rule check: before starting, the setup page reviews stage structure, roster sources, advancement rules, and bracket slots. Blocking issues disable the start button; warnings are informational only.
+- Event flow diagram: arrows follow where players actually advance (the group stage pointing at both the breakout stage and the playoffs, for example), shown on the setup page and in the workspace rules summary.
 - Format tab: for these two types the tab becomes a read-only rules summary covering every stage, with the full S3 rule text.
 - Advancement: calculate, review the preview, then confirm to write rosters and fixed seeds into downstream stages. Reverting clears the downstream rosters, matches, and bracket and removes the record.
 - Safeguards: downstream stages cannot start before the upstream advancement is confirmed; upstream results lock once the downstream stage has started.

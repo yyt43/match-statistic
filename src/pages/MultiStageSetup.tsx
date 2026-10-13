@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowLeft,
-  ArrowRight,
   ArrowUp,
   Languages,
   Layers,
@@ -12,14 +11,16 @@ import {
   Trash2,
   Trophy,
 } from 'lucide-react';
-import type { GameType, PairingType } from '../types';
+import type { GameType, PairingType, StageSeedRule } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createDefaultStageDraft, createMultiStageCompetition } from '../store/multiStageFactory';
-import type { MultiStageDraftStage } from '../utils/multiStage';
+import { getDraftGroupNames, type MultiStageDraftStage } from '../utils/multiStage';
+import { validateStageDrafts } from '../utils/stageDraftValidation';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
+import { EventFlowDiagram } from '../components/competition/EventFlowDiagram';
 
 const GAME_TYPES: GameType[] = ['bo1', 'bo3', 'bo5', 'bo7'];
 
@@ -38,6 +39,21 @@ function effectiveRounds(stage: MultiStageDraftStage): number {
   return stage.kind === 'single_elimination'
     ? getSingleEliminationRounds(stage.playerCountPerGroup)
     : stage.rounds;
+}
+
+/** 选手从 sourceStageId 晋级到 targetStageId 后，目标赛段的名单就来自这个上游。 */
+function linkTargetSource(
+  stages: MultiStageDraftStage[],
+  sourceStageId: string,
+  targetStageId: string
+): MultiStageDraftStage[] {
+  if (!targetStageId) return stages;
+  return stages.map(stage => {
+    if (stage.id !== targetStageId) return stage;
+    const sources = stage.sourceStageIds ?? [];
+    if (sources.includes(sourceStageId)) return stage;
+    return { ...stage, sourceStageIds: [...sources, sourceStageId] };
+  });
 }
 
 function Stepper({
@@ -113,6 +129,109 @@ export default function MultiStageSetup() {
     }));
   };
 
+  /** 选择晋级去向：目标赛段由用户自己命名，选好后自动补上「名单来自上游」的依赖。 */
+  const updateRuleTarget = (stageId: string, ruleId: string, targetStageId: string) => {
+    setStages(current =>
+      linkTargetSource(
+        current.map(stage =>
+          stage.id === stageId
+            ? {
+                ...stage,
+                advancementRules: (stage.advancementRules ?? []).map(rule =>
+                  rule.id === ruleId ? { ...rule, targetStageId } : rule
+                ),
+              }
+            : stage
+        ),
+        stageId,
+        targetStageId
+      )
+    );
+  };
+
+  const addRule = (stageId: string, targetStageId: string) => {
+    const ruleId = `rule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    setStages(current =>
+      linkTargetSource(
+        current.map(stage =>
+          stage.id === stageId
+            ? {
+                ...stage,
+                advancementRules: [
+                  ...(stage.advancementRules ?? []),
+                  { id: ruleId, fromRank: 1, toRank: 2, targetStageId },
+                ],
+              }
+            : stage
+        ),
+        stageId,
+        targetStageId
+      )
+    );
+  };
+
+  /** 名单来源可以多选：例如淘汰赛同时接收小组赛直进与突围赛晋级。 */
+  const toggleSourceStage = (stageId: string, sourceStageId: string) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const sources = stage.sourceStageIds ?? [];
+      const next = sources.includes(sourceStageId)
+        ? sources.filter(id => id !== sourceStageId)
+        : [...sources, sourceStageId];
+      return { ...stage, sourceStageIds: next.length > 0 ? next : undefined };
+    }));
+  };
+
+  /** 跨组配对：编辑「哪两个名次对阵」，默认 3 对 6、4 对 5。 */
+  const updateBreakoutPair = (
+    stageId: string,
+    pairIndex: number,
+    side: 0 | 1,
+    value: number
+  ) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const pairs = (stage.breakout?.pairings ?? [[3, 6], [4, 5]])
+        .map(pair => [...pair] as [number, number]);
+      const pair = pairs[pairIndex];
+      if (!pair) return stage;
+      pair[side] = Math.max(1, Math.floor(value) || 1);
+      return { ...stage, breakout: { pairings: pairs } };
+    }));
+  };
+
+  const addBreakoutPair = (stageId: string) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const pairs = (stage.breakout?.pairings ?? [[3, 6], [4, 5]])
+        .map(pair => [...pair] as [number, number]);
+      if (pairs.length >= 4) return stage;
+      const first = 3 + pairs.length * 2;
+      return { ...stage, breakout: { pairings: [...pairs, [first, first + 1]] } };
+    }));
+  };
+
+  const removeBreakoutPair = (stageId: string, pairIndex: number) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const pairs = (stage.breakout?.pairings ?? []).filter((_, index) => index !== pairIndex);
+      return { ...stage, breakout: pairs.length > 0 ? { pairings: pairs } : undefined };
+    }));
+  };
+
+  /** 签表对位：来源小组的第几名站到签表第几位。 */
+  const updateSeedRules = (
+    stageId: string,
+    updater: (rules: StageSeedRule[]) => StageSeedRule[]
+  ) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const next = updater((stage.seedRules ?? []).map(rule => ({ ...rule })))
+        .sort((a, b) => a.targetSlot - b.targetSlot);
+      return { ...stage, seedRules: next.length > 0 ? next : undefined };
+    }));
+  };
+
   const moveStage = (index: number, delta: number) => {
     setStages(current => {
       const target = index + delta;
@@ -133,9 +252,12 @@ export default function MultiStageSetup() {
   };
 
   const hasInvalidStage = stages.some(stage => !stage.name.trim() || stage.playerCountPerGroup < 2);
+  const ruleIssues = useMemo(() => validateStageDrafts(stages, isEnglish), [stages, isEnglish]);
+  const ruleErrors = ruleIssues.filter(issue => issue.severity === 'error');
+  const canStartEvent = !hasInvalidStage && ruleErrors.length === 0;
 
   const startEvent = () => {
-    if (hasInvalidStage) return;
+    if (!canStartEvent) return;
     const competition = createMultiStageCompetition(nameInput.trim() || '多阶段赛事', stages);
     initMultiStageCompetition(competition);
     navigate('/workspace');
@@ -203,7 +325,33 @@ export default function MultiStageSetup() {
             />
           </section>
 
-          {stages.map((stage, index) => (
+          {stages.map((stage, index) => {
+            const laterStages = stages.slice(index + 1);
+            const upstreamStages = (stage.sourceStageIds ?? [])
+              .map(id => stages.find(item => item.id === id))
+              .filter((item): item is MultiStageDraftStage => Boolean(item));
+            const upstreamNames = upstreamStages.map(item => item.name);
+            const upstreamGroupNames = Array.from(
+              new Set(upstreamStages.flatMap(item => getDraftGroupNames(item)))
+            );
+            const downstreamNames = stages
+              .filter(target =>
+                target.id !== stage.id
+                && (
+                  (target.sourceStageIds ?? []).includes(stage.id)
+                  || (stage.advancementRules ?? []).some(rule => rule.targetStageId === target.id)
+                )
+              )
+              .map(target => target.name || (isEnglish ? 'Untitled stage' : '未命名赛段'));
+            const declaredDownstream = laterStages.filter(target =>
+              (target.sourceStageIds ?? []).includes(stage.id)
+            );
+            const defaultTargetStageId = declaredDownstream.length === 1
+              ? declaredDownstream[0].id
+              : declaredDownstream.length === 0 && laterStages.length === 1
+                ? laterStages[0].id
+                : '';
+            return (
             <section
               key={stage.id}
               className="space-y-4 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4"
@@ -248,8 +396,12 @@ export default function MultiStageSetup() {
                 </button>
               </div>
 
-              <div className="space-y-2">
-                <span className="text-xs text-slate-500">{isEnglish ? 'Format' : '赛制'}</span>
+              <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
+                <span className="text-xs font-medium text-slate-400">
+                  {isEnglish ? 'Stage settings' : '赛段设置'}
+                </span>
+                <div className="space-y-2">
+                  <span className="text-xs text-slate-500">{isEnglish ? 'Format' : '赛制'}</span>
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { kind: 'swiss' as PairingType, label: isEnglish ? 'Swiss' : '瑞士轮' },
@@ -269,103 +421,316 @@ export default function MultiStageSetup() {
                     </button>
                   ))}
                 </div>
-              </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Stepper
-                  label={isEnglish ? 'Groups' : '小组数'}
-                  value={stage.groupCount}
-                  min={1}
-                  max={8}
-                  onChange={value => updateStage(stage.id, { groupCount: value })}
-                />
-                {stage.sourceStageIds?.length ? (
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-slate-500">
-                      {isEnglish ? 'Players per group' : '每组人数'}
-                    </span>
-                    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-tight text-slate-400">
-                      {isEnglish ? 'Decided by advancement' : '由晋级人数决定'}
-                    </div>
-                  </div>
-                ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Stepper
-                    label={isEnglish ? 'Players per group' : '每组人数'}
-                    value={stage.playerCountPerGroup}
-                    min={2}
-                    max={128}
-                    onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
-                  />
-                )}
-                {stage.kind === 'swiss' ? (
-                  <Stepper
-                    label={isEnglish ? 'Rounds' : '轮数'}
-                    value={stage.rounds}
-                    min={1}
-                    max={20}
-                    onChange={value => updateStage(stage.id, { rounds: value })}
-                  />
-                ) : (
-                  <Stepper
-                    label={isEnglish ? 'Rounds' : '轮数'}
-                    value={stage.fixedRounds ?? effectiveRounds(stage)}
+                    label={isEnglish ? 'Groups' : '小组数'}
+                    value={stage.groupCount}
                     min={1}
                     max={8}
-                    onChange={value => updateStage(stage.id, { fixedRounds: value, rounds: value })}
+                    onChange={value => updateStage(stage.id, { groupCount: value })}
                   />
-                )}
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-slate-500">{isEnglish ? 'Roster source' : '名单来源'}</span>
-                  <select
-                    value={stage.sourceStageIds?.[0] ?? ''}
-                    onChange={event =>
-                      updateStage(stage.id, {
-                        sourceStageIds: event.target.value ? [event.target.value] : undefined,
-                      })}
-                    className="w-full rounded-lg border border-slate-700/50 bg-slate-800/60 px-2 py-1.5 text-sm text-white outline-none focus:border-gold-500/40"
-                  >
-                    <option value="">{isEnglish ? 'Manual import' : '手动导入'}</option>
-                    {stages.slice(0, index).map(previous => (
-                      <option key={previous.id} value={previous.id}>
-                        {previous.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {stage.sourceStageIds?.length ? (
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-slate-500">
+                        {isEnglish ? 'Players per group' : '每组人数'}
+                      </span>
+                      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-tight text-slate-400">
+                        {isEnglish ? 'Decided by advancement' : '由晋级人数决定'}
+                      </div>
+                    </div>
+                  ) : (
+                    <Stepper
+                      label={isEnglish ? 'Players per group' : '每组人数'}
+                      value={stage.playerCountPerGroup}
+                      min={2}
+                      max={128}
+                      onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
+                    />
+                  )}
+                  {stage.kind === 'swiss' ? (
+                    <Stepper
+                      label={isEnglish ? 'Rounds' : '轮数'}
+                      value={stage.rounds}
+                      min={1}
+                      max={20}
+                      onChange={value => updateStage(stage.id, { rounds: value })}
+                    />
+                  ) : (
+                    <Stepper
+                      label={isEnglish ? 'Rounds' : '轮数'}
+                      value={stage.fixedRounds ?? effectiveRounds(stage)}
+                      min={1}
+                      max={8}
+                      onChange={value => updateStage(stage.id, { fixedRounds: value, rounds: value })}
+                    />
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                {stage.kind === 'single_elimination' && (
-                  <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                    <input
-                      type="checkbox"
-                      checked={!!stage.breakout}
-                      onChange={event => updateStage(stage.id, {
-                        breakout: event.target.checked
-                          ? { pairings: [[3, 6], [4, 5]] }
-                          : undefined,
-                      })}
-                      className="h-3.5 w-3.5 accent-gold-500"
-                    />
-                    <span>
-                      {isEnglish
-                        ? 'This stage is a play-in stage (pair across the source groups)'
-                        : '本赛段为附加赛（按来源小组配对）'}
+              {/* 赛段关系：名单从哪里来，晋级到哪里去 */}
+              <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
+                <span className="text-xs font-medium text-slate-400">
+                  {isEnglish ? 'Stage relationships' : '赛段关系'}
+                </span>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'Roster source' : '名单来源'}
                     </span>
-                    {stage.breakout && (
-                      <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-300">
-                        {isEnglish ? 'Ranks' : '名次'} {stage.breakout.pairings
-                          .map(pair => `${pair[0]}-${pair[1]}`)
-                          .join('、')}
+                    {index === 0 ? (
+                      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-tight text-slate-400">
+                        {isEnglish ? 'Imported for this stage' : '本赛段自行导入名单'}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {stages.slice(0, index).map(previous => {
+                          const active = (stage.sourceStageIds ?? []).includes(previous.id);
+                          return (
+                            <button
+                              key={previous.id}
+                              type="button"
+                              onClick={() => toggleSourceStage(stage.id, previous.id)}
+                              className={`rounded-lg px-2 py-1 text-[11px] transition-colors ${
+                                active
+                                  ? 'border border-gold-500/30 bg-gold-500/20 text-gold-400'
+                                  : 'border border-slate-700/50 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                              }`}
+                            >
+                              {previous.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
+                            </button>
+                          );
+                        })}
+                        {upstreamNames.length === 0 && (
+                          <span className="text-[10px] leading-6 text-slate-500">
+                            {isEnglish ? 'Not set: import a roster manually' : '未选择：自行导入名单'}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {upstreamNames.length > 0 && (
+                      <span className="block text-[10px] text-slate-500">
+                        {isEnglish
+                          ? `Advancers come from ${upstreamNames.join(', ')}`
+                          : `晋级选手来自 ${upstreamNames.join('、')}`}
                       </span>
                     )}
-                  </label>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'Advancement path' : '晋级去向'}
+                    </span>
+                    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-relaxed text-slate-400">
+                      {downstreamNames.length > 0
+                        ? downstreamNames.join(isEnglish ? ', ' : '、')
+                        : (isEnglish ? 'No target stage yet' : '暂未指向任何赛段')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 赛段内规则：轮次局制、跨组配对与签表对位 */}
+              <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
+                <span className="text-xs font-medium text-slate-400">
+                  {isEnglish ? 'In-stage rules' : '赛段内规则'}
+                </span>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs text-slate-500">
+                    {isEnglish ? 'Match length per round' : '每轮比赛局数'}
+                  </span>
+                  {Array.from({ length: effectiveRounds(stage) }, (_, i) => i + 1).map(round => (
+                    <div key={round} className="flex items-center gap-2">
+                      <span className="w-12 shrink-0 text-xs text-slate-500">
+                        {isEnglish ? `Round ${round}` : `第${round}轮`}
+                      </span>
+                      <div className="grid flex-1 grid-cols-4 gap-1.5">
+                        {GAME_TYPES.map(gameType => (
+                          <button
+                            key={gameType}
+                            type="button"
+                            onClick={() => {
+                              const next = [...stage.roundGameTypes];
+                              next[round - 1] = gameType;
+                              updateStage(stage.id, { roundGameTypes: next });
+                            }}
+                            className={`rounded py-1 text-[10px] font-medium transition-colors ${
+                              stage.roundGameTypes[round - 1] === gameType
+                                ? 'border border-gold-500/30 bg-gold-500/20 text-gold-400'
+                                : 'border border-slate-700/50 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                            }`}
+                          >
+                            {gameType.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {stage.kind === 'single_elimination' && (
+                  <div className="space-y-1.5 border-t border-slate-700/40 pt-3">
+                    <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={!!stage.breakout}
+                        onChange={event => updateStage(stage.id, {
+                          breakout: event.target.checked
+                            ? { pairings: [[3, 6], [4, 5]] }
+                            : undefined,
+                        })}
+                        className="h-3.5 w-3.5 accent-gold-500"
+                      />
+                      <span>
+                        {isEnglish
+                          ? 'Pair advancers across source groups by rank'
+                          : '按来源小组名次跨组配对晋级选手'}
+                      </span>
+                    </label>
+                    {stage.breakout && (
+                      <div className="space-y-1.5 pl-5">
+                        {stage.breakout.pairings.map((pair, pairIndex) => (
+                          <div
+                            key={`pair-${pairIndex}`}
+                            className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400"
+                          >
+                            <span>{isEnglish ? 'rank' : '名次'}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={64}
+                              value={pair[0]}
+                              onChange={event => updateBreakoutPair(stage.id, pairIndex, 0, Number(event.target.value))}
+                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                            />
+                            <span>vs</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={64}
+                              value={pair[1]}
+                              onChange={event => updateBreakoutPair(stage.id, pairIndex, 1, Number(event.target.value))}
+                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeBreakoutPair(stage.id, pairIndex)}
+                              className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                            >
+                              {isEnglish ? 'Remove' : '删除'}</button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addBreakoutPair(stage.id)}
+                          disabled={stage.breakout.pairings.length >= 4}
+                          className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          {isEnglish ? 'Add pairing' : '添加配对'}
+                        </button>
+                        <p className="text-[10px] leading-relaxed text-slate-500">
+                          {isEnglish
+                            ? 'Both ranks present: they play each other. Only one present: that player advances directly.'
+                            : '两个名次都有人：两人对阵；只有一边：该选手直接晋级。'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {stage.kind === 'single_elimination' && upstreamGroupNames.length > 0 && (
+                  <div className="space-y-1.5 border-t border-slate-700/40 pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs text-slate-500">
+                        {isEnglish ? 'Bracket slots' : '签表对位'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateSeedRules(stage.id, rules => [
+                          ...rules,
+                          {
+                            sourceGroupName: upstreamGroupNames[0] ?? '',
+                            rank: 1,
+                            targetSlot: rules.length,
+                          },
+                        ])}
+                        className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400"
+                      >
+                        {isEnglish ? 'Add slot' : '添加对位'}
+                      </button>
+                    </div>
+                    {(stage.seedRules ?? []).map((rule, seedIndex) => (
+                      <div
+                        key={`seed-${seedIndex}`}
+                        className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400"
+                      >
+                        <select
+                          value={rule.sourceGroupName}
+                          onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
+                            index === seedIndex ? { ...item, sourceGroupName: event.target.value } : item
+                          ))}
+                          className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40"
+                        >
+                          {upstreamGroupNames.map(name => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                          {!upstreamGroupNames.includes(rule.sourceGroupName) && (
+                            <option value={rule.sourceGroupName}>{rule.sourceGroupName}</option>
+                          )}
+                        </select>
+                        <span>{isEnglish ? 'rank' : '第'}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={64}
+                          value={rule.rank}
+                          onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
+                            index === seedIndex
+                              ? { ...item, rank: Math.max(1, Number(event.target.value) || 1) }
+                              : item
+                          ))}
+                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        />
+                        <span>{isEnglish ? '' : '名'}</span>
+                        <span className="text-slate-500">→</span>
+                        <span>{isEnglish ? 'slot' : '签表第'}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={64}
+                          value={rule.targetSlot + 1}
+                          onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
+                            index === seedIndex
+                              ? { ...item, targetSlot: Math.max(0, (Number(event.target.value) || 1) - 1) }
+                              : item
+                          ))}
+                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        />
+                        <span>{isEnglish ? '' : '位'}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateSeedRules(stage.id, rules =>
+                            rules.filter((_, index) => index !== seedIndex)
+                          )}
+                          className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                        >
+                          {isEnglish ? 'Remove' : '删除'}
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      {isEnglish
+                        ? 'Pins each source group rank to a bracket slot. Advancers not listed fill the remaining slots in order.'
+                        : '把来源小组的名次固定到签表位置；没有列出的晋级选手按顺序补入空位。'}
+                    </p>
+                  </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <span className="text-xs text-slate-500">
-                  {isEnglish ? 'Advancement rules' : '晋级条件'}
+              <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
+                <span className="text-xs font-medium text-slate-400">
+                  {isEnglish ? 'Advancement rules' : '晋级规则'}
                 </span>
                 <div className="space-y-1.5">
                   {(stage.advancementRules ?? []).map(rule => (
@@ -440,19 +805,23 @@ export default function MultiStageSetup() {
                         }}
                         className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
                       />
+                      <span className="text-slate-500">→</span>
                       <select
-                        value={rule.destination}
-                        onChange={event => updateStage(stage.id, {
-                          advancementRules: (stage.advancementRules ?? []).map(item =>
-                            item.id === rule.id
-                              ? { ...item, destination: event.target.value as 'main' | 'breakout' }
-                              : item
-                          ),
-                        })}
-                        className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40"
+                        value={rule.targetStageId || defaultTargetStageId}
+                        onChange={event => updateRuleTarget(stage.id, rule.id, event.target.value)}
+                        className={`max-w-[10rem] rounded border bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40 ${
+                          rule.targetStageId || defaultTargetStageId
+                            ? 'border-slate-700/50'
+                            : 'border-amber-500/60'
+                        }`}
+                        title={isEnglish ? 'Where these players advance to' : '这些选手晋级到哪个赛段'}
                       >
-                        <option value="main">{isEnglish ? 'Advance' : '直接晋级'}</option>
-                        <option value="breakout">{isEnglish ? 'Play-in' : '进入附加赛'}</option>
+                        <option value="">{isEnglish ? 'Choose target stage' : '选择目标赛段'}</option>
+                        {laterStages.map(target => (
+                          <option key={target.id} value={target.id}>
+                            {target.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
+                          </option>
+                        ))}
                       </select>
                       <button
                         type="button"
@@ -467,65 +836,21 @@ export default function MultiStageSetup() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => updateStage(stage.id, {
-                      advancementRules: [
-                        ...(stage.advancementRules ?? []),
-                        {
-                          id: `rule-${Date.now()}`,
-                          fromRank: 1,
-                          toRank: 2,
-                          destination: 'main',
-                        },
-                      ],
-                    })}
+                    onClick={() => addRule(stage.id, laterStages[0]?.id ?? '')}
                     className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400"
                   >
-                    {isEnglish ? 'Add rule' : '添加条件'}
+                    {isEnglish ? 'Add rule' : '添加晋级条件'}
                   </button>
                   <p className="text-[10px] leading-relaxed text-slate-500">
                     {isEnglish
-                      ? 'Rules are evaluated per source group: ranks in range (and wins in range when set) advance to the downstream stage.'
-                      : '按来源小组逐个判定：名次落在区间内（若填写胜场则同时满足）的选手晋级到下游赛段。'}
+                      ? 'Checked per source group: ranks in range (and wins in range when set) advance to the chosen stage. One stage can point to several stages.'
+                      : '按来源小组逐个判定：名次在区间内（若填写胜场则同时满足）的选手晋级到所选赛段；同一赛段可以指向多个赛段。'}
                   </p>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <span className="text-xs text-slate-500">
-                  {isEnglish ? 'Match length per round' : '每轮比赛局数'}
-                </span>
-                <div className="space-y-1.5">
-                  {Array.from({ length: effectiveRounds(stage) }, (_, i) => i + 1).map(round => (
-                    <div key={round} className="flex items-center gap-2">
-                      <span className="w-12 shrink-0 text-xs text-slate-500">
-                        {isEnglish ? `Round ${round}` : `第${round}轮`}
-                      </span>
-                      <div className="grid flex-1 grid-cols-4 gap-1.5">
-                        {GAME_TYPES.map(gameType => (
-                          <button
-                            key={gameType}
-                            type="button"
-                            onClick={() => {
-                              const next = [...stage.roundGameTypes];
-                              next[round - 1] = gameType;
-                              updateStage(stage.id, { roundGameTypes: next });
-                            }}
-                            className={`rounded py-1 text-[10px] font-medium transition-colors ${
-                              stage.roundGameTypes[round - 1] === gameType
-                                ? 'border border-gold-500/30 bg-gold-500/20 text-gold-400'
-                                : 'border border-slate-700/50 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                            }`}
-                          >
-                            {gameType.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </section>
-          ))}
+            );
+          })}
 
           <button
             type="button"
@@ -536,61 +861,75 @@ export default function MultiStageSetup() {
             {isEnglish ? 'Add stage' : '添加赛段'}
           </button>
 
-          {hasInvalidStage && (
-            <p className="text-xs text-amber-400">
-              {isEnglish
-                ? 'Every stage needs a name and at least two players per group.'
-                : '每个赛段都需要名称，且每组至少两人。'}
-            </p>
-          )}
-
-          {/* 赛事流程图：赛段顺序、名单来源与晋级条件一屏可见 */}
+          {/* 规则检查：结构、赛段内规则、晋级规则与赛段关系一起体检 */}
           <section className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4">
-            <div className="text-xs font-medium text-slate-300">
-              {isEnglish ? 'Event flow' : '赛事流程图'}
-            </div>
             <div className="flex flex-wrap items-center gap-2">
-              {stages.map((stage, index) => {
-                const sourceNames = (stage.sourceStageIds ?? [])
-                  .map(id => stages.find(item => item.id === id)?.name)
-                  .filter((name): name is string => Boolean(name));
-                return (
-                  <div key={`flow-${stage.id}`} className="flex items-center gap-2">
-                    {index > 0 && <ArrowRight className="h-4 w-4 shrink-0 text-slate-600" />}
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300">
-                      <div className="font-medium text-slate-100">
-                        {stage.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {stage.kind === 'single_elimination'
-                          ? (isEnglish ? 'Single elimination' : '单败淘汰')
-                          : (isEnglish ? 'Swiss' : '瑞士轮')}
-                        {' · '}
-                        {sourceNames.length > 0
-                          ? (isEnglish ? `from ${sourceNames.join(', ')}` : `来自${sourceNames.join('、')}`)
-                          : (isEnglish ? 'manual roster' : '手动导入名单')}
-                        {' · '}
-                        {isEnglish ? `${stage.groupCount} groups` : `${stage.groupCount} 组`}
-                        {stage.breakout ? (isEnglish ? ' · play-in stage' : ' · 附加赛') : ''}
-                      </div>
-                      {(stage.advancementRules ?? []).length > 0 && (
-                        <div className="text-[10px] text-gold-400/80">
-                          {(stage.advancementRules ?? []).map(rule =>
-                            `${isEnglish ? 'rank' : '名次'} ${rule.fromRank}-${rule.toRank}${
-                              rule.minWins !== undefined
-                                ? ` ${isEnglish ? 'wins' : '胜场'} ${rule.minWins}${rule.maxWins !== undefined ? `-${rule.maxWins}` : ''}`
-                                : ''
-                            } → ${rule.destination === 'main'
-                              ? (isEnglish ? 'advance' : '直进')
-                              : (isEnglish ? 'play-in' : '附加赛')}`
-                          ).join(isEnglish ? '; ' : '；')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              <span className="text-xs font-medium text-slate-300">
+                {isEnglish ? 'Rule check' : '规则检查'}
+              </span>
+              {ruleErrors.length === 0 && ruleIssues.length === 0 && (
+                <span className="text-[11px] text-emerald-400/80">
+                  {isEnglish ? 'No problems found.' : '检查通过，可以开赛。'}
+                </span>
+              )}
+              {ruleErrors.length > 0 && (
+                <span className="text-[11px] text-rose-300">
+                  {isEnglish
+                    ? `${ruleErrors.length} blocking issue(s)`
+                    : `${ruleErrors.length} 项必须修正`}
+                </span>
+              )}
+              {ruleIssues.length - ruleErrors.length > 0 && (
+                <span className="text-[11px] text-amber-300">
+                  {isEnglish
+                    ? `${ruleIssues.length - ruleErrors.length} warning(s)`
+                    : `${ruleIssues.length - ruleErrors.length} 项提示`}
+                </span>
+              )}
             </div>
+            {ruleIssues.length > 0 && (
+              <ul className="space-y-1">
+                {ruleIssues.map((issue, index) => (
+                  <li
+                    key={`${issue.stageId ?? 'global'}-${index}`}
+                    className={`flex gap-2 text-[11px] leading-relaxed ${
+                      issue.severity === 'error' ? 'text-rose-300' : 'text-amber-300'
+                    }`}
+                  >
+                    <span className="shrink-0">{issue.severity === 'error' ? '✕' : '!'}</span>
+                    <span>
+                      {issue.stageName ? `${issue.stageName}：` : ''}
+                      {issue.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* 赛事流程图：箭头按选手的晋级方向绘制，一个赛段可以有多个下游 */}
+          <section className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-xs font-medium text-slate-300">
+                {isEnglish ? 'Event flow' : '赛事流程图'}
+              </span>
+              <span className="text-[10px] text-slate-500">
+                {isEnglish
+                  ? 'Arrows follow where players actually advance.'
+                  : '箭头按选手的晋级方向绘制。'}
+              </span>
+            </div>
+            <EventFlowDiagram
+              stages={stages.map(stage => ({
+                id: stage.id,
+                name: stage.name,
+                kind: stage.kind,
+                sourceStageIds: stage.sourceStageIds,
+                advancementRules: stage.advancementRules,
+                note: isEnglish ? `${stage.groupCount} groups` : `${stage.groupCount} 组`,
+              }))}
+              isEnglish={isEnglish}
+            />
           </section>
         </div>
       </main>
@@ -614,7 +953,7 @@ export default function MultiStageSetup() {
             <button
               type="button"
               onClick={startEvent}
-              disabled={hasInvalidStage}
+              disabled={!canStartEvent}
               className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 px-4 py-2 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trophy className="h-4 w-4" />

@@ -3,6 +3,7 @@ import type {
   StageAdvancementPairing,
   StageAdvancementPreview,
   StageAdvancementRecord,
+  StageAdvancementRule,
   StageAdvancementSeat,
   TournamentCompetition,
   TournamentGroup,
@@ -40,11 +41,65 @@ function toSeat(
   };
 }
 
+/**
+ * 规则的默认去向：只有一个候选下游时自动指向它。
+ * 界面（设置页的下拉框）与引擎共用同一套判断，避免「界面上看着选了、引擎里没算」。
+ */
+export function resolveDefaultTargetStage(
+  competition: TournamentCompetition,
+  stageId: string
+): TournamentStage | undefined {
+  const stages = getOrderedStages(competition);
+  const index = stages.findIndex(stage => stage.id === stageId);
+  if (index < 0) return undefined;
+  const later = stages.slice(index + 1);
+  const declared = later.filter(target => target.sourceStageIds?.includes(stageId));
+  if (declared.length === 1) return declared[0];
+  if (declared.length === 0 && later.length === 1) return later[0];
+  return undefined;
+}
+
 export function getDownstreamStages(
   competition: TournamentCompetition,
   stageId: string
 ): TournamentStage[] {
-  return getOrderedStages(competition).filter(stage => stage.sourceStageIds?.includes(stageId));
+  const stages = getOrderedStages(competition);
+  const stage = stages.find(item => item.id === stageId);
+  if (!stage) return [];
+  const ruleTargets = new Set(
+    (stage.advancementRules ?? [])
+      .map(rule => rule.targetStageId)
+      .filter((id): id is string => Boolean(id))
+  );
+  const targets = stages.filter(
+    target =>
+      target.id !== stageId
+      && (target.sourceStageIds?.includes(stageId) || ruleTargets.has(target.id))
+  );
+  if ((stage.advancementRules ?? []).some(rule => !rule.targetStageId)) {
+    const fallback = resolveDefaultTargetStage(competition, stageId);
+    if (fallback && !targets.includes(fallback)) targets.push(fallback);
+  }
+  return targets;
+}
+
+/** 上游赛段：声明了名单来源的赛段，加上有晋级条件指向本赛段的赛段。 */
+export function getUpstreamStageIds(
+  competition: TournamentCompetition,
+  stageId: string
+): string[] {
+  const stages = getOrderedStages(competition);
+  const stage = stages.find(item => item.id === stageId);
+  if (!stage) return [];
+  const ids = new Set(stage?.sourceStageIds ?? []);
+  stages.forEach(source => {
+    if (source.id === stageId) return;
+    if (getDownstreamStages(competition, source.id).some(target => target.id === stageId)) {
+      ids.add(source.id);
+    }
+  });
+  ids.delete(stageId);
+  return Array.from(ids);
 }
 
 /** 赛段是否已经打完：所有小组都已完成。 */
@@ -69,8 +124,7 @@ export function getUnconfirmedUpstreamStageIds(
   competition: TournamentCompetition,
   stageId: string
 ): string[] {
-  const stage = getOrderedStages(competition).find(item => item.id === stageId);
-  return (stage?.sourceStageIds ?? []).filter(
+  return getUpstreamStageIds(competition, stageId).filter(
     sourceId => !findAdvancementRecord(competition, sourceId)
   );
 }
@@ -114,7 +168,11 @@ interface SeatCollection {
   pairings: StageAdvancementPairing[];
 }
 
-/** 小组赛 → 下游：按名次区间与胜场条件选出直进席位与突围席位。 */
+/**
+ * 小组赛 → 下游：按名次区间与胜场条件选出晋级席位。
+ * 每条规则自己去向的赛段由 `targetStageId` 决定；指向「跨组配对赛段」的名次
+ * 会按该赛段的配对规则（例如 3 对 6、4 对 5）排位。
+ */
 function collectGroupStageSeats(
   competition: TournamentCompetition,
   stage: TournamentStage
@@ -122,35 +180,59 @@ function collectGroupStageSeats(
   const seats: StageAdvancementSeat[] = [];
   const pairings: StageAdvancementPairing[] = [];
   const rules = stage.advancementRules ?? [];
-  const breakoutStage = getDownstreamStages(competition, stage.id).find(item => item.breakout);
-  const pairCount = breakoutStage?.breakout?.pairings.length ?? 2;
-  const blockSize = Math.max(2, pairCount * 2);
+  const allStages = getOrderedStages(competition);
+  const downstream = getDownstreamStages(competition, stage.id);
+  const breakoutStage = downstream.find(item => item.breakout);
+  const errors: string[] = [];
+  let nextBlockStart = 0;
 
-  getStageGroups(competition, stage).forEach((group, groupIndex) => {
+  /** 规则的目标赛段：显式选择优先；老数据只有一个下游赛段时自动指向它。 */
+  const resolveTarget = (rule: StageAdvancementRule): TournamentStage | undefined => {
+    const explicitId = rule.targetStageId?.trim();
+    if (explicitId) return allStages.find(item => item.id === explicitId);
+    const legacy = (rule as StageAdvancementRule & { destination?: string }).destination;
+    if (legacy === 'breakout' && breakoutStage) return breakoutStage;
+    if (legacy === 'main') {
+      return downstream.find(item => item.id !== breakoutStage?.id) ?? downstream[0];
+    }
+    return downstream.length === 1 ? downstream[0] : undefined;
+  };
+
+  getStageGroups(competition, stage).forEach(group => {
     const ranking = getRankedPlayers(group);
-    const directRanks = new Set<number>();
+    const directRanks = new Map<number, string>();
     const breakoutRanks = new Set<number>();
 
     for (const rule of rules) {
+      const target = resolveTarget(rule);
+      if (!target) {
+        if (!errors.includes('有晋级条件未选择目标赛段，无法计算晋级。')) {
+          errors.push('有晋级条件未选择目标赛段，无法计算晋级。');
+        }
+        continue;
+      }
       for (let rank = rule.fromRank; rank <= rule.toRank; rank += 1) {
         const player = ranking[rank - 1];
         if (!player) continue;
         if (rule.minWins !== undefined && player.wins < rule.minWins) continue;
         if (rule.maxWins !== undefined && player.wins > rule.maxWins) continue;
-        if (rule.destination === 'breakout') breakoutRanks.add(rank);
-        else directRanks.add(rank);
+        if (breakoutStage && target.id === breakoutStage.id) breakoutRanks.add(rank);
+        else if (!directRanks.has(rank)) directRanks.set(rank, target.id);
       }
     }
 
-    Array.from(directRanks)
-      .sort((a, b) => a - b)
-      .forEach(rank => {
+    Array.from(directRanks.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([rank, targetStageId]) => {
         const player = ranking[rank - 1];
         if (player) {
-          seats.push(toSeat(player, group, stage, rank, 'direct', {
-            groupName: group.name,
-            rank,
-          }));
+          seats.push({
+            ...toSeat(player, group, stage, rank, 'direct', {
+              groupName: group.name,
+              rank,
+            }),
+            targetStageId,
+          });
         }
       });
 
@@ -159,78 +241,81 @@ function collectGroupStageSeats(
       .map(rank => ({ rank, player: ranking[rank - 1] }))
       .filter((entry): entry is { rank: number; player: Player } => Boolean(entry.player));
     if (eligible.length === 0) return;
-    const blockStart = groupIndex * blockSize;
+    const breakoutTargetId = breakoutStage?.id;
+    const configuredPairs = breakoutStage?.breakout?.pairings?.length
+      ? breakoutStage.breakout.pairings
+      : [[3, 6], [4, 5]];
 
-    if (eligible.length >= 4) {
-      // 4 人：3 对 6、4 对 5。
-      const ordered = [eligible[0], eligible[3], eligible[1], eligible[2]];
-      ordered.forEach((entry, offset) =>
-        seats.push({
-          ...toSeat(entry.player, group, stage, entry.rank, 'breakout', {
-            groupName: group.name,
-            rank: entry.rank,
-          }),
-          targetSlot: blockStart + offset,
-        })
-      );
-      pairings.push({
-        sourceGroupId: group.id,
-        player1Id: ordered[0].player.id,
-        player2Id: ordered[1].player.id,
-      });
-      pairings.push({
-        sourceGroupId: group.id,
-        player1Id: ordered[2].player.id,
-        player2Id: ordered[3].player.id,
-      });
-      return;
-    }
+    // 跨组配对：按赛段配置的名次配对。两边都到齐就打一场；只有一边时该选手直接晋级。
+    const byRank = new Map(eligible.map(entry => [entry.rank, entry]));
+    const matched: Array<{ first: (typeof eligible)[number]; second: (typeof eligible)[number] }> = [];
+    const singles: Array<(typeof eligible)[number]> = [];
+    const placed = new Set<number>();
+    configuredPairs.forEach(([firstRank, secondRank]) => {
+      const first = byRank.get(firstRank);
+      const second = byRank.get(secondRank);
+      if (first && second) {
+        matched.push({ first, second });
+        placed.add(first.rank);
+        placed.add(second.rank);
+        return;
+      }
+      if (first) {
+        singles.push(first);
+        placed.add(first.rank);
+      }
+      if (second) {
+        singles.push(second);
+        placed.add(second.rank);
+      }
+    });
+    eligible.forEach(entry => {
+      if (!placed.has(entry.rank)) singles.push(entry);
+    });
+    singles.sort((a, b) => a.rank - b.rank);
 
-    if (eligible.length === 3) {
-      // 3 人：名次最高者直接晋级，另外两人对阵。
-      const [first, second, third] = eligible;
+    // 对局占两个相邻签位，直接晋级者占一个签位并留空对面（即轮空）。
+    let cursor = nextBlockStart;
+    matched.forEach(({ first, second }) => {
+      seats.push({
+        ...toSeat(first.player, group, stage, first.rank, 'breakout', {
+          groupName: group.name,
+          rank: first.rank,
+        }),
+        targetStageId: breakoutTargetId,
+        targetSlot: cursor,
+      });
       seats.push({
         ...toSeat(second.player, group, stage, second.rank, 'breakout', {
           groupName: group.name,
           rank: second.rank,
         }),
-        targetSlot: blockStart,
-      });
-      seats.push({
-        ...toSeat(third.player, group, stage, third.rank, 'breakout', {
-          groupName: group.name,
-          rank: third.rank,
-        }),
-        targetSlot: blockStart + 1,
-      });
-      seats.push({
-        ...toSeat(first.player, group, stage, first.rank, 'breakout_direct', {
-          groupName: group.name,
-          rank: first.rank,
-        }),
-        targetSlot: blockStart + 2,
+        targetStageId: breakoutTargetId,
+        targetSlot: cursor + 1,
       });
       pairings.push({
         sourceGroupId: group.id,
-        player1Id: second.player.id,
-        player2Id: third.player.id,
+        player1Id: first.player.id,
+        player2Id: second.player.id,
+        targetStageId: breakoutTargetId,
       });
-      return;
-    }
-
-    // 2 人或 1 人：全部直接晋级。
-    eligible.forEach((entry, index) => {
+      cursor += 2;
+    });
+    singles.forEach(entry => {
       seats.push({
         ...toSeat(entry.player, group, stage, entry.rank, 'breakout_direct', {
           groupName: group.name,
           rank: entry.rank,
         }),
-        targetSlot: blockStart + index * 2,
+        targetStageId: breakoutTargetId,
+        targetSlot: cursor,
       });
+      cursor += 2;
     });
+    nextBlockStart = cursor;
   });
 
-  const errors = rules.length === 0 ? ['该赛段没有配置晋级规则。'] : [];
+  if (rules.length === 0) errors.push('该赛段没有配置晋级规则。');
   return { seats, pairings, errors };
 }
 
@@ -311,7 +396,10 @@ function collectBreakoutSeats(
   return { seats, pairings: [], warnings, unresolved, errors: [] };
 }
 
-/** 按固定签位把席位排成淘汰赛顺序。 */
+/**
+ * 按签表对位把席位排成淘汰赛顺序。对位表里没有列到的晋级选手，
+ * 按顺序补进剩余空位，避免设置不完整时静默丢人。
+ */
 function applySeedRules(
   stage: TournamentStage,
   seats: StageAdvancementSeat[]
@@ -327,14 +415,34 @@ function applySeedRules(
   });
 
   const ordered: StageAdvancementSeat[] = [];
+  const usedSlots = new Set<number>();
+  const reservedSlots = new Set<number>();
+  const consumed = new Set<StageAdvancementSeat>();
   let unresolvedSlots = 0;
   for (const rule of [...rules].sort((a, b) => a.targetSlot - b.targetSlot)) {
     const seat = lookup.get(`${rule.sourceGroupName}:${rule.rank}`);
     if (!seat) {
       unresolvedSlots += 1;
+      reservedSlots.add(rule.targetSlot);
       continue;
     }
+    if (usedSlots.has(rule.targetSlot)) continue;
+    usedSlots.add(rule.targetSlot);
+    consumed.add(seat);
     ordered.push({ ...seat, targetSlot: rule.targetSlot });
+  }
+
+  const leftovers = seats.filter(seat => !consumed.has(seat));
+  if (leftovers.length > 0) {
+    const knownSlots = [...usedSlots, ...reservedSlots];
+    const size = Math.max(rules.length, ...knownSlots.map(slot => slot + 1), 0);
+    const freeSlots: number[] = [];
+    for (let slot = 0; slot < size && freeSlots.length < leftovers.length; slot += 1) {
+      if (!usedSlots.has(slot) && !reservedSlots.has(slot)) freeSlots.push(slot);
+    }
+    leftovers.forEach((seat, index) => {
+      ordered.push({ ...seat, targetSlot: freeSlots[index] ?? size + index });
+    });
   }
   return { seats: ordered, unresolvedSlots };
 }
@@ -387,13 +495,11 @@ export function computeStageAdvancement(
   const fallbackTargetId = targets[0].id;
   const targetedSeats = collected.seats.map(seat => ({
     ...seat,
-    targetStageId: seat.route === 'direct'
-      ? (playoffStage?.id ?? fallbackTargetId)
-      : (breakoutStage?.id ?? fallbackTargetId),
+    targetStageId: seat.targetStageId ?? fallbackTargetId,
   }));
   const targetedPairings = collected.pairings.map(pairing => ({
     ...pairing,
-    targetStageId: breakoutStage?.id ?? fallbackTargetId,
+    targetStageId: pairing.targetStageId ?? breakoutStage?.id ?? fallbackTargetId,
   }));
   if (!playoffStage) {
     return {
@@ -404,17 +510,26 @@ export function computeStageAdvancement(
     };
   }
 
-  const directSeats = targetedSeats
-    .filter(seat => seat.route === 'direct')
-    .map(seat => ({
+  // 只有名次直进淘汰赛的席位参与固定签位映射；突围赛产生的 3、4 名在该赛段确认时补齐。
+  const seedableSeats = targetedSeats.filter(
+    seat => seat.route === 'direct' && seat.targetStageId === playoffStage.id
+  );
+  const seeded = applySeedRules(
+    playoffStage,
+    seedableSeats.map(seat => ({
       ...seat,
       originGroupName: seat.sourceGroupName,
       originRank: seat.finalRank,
-    }));
-  const seeded = applySeedRules(playoffStage, directSeats);
+    }))
+  );
   return {
     ...preview,
-    seats: [...targetedSeats.filter(seat => seat.route !== 'direct'), ...seeded.seats],
+    seats: [
+      ...targetedSeats.filter(
+        seat => !(seat.route === 'direct' && seat.targetStageId === playoffStage.id)
+      ),
+      ...seeded.seats,
+    ],
     breakoutPairings: targetedPairings,
     errors: collected.errors,
     warnings: [

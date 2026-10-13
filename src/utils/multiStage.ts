@@ -36,6 +36,17 @@ export interface MultiStageDraftStage {
 
 export const POETRY_CUP_S3_NAME = '诗意杯S3';
 
+/** 赛段草稿里每个小组的显示名（与创建赛事时的命名规则一致）。 */
+export function getDraftGroupNames(stage: MultiStageDraftStage): string[] {
+  const count = Math.max(1, Math.floor(stage.groupCount));
+  return Array.from({ length: count }, (_, index) => {
+    const explicit = stage.groupNames?.[index]?.trim();
+    if (explicit) return explicit;
+    if (count <= 1) return stage.name;
+    return `${stage.name}${String.fromCharCode(65 + index)}组`;
+  });
+}
+
 /** S3 淘汰赛固定签位：来源小组名 + 组内名次 → 淘汰赛位置。 */
 export const S3_SEED_RULES: StageSeedRule[] = [
   { sourceGroupName: 'A组', rank: 1, targetSlot: 0 },
@@ -187,14 +198,14 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo3',
       roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
       advancementRules: [
-        { id: 's3-top-two', fromRank: 1, toRank: 2, destination: 'main' },
+        { id: 's3-top-two', fromRank: 1, toRank: 2, targetStageId: 's3-playoff' },
         {
           id: 's3-breakout-4-1',
           fromRank: 3,
           toRank: 6,
           minWins: 4,
           maxWins: 4,
-          destination: 'breakout',
+          targetStageId: 's3-breakout',
         },
       ],
     },

@@ -10,6 +10,7 @@ import { getDefaultPlayerFields, getParticipantCodePrefix } from '../utils/playe
 import {
   POETRY_CUP_S3_NAME,
   createPoetryCupS3DraftStages,
+  getDraftGroupNames,
   type MultiStageDraftStage,
 } from '../utils/multiStage';
 
@@ -27,7 +28,7 @@ export function createDefaultStageDraft(stageNumber: number): MultiStageDraftSta
     roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
     // 默认：本组前 2 名直接晋级，裁判可在设置页调整。
     advancementRules: [
-      { id: `rule-${generateId()}`, fromRank: 1, toRank: 2, destination: 'main' },
+      { id: `rule-${generateId()}`, fromRank: 1, toRank: 2, targetStageId: '' },
     ],
   };
 }
@@ -40,17 +41,6 @@ function fitRoundGameTypes(
   const next = (values ?? []).slice(0, length);
   while (next.length < length) next.push(fallback);
   return next;
-}
-
-function resolveGroupName(
-  stage: MultiStageDraftStage,
-  groupIndex: number,
-  groupCount: number
-): string {
-  const explicit = stage.groupNames?.[groupIndex]?.trim();
-  if (explicit) return explicit;
-  if (groupCount <= 1) return stage.name;
-  return `${stage.name}${String.fromCharCode(65 + groupIndex)}组`;
 }
 
 /**
@@ -72,9 +62,10 @@ export function createMultiStageCompetition(
     const playerCount = Math.max(2, Math.floor(stage.playerCountPerGroup));
     const rounds = Math.max(1, Math.floor(stage.rounds));
     const groupIds: string[] = [];
+    const groupNames = getDraftGroupNames(stage);
 
     for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
-      const groupName = resolveGroupName(stage, groupIndex, groupCount);
+      const groupName = groupNames[groupIndex] ?? `${stage.name}${String.fromCharCode(65 + groupIndex)}组`;
       const group = createNewGroup(
         groupName,
         playerCount,

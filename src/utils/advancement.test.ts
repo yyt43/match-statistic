@@ -7,6 +7,9 @@ import {
   buildFinalStandings,
   computeStageAdvancement,
   confirmStageAdvancement,
+  getDownstreamStages,
+  getUnconfirmedUpstreamStageIds,
+  getUpstreamStageIds,
   hasDownstreamResults,
   isStageResultLocked,
   revertStageAdvancement,
@@ -30,7 +33,10 @@ function groupStageDraft(rules: MultiStageDraftStage['advancementRules']): Multi
   };
 }
 
-function buildCompetition(rules: MultiStageDraftStage['advancementRules']): TournamentCompetition {
+function buildCompetition(
+  rules: MultiStageDraftStage['advancementRules'],
+  breakoutPairings: Array<[number, number]> = [[3, 6], [4, 5]]
+): TournamentCompetition {
   const breakout: MultiStageDraftStage = {
     id: 'stage-breakout',
     name: '突围赛',
@@ -42,7 +48,7 @@ function buildCompetition(rules: MultiStageDraftStage['advancementRules']): Tour
     gameType: 'bo3',
     roundGameTypes: ['bo3'],
     sourceStageIds: ['stage-group'],
-    breakout: { pairings: [[3, 6], [4, 5]] },
+    breakout: { pairings: breakoutPairings },
   };
   const playoff: MultiStageDraftStage = {
     id: 'stage-playoff',
@@ -92,8 +98,8 @@ function rankingNames(group: TournamentGroup): string[] {
 describe('stage advancement', () => {
   it('pairs ranks 3-6 as 3v6 and 4v5 for every source group', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
 
     const preview = computeStageAdvancement(competition, 'stage-group');
@@ -119,14 +125,14 @@ describe('stage advancement', () => {
 
   it('keeps only the 4-1 players of ranks 3-6 for the breakout stage', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
       {
         id: 'breakout-4-1',
         fromRank: 3,
         toRank: 6,
         minWins: 4,
         maxWins: 4,
-        destination: 'breakout',
+        targetStageId: 'stage-breakout',
       },
     ]));
 
@@ -156,8 +162,8 @@ describe('stage advancement', () => {
 
   it('sends everyone through when fewer than four players qualify in a group', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 4, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 4, targetStageId: 'stage-breakout' },
     ]));
 
     const preview = computeStageAdvancement(competition, 'stage-group');
@@ -168,8 +174,8 @@ describe('stage advancement', () => {
 
   it('writes the breakout roster and playoff seeding when confirmed', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const preview = computeStageAdvancement(competition, 'stage-group');
     const updated = confirmStageAdvancement(competition, preview);
@@ -196,8 +202,8 @@ describe('stage advancement', () => {
 
   it('adds the breakout winners to the playoff with the fixed seed order', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const withGroupStage = confirmStageAdvancement(
       competition,
@@ -237,8 +243,8 @@ describe('stage advancement', () => {
 
   it('keeps every breakout winner even when a lower seed wins', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const withGroupStage = confirmStageAdvancement(
       competition,
@@ -276,8 +282,8 @@ describe('stage advancement', () => {
 
   it('clears downstream stages when the advancement is reverted', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const confirmed = confirmStageAdvancement(
       competition,
@@ -295,8 +301,8 @@ describe('stage advancement', () => {
 
   it('only locks upstream results once the downstream stage has results', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const confirmed = confirmStageAdvancement(
       competition,
@@ -340,8 +346,8 @@ describe('stage advancement', () => {
 
   it('keeps the roster valid when the same participant appears in several stages', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const updated = confirmStageAdvancement(
       competition,
@@ -366,8 +372,8 @@ describe('stage advancement', () => {
 
   it('derives the final standings from the playoff results', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
     const playoffIndex = competition.groups.findIndex(group => group.stageId === 'stage-playoff');
     const withResults = {
@@ -412,8 +418,8 @@ describe('stage advancement', () => {
 
   it('keeps the final standings empty until the playoff bracket is decided', () => {
     const competition = finishGroupStage(buildCompetition([
-      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
-      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
     ]));
 
     // 只有小组赛有比赛记录时不应产生名次
@@ -427,5 +433,132 @@ describe('stage advancement', () => {
     const playoffGroup = confirmed.groups.find(group => group.stageId === 'stage-playoff')!;
     expect(playoffGroup.players.length).toBeGreaterThan(0);
     expect(buildFinalStandings(confirmed)).toEqual([]);
+  });
+
+  it('routes every rule to the stage the referee picked', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+
+    const preview = computeStageAdvancement(competition, 'stage-group');
+
+    // 小组赛同时指向突围赛与淘汰赛，箭头方向与晋级去向一致。
+    expect(preview.targetStageIds).toEqual(['stage-breakout', 'stage-playoff']);
+    const direct = preview.seats.filter(seat => seat.route === 'direct');
+    expect(direct).toHaveLength(8);
+    expect(direct.every(seat => seat.targetStageId === 'stage-playoff')).toBe(true);
+    const breakoutSeats = preview.seats.filter(seat => seat.route !== 'direct');
+    expect(breakoutSeats.length).toBeGreaterThan(0);
+    expect(breakoutSeats.every(seat => seat.targetStageId === 'stage-breakout')).toBe(true);
+    expect(preview.breakoutPairings.every(item => item.targetStageId === 'stage-breakout')).toBe(true);
+  });
+
+  it('sends everyone to the only downstream stage when a rule has no target', () => {
+    const group = groupStageDraft([
+      { id: 'all', fromRank: 1, toRank: 2, targetStageId: '' },
+    ]);
+    const final: MultiStageDraftStage = {
+      id: 'stage-final',
+      name: '决赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 8,
+      rounds: 3,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5', 'bo7'],
+    };
+    const competition = finishGroupStage(createMultiStageCompetition('单下游', [group, final]));
+
+    // 目标赛段没有声明来源，但被晋级规则指到，仍应视为下游。
+    expect(competition.stages?.[1].sourceStageIds).toBeUndefined();
+    expect(getDownstreamStages(competition, 'stage-group').map(stage => stage.id)).toEqual(['stage-final']);
+    expect(getUpstreamStageIds(competition, 'stage-final')).toEqual(['stage-group']);
+    expect(getUnconfirmedUpstreamStageIds(competition, 'stage-final')).toEqual(['stage-group']);
+
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(8);
+    expect(preview.seats.every(seat => seat.targetStageId === 'stage-final')).toBe(true);
+  });
+
+  it('honours custom cross-group pairings', () => {
+    const competition = finishGroupStage(buildCompetition(
+      [
+        { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+        { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+      ],
+      [[3, 4], [5, 6]]
+    ));
+
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    const groupA = competition.groups.find(group => group.name === 'A组')!;
+    const codes = rankingNames(groupA);
+    const pairs = preview.breakoutPairings
+      .filter(item => item.sourceGroupId === groupA.id)
+      .map(item => [
+        groupA.players.find(player => player.id === item.player1Id)?.participantCode,
+        groupA.players.find(player => player.id === item.player2Id)?.participantCode,
+      ]);
+
+    expect(pairs).toEqual([
+      [codes[2], codes[3]],
+      [codes[4], codes[5]],
+    ]);
+  });
+
+  it('keeps every advancer when the bracket table only covers part of them', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const trimmed: TournamentCompetition = {
+      ...competition,
+      stages: (competition.stages ?? []).map(stage =>
+        stage.id === 'stage-playoff'
+          ? { ...stage, seedRules: S3_SEED_RULES.slice(0, 4) }
+          : stage
+      ),
+    };
+
+    const preview = computeStageAdvancement(trimmed, 'stage-group');
+    const seeded = preview.seats.filter(seat => seat.route === 'direct');
+
+    expect(seeded).toHaveLength(8);
+    expect(new Set(seeded.map(seat => seat.targetSlot)).size).toBe(8);
+  });
+
+  it('advances the top rank directly when only three qualify for the breakout', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      {
+        id: 'breakout-4-1',
+        fromRank: 3,
+        toRank: 6,
+        minWins: 4,
+        maxWins: 4,
+        targetStageId: 'stage-breakout',
+      },
+    ]));
+    const groupA = competition.groups.find(group => group.name === 'A组')!;
+    const codes = rankingNames(groupA);
+
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.breakoutPairings.filter(item => item.sourceGroupId === groupA.id)).toHaveLength(1);
+    expect(
+      preview.seats
+        .filter(seat => seat.route === 'breakout_direct' && seat.sourceGroupId === groupA.id)
+        .map(seat => seat.participantCode)
+    ).toEqual([codes[2]]);
+    expect(
+      preview.seats
+        .filter(seat => seat.route === 'breakout' && seat.sourceGroupId === groupA.id)
+        .map(seat => seat.participantCode)
+    ).toEqual([codes[3], codes[4]]);
+
+    const updated = confirmStageAdvancement(competition, preview);
+    const breakoutGroup = updated.groups.find(group => group.stageId === 'stage-breakout')!;
+    expect(breakoutGroup.players).toHaveLength(12);
+    expect(breakoutGroup.eliminationBracket?.slots.filter(Boolean)).toHaveLength(12);
   });
 });
