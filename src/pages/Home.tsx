@@ -9,6 +9,7 @@ import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 import { OnboardingModal } from '../components/common/OnboardingModal';
 import { getOrderedStages, getStageGroups } from '../utils/multiStage';
+import { StageGroupSwitcher } from '../components/competition/StageGroupSwitcher';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
@@ -227,6 +228,12 @@ export default function Home() {
 
       <main className="flex-1 px-3 py-4 sm:px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
+          {/* 赛段与小组切换器固定在左上角，开赛前后位置一致 */}
+          <div className="mb-3 flex justify-start">
+            <div className="w-full max-w-3xl">
+              <StageGroupSwitcher />
+            </div>
+          </div>
           <div className="mb-4 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
               onClick={() => setShowPlayerPreview(true)}
