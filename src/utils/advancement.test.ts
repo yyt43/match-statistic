@@ -235,6 +235,45 @@ describe('stage advancement', () => {
     expect(playoffGroup.eliminationBracket?.source).toBe('custom');
   });
 
+  it('keeps every breakout winner even when a lower seed wins', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },
+      { id: 'breakout', fromRank: 3, toRank: 6, destination: 'breakout' },
+    ]));
+    const withGroupStage = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+    const stages = getOrderedStages(withGroupStage);
+    const breakoutGroup = getStageGroups(withGroupStage, stages[1])[0];
+    const decided = {
+      ...withGroupStage,
+      groups: withGroupStage.groups.map(group =>
+        group.id === breakoutGroup.id
+          ? {
+              ...group,
+              status: 'completed' as const,
+              currentRound: 1,
+              // 让每个对阵里的“低名次”一方获胜（player2 胜）。
+              matches: group.matches.map(match => ({
+                ...match,
+                result: 'player2' as const,
+                player1Games: 0,
+                player2Games: 2,
+              })),
+            }
+          : group
+      ),
+    };
+
+    const preview = computeStageAdvancement(decided, stages[1].id);
+
+    expect(preview.seats).toHaveLength(8);
+    expect(preview.seats.map(seat => seat.targetSlot).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+      1, 3, 5, 7, 9, 11, 13, 15,
+    ]);
+  });
+
   it('clears downstream stages when the advancement is reverted', () => {
     const competition = finishGroupStage(buildCompetition([
       { id: 'top-two', fromRank: 1, toRank: 2, destination: 'main' },

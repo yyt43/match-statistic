@@ -302,7 +302,9 @@ function collectBreakoutSeats(
   byOrigin.forEach(groupSeats => {
     groupSeats.sort((a, b) => (a.originRank ?? 99) - (b.originRank ?? 99));
     groupSeats.slice(0, 2).forEach((seat, index) => {
-      seats.push({ ...seat, finalRank: 3 + index });
+      // 突围后按结果重新排定该组的第 3、4 名：签位映射要用这个名次，
+      // 否则出现低名次翻盘时会匹配不到固定签位而漏掉晋级者。
+      seats.push({ ...seat, finalRank: 3 + index, originRank: 3 + index });
     });
   });
 
