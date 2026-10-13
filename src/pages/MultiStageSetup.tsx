@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Languages,
   Layers,
@@ -278,13 +279,24 @@ export default function MultiStageSetup() {
                   max={8}
                   onChange={value => updateStage(stage.id, { groupCount: value })}
                 />
-                <Stepper
-                  label={isEnglish ? 'Players per group' : '每组人数'}
-                  value={stage.playerCountPerGroup}
-                  min={2}
-                  max={128}
-                  onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
-                />
+                {stage.sourceStageIds?.length ? (
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'Players per group' : '每组人数'}
+                    </span>
+                    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-2 py-1.5 text-[11px] leading-tight text-slate-400">
+                      {isEnglish ? 'Decided by advancement' : '由晋级人数决定'}
+                    </div>
+                  </div>
+                ) : (
+                  <Stepper
+                    label={isEnglish ? 'Players per group' : '每组人数'}
+                    value={stage.playerCountPerGroup}
+                    min={2}
+                    max={128}
+                    onChange={value => updateStage(stage.id, { playerCountPerGroup: value })}
+                  />
+                )}
                 {stage.kind === 'swiss' ? (
                   <Stepper
                     label={isEnglish ? 'Rounds' : '轮数'}
@@ -531,6 +543,55 @@ export default function MultiStageSetup() {
                 : '每个赛段都需要名称，且每组至少两人。'}
             </p>
           )}
+
+          {/* 赛事流程图：赛段顺序、名单来源与晋级条件一屏可见 */}
+          <section className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4">
+            <div className="text-xs font-medium text-slate-300">
+              {isEnglish ? 'Event flow' : '赛事流程图'}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {stages.map((stage, index) => {
+                const sourceNames = (stage.sourceStageIds ?? [])
+                  .map(id => stages.find(item => item.id === id)?.name)
+                  .filter((name): name is string => Boolean(name));
+                return (
+                  <div key={`flow-${stage.id}`} className="flex items-center gap-2">
+                    {index > 0 && <ArrowRight className="h-4 w-4 shrink-0 text-slate-600" />}
+                    <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-300">
+                      <div className="font-medium text-slate-100">
+                        {stage.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {stage.kind === 'single_elimination'
+                          ? (isEnglish ? 'Single elimination' : '单败淘汰')
+                          : (isEnglish ? 'Swiss' : '瑞士轮')}
+                        {' · '}
+                        {sourceNames.length > 0
+                          ? (isEnglish ? `from ${sourceNames.join(', ')}` : `来自${sourceNames.join('、')}`)
+                          : (isEnglish ? 'manual roster' : '手动导入名单')}
+                        {' · '}
+                        {isEnglish ? `${stage.groupCount} groups` : `${stage.groupCount} 组`}
+                        {stage.breakout ? (isEnglish ? ' · play-in stage' : ' · 附加赛') : ''}
+                      </div>
+                      {(stage.advancementRules ?? []).length > 0 && (
+                        <div className="text-[10px] text-gold-400/80">
+                          {(stage.advancementRules ?? []).map(rule =>
+                            `${isEnglish ? 'rank' : '名次'} ${rule.fromRank}-${rule.toRank}${
+                              rule.minWins !== undefined
+                                ? ` ${isEnglish ? 'wins' : '胜场'} ${rule.minWins}${rule.maxWins !== undefined ? `-${rule.maxWins}` : ''}`
+                                : ''
+                            } → ${rule.destination === 'main'
+                              ? (isEnglish ? 'advance' : '直进')
+                              : (isEnglish ? 'play-in' : '附加赛')}`
+                          ).join(isEnglish ? '; ' : '；')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
       </main>
 
