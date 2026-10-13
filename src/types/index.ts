@@ -263,6 +263,8 @@ export interface StageAdvancementPreview {
   breakoutPairings: StageAdvancementPairing[];
   errors: string[];
   warnings: string[];
+  /** 裁判改签理由，确认时写入记录。 */
+  reason?: string;
 }
 
 export interface StageAdvancementRecord {
@@ -271,6 +273,8 @@ export interface StageAdvancementRecord {
   confirmedAt: string;
   seats: StageAdvancementSeat[];
   breakoutPairings: StageAdvancementPairing[];
+  /** 裁判调整晋级时的理由。 */
+  reason?: string;
 }
 
 /** 多阶段赛事中的赛段定义；单阶段赛事没有该字段。 */
