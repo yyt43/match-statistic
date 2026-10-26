@@ -114,7 +114,7 @@ describe('bye match result protection', () => {
     expect(validateCompetitionData(useTournamentStore.getState().competition).success).toBe(true);
   });
 
-  it('records a BO3 double loss as the same maximum loss for both players and reverts cleanly', () => {
+  it('records a BO3 double loss as 0-0 and reverts cleanly', () => {
     const state = useTournamentStore.getState();
     state.initCompetition('BO3 double loss', 1, 4, 1, 'bo3', 'swiss');
     assignTestCodes();
@@ -122,7 +122,7 @@ describe('bye match result protection', () => {
 
     const match = useTournamentStore.getState().competition.groups[0]
       .matches.find(item => !item.isBye && item.result === 'pending')!;
-    const score = getDoubleLossScore('bo3');
+    const score = getDoubleLossScore();
 
     state.updateMatchResultForGroup(
       0,
@@ -135,8 +135,10 @@ describe('bye match result protection', () => {
     let group = useTournamentStore.getState().competition.groups[0];
     let p1 = group.players.find(player => player.id === match.player1Id)!;
     let p2 = group.players.find(player => player.id === match.player2Id)!;
-    expect(p1).toMatchObject({ losses: 1, totalGames: 2, wonGames: 0 });
-    expect(p2).toMatchObject({ losses: 1, totalGames: 2, wonGames: 0 });
+    const recordedMatch = group.matches.find(item => item.id === match.id);
+    expect(recordedMatch).toMatchObject({ result: 'draw', player1Games: 0, player2Games: 0 });
+    expect(p1).toMatchObject({ losses: 1, totalGames: 0, wonGames: 0 });
+    expect(p2).toMatchObject({ losses: 1, totalGames: 0, wonGames: 0 });
 
     state.updateMatchResultForGroup(0, match.id, 'pending');
 

@@ -53,6 +53,24 @@ function getPairCount(size: number): number {
   return Math.floor(size / 2);
 }
 
+/** 同一参赛身份（id / 编号 / UID / 昵称+QQ 任一相同）只保留一次，避免签位重复。 */
+function dedupePlayers(players: Player[]): Player[] {
+  const seen = new Set<string>();
+  const unique: Player[] = [];
+  for (const player of players) {
+    const keys = [
+      player.id ? `id:${player.id}` : '',
+      player.participantCode?.trim() ? `code:${player.participantCode.trim()}` : '',
+      player.profile?.uid?.trim() ? `uid:${player.profile.uid.trim()}` : '',
+      player.name?.trim() ? `name:${player.name.trim()}#${player.profile?.qq?.trim() ?? ''}` : '',
+    ].filter(Boolean);
+    if (keys.some(key => seen.has(key))) continue;
+    keys.forEach(key => seen.add(key));
+    unique.push(player);
+  }
+  return unique;
+}
+
 function fillSlotLayout(
   size: number,
   byePairIndices: Set<number>,
@@ -80,29 +98,31 @@ function chooseRandomByePairIndices(size: number, byeCount: number): Set<number>
 }
 
 export function createOrderedEliminationBracket(players: Player[]): EliminationBracket {
-  const size = getEliminationBracketSize(players.length);
-  const byeCount = Math.max(0, size - players.length);
+  const uniquePlayers = dedupePlayers(players);
+  const size = getEliminationBracketSize(uniquePlayers.length);
+  const byeCount = Math.max(0, size - uniquePlayers.length);
   const byePairIndices = new Set(Array.from({ length: byeCount }, (_, index) => index));
 
   return {
     id: `elimination-${generateId()}`,
     size,
-    slots: size > 0 ? fillSlotLayout(size, byePairIndices, players) : [],
+    slots: size > 0 ? fillSlotLayout(size, byePairIndices, uniquePlayers) : [],
     source: 'roster_order',
   };
 }
 
 export function createRandomEliminationBracket(players: Player[]): EliminationBracket {
-  const size = getEliminationBracketSize(players.length);
+  const uniquePlayers = dedupePlayers(players);
+  const size = getEliminationBracketSize(uniquePlayers.length);
   if (size === 0) {
     return { id: `elimination-${generateId()}`, size: 0, slots: [], source: 'random' };
   }
 
-  const byeCount = Math.max(0, size - players.length);
+  const byeCount = Math.max(0, size - uniquePlayers.length);
   return {
     id: `elimination-${generateId()}`,
     size,
-    slots: fillSlotLayout(size, chooseRandomByePairIndices(size, byeCount), shuffle(players)),
+    slots: fillSlotLayout(size, chooseRandomByePairIndices(size, byeCount), shuffle(uniquePlayers)),
     source: 'random',
   };
 }
@@ -293,22 +313,27 @@ export function getEliminationBracketView(group: TournamentGroup): EliminationBr
       const nodeId = getBracketNodeId(round, matchIndex);
       const match = getMatchForNode(group, nodeId);
       if (round === 1) {
+        const first = bracket.slots[matchIndex * 2] ?? null;
+        const secondSlot = bracket.slots[matchIndex * 2 + 1] ?? null;
         nodes.push({
           id: nodeId,
           round,
           matchIndex,
-          player1Id: bracket.slots[matchIndex * 2] ?? null,
-          player2Id: bracket.slots[matchIndex * 2 + 1] ?? null,
+          player1Id: first,
+          // 历史数据里同一签位重复时按轮空显示，绝不显示自己打自己。
+          player2Id: secondSlot === first ? null : secondSlot,
           match,
           winnerId: match ? getEliminationWinner(match) : null,
         });
       } else {
+        const first = getPreviousRoundWinner(group, round, matchIndex * 2);
+        const second = getPreviousRoundWinner(group, round, matchIndex * 2 + 1);
         nodes.push({
           id: nodeId,
           round,
           matchIndex,
-          player1Id: getPreviousRoundWinner(group, round, matchIndex * 2),
-          player2Id: getPreviousRoundWinner(group, round, matchIndex * 2 + 1),
+          player1Id: first,
+          player2Id: second === first ? null : second,
           match,
           winnerId: match ? getEliminationWinner(match) : null,
         });
@@ -428,7 +453,7 @@ export function createEliminationFirstRoundMatches(
     if (!first && !second) continue;
 
     const nodeId = getBracketNodeId(1, matchIndex);
-    if (first && second) {
+    if (first && second && first !== second) {
       matches.push({
         id: `elimination-${generateId()}`,
         round: 1,
@@ -438,6 +463,7 @@ export function createEliminationFirstRoundMatches(
         bracketNodeId: nodeId,
       });
     } else {
+      // 同一选手重复占位时按轮空处理，避免生成自己打自己的场次。
       const playerId = first ?? second!;
       matches.push({
         id: `elimination-${generateId()}`,
@@ -477,6 +503,21 @@ export function createEliminationNextRoundMatches(
     const first = getEliminationWinner(previousRoundMatches[matchIndex * 2]);
     const second = getEliminationWinner(previousRoundMatches[matchIndex * 2 + 1]);
     if (!first || !second) continue;
+    if (first === second) {
+      // 防御重复签位导致的首轮自战：同一选手只能拿到一个轮空晋级位。
+      matches.push({
+        id: `elimination-${generateId()}`,
+        round,
+        player1Id: first,
+        player2Id: 'bye',
+        result: 'player1',
+        isBye: true,
+        player1Games: getEliminationByeWins(group.roundGameTypes?.[round - 1] ?? group.gameType),
+        player2Games: 0,
+        bracketNodeId: getBracketNodeId(round, matchIndex),
+      });
+      continue;
+    }
 
     matches.push({
       id: `elimination-${generateId()}`,

@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.6.2
+Current version: v0.6.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.6.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.2)
+[![Release](https://img.shields.io/badge/Release-v0.6.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.6.3)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -260,12 +260,13 @@ The quick-score list and selected-match header display the recorded left-right s
 - Ranking rules: use the default format preset or configure a custom tiebreak chain
   - BO1: wins -> SOS -> SOSOS
   - BO3 / BO5 / BO7: wins -> SOS -> player game win rate -> opponent game win rate
-- Double losses: supported in Swiss and regular pairings; new entries are recorded as a symmetric maximum loss for both players (`0-1`, `0-2`, `0-3`, or `0-4`) and count fully in game rates and opponent networks. Existing `0:0` entries remain unchanged and are marked as the legacy format. A fixed elimination bracket forbids double-loss results and every match must produce an advancing winner
+- Double losses: supported in Swiss and regular pairings and recorded as `0-0`; both players receive a loss, while the score adds no played games to player or opponent game-rate denominators. Legacy `2-2` and similar scores are migrated to `0-0` on load and rankings are recalculated. A fixed elimination bracket forbids double-loss results and every match must produce an advancing winner
 
 ### Fixed elimination brackets
 
 - **Default seeding**: generated from current roster order. With eight players: 1 vs 2, 3 vs 4, 5 vs 6, and 7 vs 8; adjacent winners meet in the next round.
-- **Pre-start editing**: reset to roster order, redraw, swap slots, or assign a player/bye. Byes go to the earliest roster positions and never face each other.
+- **Pre-start editing**: reset to roster order, redraw, swap slots, or assign a player/bye. Byes go to the earliest roster positions and never face each other. Brackets written by multi-stage advancement can also be edited before the stage is confirmed.
+- **Self-pairing guard**: one participant identity (same id, participant code, UID, or nickname plus QQ) can only occupy one slot. Duplicate slots or duplicate winners become byes instead of a player facing themselves.
 - **Locked confirmation**: confirmation locks both the bracket and roster. Later rounds only receive winners at fixed nodes and are never randomly repaired.
 - **Round progression**: each completed round advances to the next fixed round. Future rounds are viewable but cannot be scored early; changing an earlier result is blocked after downstream results exist.
 - **Withdrawals and undo**: a withdrawn player keeps the original slot and name and is treated as a forfeit. Returning to setup unlocks bracket editing.

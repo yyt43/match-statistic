@@ -139,7 +139,7 @@ const content: Record<AppLanguage, HelpCopy> = {
         items: [
           { keys: '1 / 2', description: '判定左侧或右侧选手直落获胜，例如 BO3 的 2-0。' },
           { keys: '3+', description: '按详细赛果按钮上的数字提示录入 2-1、3-1 等具体比分。' },
-          { keys: 'D', description: '记录双负，按当前赛制记为双方均以 0-1、0-2、0-3 或 0-4 判负，并完整计入局分与对手网络。' },
+          { keys: 'D', description: '记录双负，双方均以 0-0 判负：胜场各记一负，但不增加局分与对手网络中的已打局数。' },
           { keys: 'N', description: '跳到下一场待录比赛。' },
           { keys: '← / →', description: '切换上一场或下一场比赛。' },
         ],
@@ -285,7 +285,7 @@ const content: Record<AppLanguage, HelpCopy> = {
         items: [
           { keys: '1 / 2', description: 'Record a straight-set win for the left or right player, such as 2-0 in BO3.' },
           { keys: '3+', description: 'Use the number shown on a detailed result button to record scores such as 2-1 or 3-1.' },
-          { keys: 'D', description: 'Record a double loss as the same maximum loss for both players (0-1, 0-2, 0-3, or 0-4), fully counted in game rates and opponent networks.' },
+          { keys: 'D', description: 'Record a 0-0 double loss for both players: each gets a loss, while the score adds no played games to game rates or opponent networks.' },
           { keys: 'N', description: 'Jump to the next pending match.' },
           { keys: '← / →', description: 'Switch to the previous or next match.' },
         ],
