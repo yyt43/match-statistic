@@ -235,7 +235,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
         moveSelection(1);
       } else if (event.key.toLowerCase() === 'd' && !noDraw) {
         event.preventDefault();
-        const score = getDoubleLossScore(gameType);
+        const score = getDoubleLossScore();
         applyResult('draw', score.player1Games, score.player2Games);
       } else if (shortcutOption) {
         event.preventDefault();

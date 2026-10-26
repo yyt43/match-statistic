@@ -14,6 +14,7 @@ import {
   isStageResultLocked,
   revertStageAdvancement,
 } from './advancement';
+import { swapEliminationBracketSlots } from './elimination';
 import { buildRankedGroup } from '../store/competitionState';
 import { validateRoster } from './playerProfiles';
 import { validateCompetitionData } from './schema';
@@ -186,7 +187,8 @@ describe('stage advancement', () => {
 
     expect(breakoutGroup.players).toHaveLength(16);
     expect(breakoutGroup.eliminationBracket?.slots).toHaveLength(16);
-    expect(breakoutGroup.eliminationBracket?.lockedAt).toBeTruthy();
+    // 晋级生成的签表在开赛前仍可改签，开赛确认时才锁定。
+    expect(breakoutGroup.eliminationBracket?.lockedAt).toBeUndefined();
     expect(playoffGroup.players).toHaveLength(8);
     expect(playoffGroup.eliminationBracket?.size).toBe(16);
 
@@ -560,5 +562,69 @@ describe('stage advancement', () => {
     const breakoutGroup = updated.groups.find(group => group.stageId === 'stage-breakout')!;
     expect(breakoutGroup.players).toHaveLength(12);
     expect(breakoutGroup.eliminationBracket?.slots.filter(Boolean)).toHaveLength(12);
+  });
+
+  it('assigns each rank to only one downstream stage when rules overlap', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'direct', fromRank: 1, toRank: 4, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 4, targetStageId: 'stage-breakout' },
+    ]));
+
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    const playoffCodes = preview.seats
+      .filter(seat => seat.targetStageId === 'stage-playoff')
+      .map(seat => seat.participantCode);
+    const breakoutCodes = preview.seats
+      .filter(seat => seat.targetStageId === 'stage-breakout')
+      .map(seat => seat.participantCode);
+    const allCodes = [...playoffCodes, ...breakoutCodes];
+
+    // 第一条规则已经领走名次后，后续规则不能把同一名选手再送进另一个下游。
+    expect(breakoutCodes).toEqual([]);
+    expect(new Set(allCodes).size).toBe(allCodes.length);
+  });
+
+  it('never seeds the same participant twice into one bracket', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    const seat = preview.seats.find(item => item.targetStageId === 'stage-playoff')!;
+    const duplicated: typeof preview = {
+      ...preview,
+      seats: [...preview.seats, { ...seat, targetSlot: 15 }],
+    };
+
+    const updated = confirmStageAdvancement(competition, duplicated);
+    const playoff = updated.groups.find(group => group.stageId === 'stage-playoff')!;
+    const codes = playoff.players.map(player => player.participantCode);
+
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(playoff.eliminationBracket?.slots.filter(Boolean)).toHaveLength(codes.length);
+  });
+
+  it('leaves advanced brackets editable until the stage is started', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const updated = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+
+    for (const stageId of ['stage-breakout', 'stage-playoff']) {
+      const group = updated.groups.find(item => item.stageId === stageId)!;
+      expect(group.eliminationBracket).toBeTruthy();
+      expect(group.eliminationBracket?.lockedAt).toBeUndefined();
+    }
+
+    // 未锁定时改签动作可以真正落到签位上（store 的守卫只拦 lockedAt）。
+    const playoff = updated.groups.find(item => item.stageId === 'stage-playoff')!;
+    const bracket = playoff.eliminationBracket!;
+    const swapped = swapEliminationBracketSlots(bracket, 0, 1);
+    expect(swapped.slots[0]).toBe(bracket.slots[1]);
+    expect(swapped.slots[1]).toBe(bracket.slots[0]);
   });
 });

@@ -35,20 +35,20 @@ function player(id: string, name: string): Player {
 
 describe('double loss scoring', () => {
   it.each([
-    ['bo1', 1],
-    ['bo3', 2],
-    ['bo5', 3],
-    ['bo7', 4],
-  ] as const)('uses the maximum loss score for %s', (gameType, games) => {
-    expect(getDoubleLossScore(gameType)).toEqual({
-      player1Games: games,
-      player2Games: games,
+    'bo1',
+    'bo3',
+    'bo5',
+    'bo7',
+  ] as const)('uses 0-0 for both players in %s', () => {
+    expect(getDoubleLossScore()).toEqual({
+      player1Games: 0,
+      player2Games: 0,
     });
-    expect(formatDoubleLoss(gameType)).toContain(`0-${games}`);
+    expect(formatDoubleLoss()).toContain('0-0');
   });
 
-  it('labels legacy 0-0 separately and labels current symmetric scores accurately', () => {
-    const legacy: Match = {
+  it('labels current 0-0 and marks older positive double-loss scores as legacy', () => {
+    const current: Match = {
       id: 'legacy',
       round: 1,
       player1Id: 'a',
@@ -57,19 +57,19 @@ describe('double loss scoring', () => {
       player1Games: 0,
       player2Games: 0,
     };
-    const current: Match = {
-      ...legacy,
-      id: 'current',
+    const legacy: Match = {
+      ...current,
+      id: 'legacy-score',
       player1Games: 2,
       player2Games: 2,
     };
 
-    expect(getDoubleLossGames(legacy)).toBe(0);
-    expect(formatRecordedDoubleLoss(legacy)).toBe('双负（旧口径0-0）');
-    expect(formatRecordedDoubleLoss(current)).toBe('双负（双方均以0-2判负）');
+    expect(getDoubleLossGames(current)).toBe(0);
+    expect(formatRecordedDoubleLoss(current)).toBe('双负（0-0）');
+    expect(formatRecordedDoubleLoss(legacy)).toBe('双负（旧口径2-2）');
   });
 
-  it('counts the same loss games for both sides in the opponent network', () => {
+  it('counts the loss for both sides without adding played games for a 0-0 double loss', () => {
     const a = player('a', 'A');
     const b = player('b', 'B');
     const match: Match = {
@@ -78,31 +78,35 @@ describe('double loss scoring', () => {
       player1Id: 'a',
       player2Id: 'b',
       result: 'draw',
-      player1Games: 2,
-      player2Games: 2,
+      player1Games: 0,
+      player2Games: 0,
     };
 
     const [aR, bR] = calculateAllWinRates(
       [
-        { ...a, losses: 1, totalGames: 2 },
-        { ...b, losses: 1, totalGames: 2 },
+        { ...a, losses: 1 },
+        { ...b, losses: 1 },
       ],
       [match],
       'bo3'
     );
 
-    expect(aR).toMatchObject({ losses: 1, wonGames: 0, totalGames: 2, gameWinRate: 0, opponentGameWinRate: 0 });
-    expect(bR).toMatchObject({ losses: 1, wonGames: 0, totalGames: 2, gameWinRate: 0, opponentGameWinRate: 0 });
+    expect(aR).toMatchObject({ losses: 1, wonGames: 0, totalGames: 0, gameWinRate: 0, opponentGameWinRate: 0 });
+    expect(bR).toMatchObject({ losses: 1, wonGames: 0, totalGames: 0, gameWinRate: 0, opponentGameWinRate: 0 });
   });
 
-  it('normalizes newly written legacy-style 0-0 draws to the current series score', () => {
+  it('normalizes every newly written draw to 0-0', () => {
     expect(normalizeResultScore('draw', 'bo3', 0, 0)).toEqual({
-      player1Games: 2,
-      player2Games: 2,
+      player1Games: 0,
+      player2Games: 0,
     });
     expect(normalizeResultScore('draw', 'bo5', undefined, undefined)).toEqual({
-      player1Games: 3,
-      player2Games: 3,
+      player1Games: 0,
+      player2Games: 0,
+    });
+    expect(normalizeResultScore('draw', 'bo3', 2, 2)).toEqual({
+      player1Games: 0,
+      player2Games: 0,
     });
     expect(normalizeResultScore('player1', 'bo3', 2, 0)).toEqual({
       player1Games: 2,

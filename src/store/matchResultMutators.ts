@@ -1,5 +1,5 @@
 import type { GameType, Match, MatchResult, Player } from '../types';
-import { getDoubleLossGames, normalizeResultScore } from '../utils/matchResult';
+import { normalizeResultScore } from '../utils/matchResult';
 
 export function revertMatchResult(
   playerMap: Map<string, Player>,
@@ -77,7 +77,7 @@ export function revertMatchResult(
 
   if (!wasPreDrop && match.player1Games !== undefined && match.player2Games !== undefined) {
     if (res === 'draw') {
-      const lossGames = getDoubleLossGames(match) ?? 0;
+      const lossGames = Math.max(match.player1Games, match.player2Games);
       p1.totalGames -= lossGames;
       p2.totalGames -= lossGames;
     } else {

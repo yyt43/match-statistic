@@ -202,6 +202,9 @@ function collectGroupStageSeats(
     const ranking = getRankedPlayers(group);
     const directRanks = new Map<number, string>();
     const breakoutRanks = new Set<number>();
+    // 同一名次只归属第一条命中的规则：否则同一名选手会同时直进与参加突围，
+    // 之后可能在同一个下游签表里出现两次（自己打自己）。
+    const assignedRanks = new Set<number>();
 
     for (const rule of rules) {
       const target = resolveTarget(rule);
@@ -216,8 +219,10 @@ function collectGroupStageSeats(
         if (!player) continue;
         if (rule.minWins !== undefined && player.wins < rule.minWins) continue;
         if (rule.maxWins !== undefined && player.wins > rule.maxWins) continue;
+        if (assignedRanks.has(rank)) continue;
+        assignedRanks.add(rank);
         if (breakoutStage && target.id === breakoutStage.id) breakoutRanks.add(rank);
-        else if (!directRanks.has(rank)) directRanks.set(rank, target.id);
+        else directRanks.set(rank, target.id);
       }
     }
 
@@ -596,15 +601,26 @@ function materializeTargetStage(
 
   const players: Player[] = [];
   const slotIds = new Map<number, string>();
+  const seenIdentities = new Set<string>();
   seats.forEach((seat, index) => {
+    // 防御历史数据：同一个参赛身份在同一目标赛段只能出现一次。
+    const identities = [
+      seat.participantCode?.trim() ? `code:${seat.participantCode.trim()}` : '',
+      seat.uid?.trim() ? `uid:${seat.uid.trim()}` : '',
+      seat.name?.trim() ? `name:${seat.name.trim()}#${seat.qq?.trim() ?? ''}` : '',
+    ].filter(Boolean);
+    if (identities.some(identity => seenIdentities.has(identity))) return;
+    const slot = seat.targetSlot ?? index;
+    if (slotIds.has(slot)) return;
     const source = findSourcePlayer(competition, seat);
     if (!source) return;
+    identities.forEach(identity => seenIdentities.add(identity));
     const originLabel = seat.originGroupName && seat.originRank !== undefined
       ? `${seat.originGroupName} #${seat.originRank}`
       : undefined;
     const cloned = clonePlayerInto(source, seat.participantCode ?? '', originLabel);
     players.push(cloned);
-    slotIds.set(seat.targetSlot ?? index, cloned.id);
+    slotIds.set(slot, cloned.id);
   });
 
   const slotNumbers = Array.from(slotIds.keys());
@@ -631,7 +647,6 @@ function materializeTargetStage(
         size: bracketSize,
         slots,
         source: 'custom',
-        lockedAt: new Date().toISOString(),
       },
     };
   }

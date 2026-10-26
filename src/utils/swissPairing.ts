@@ -922,7 +922,8 @@ export function generateSingleEliminationPairings(
     }
 
     for (let i = 0; i < winners.length; i += 2) {
-      if (i + 1 >= winners.length) {
+      // 防御旧数据里同一选手重复出现：宁可轮空，也不能出现自己打自己。
+      if (i + 1 >= winners.length || winners[i] === winners[i + 1]) {
         matches.push({
           id: generateId(),
           round,
