@@ -14,7 +14,7 @@ import {
   getPlayerSchemaId,
 } from '../playerProfiles';
 
-export const CURRENT_STORAGE_VERSION = 7;
+export const CURRENT_STORAGE_VERSION = 8;
 
 type Migration = (competition: TournamentCompetition) => TournamentCompetition;
 
@@ -74,6 +74,20 @@ const migrations: Record<number, Migration> = {
   // Version 7 introduced the fixed single-elimination bracket. Existing
   // tournaments intentionally keep no bracket and continue on the legacy path.
   6: competition => competition,
+
+  // Version 8 changes double losses from the series maximum (2-2 in BO3)
+  // to 0-0. Rankings are recalculated from matches after loading.
+  7: competition => ({
+    ...competition,
+    groups: competition.groups.map(group => ({
+      ...group,
+      matches: group.matches.map(match =>
+        match.result === 'draw'
+          ? { ...match, player1Games: 0, player2Games: 0 }
+          : match
+      ),
+    })),
+  }),
 };
 
 export function migrateCompetitionData(

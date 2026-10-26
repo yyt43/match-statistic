@@ -96,6 +96,75 @@ describe('fixed elimination bracket', () => {
     expect(view.rounds[1]?.nodes[0].player2Id).toBe('p4');
   });
 
+  it('turns a duplicated winner into a bye instead of a self match', () => {
+    const players = Array.from({ length: 4 }, (_, index) => player(`p${index + 1}`));
+    const bracket = createOrderedEliminationBracket(players);
+    const initialGroup = group(players);
+    const matches: Match[] = [
+      {
+        id: 'r1-m0',
+        round: 1,
+        player1Id: 'p1',
+        player2Id: 'p2',
+        result: 'player1',
+        bracketNodeId: 'r1-m0',
+      },
+      {
+        id: 'r1-m1',
+        round: 1,
+        player1Id: 'p1',
+        player2Id: 'p3',
+        result: 'player1',
+        bracketNodeId: 'r1-m1',
+      },
+    ];
+
+    const secondRound = createEliminationNextRoundMatches({
+      ...initialGroup,
+      eliminationBracket: bracket,
+      matches,
+    }, 2);
+
+    expect(secondRound).toHaveLength(1);
+    expect(secondRound[0].isBye).toBe(true);
+    expect(secondRound[0].player2Id).toBe('bye');
+    expect(secondRound[0].player1Id).not.toBe(secondRound[0].player2Id);
+  });
+
+  it('deduplicates the same participant when building a bracket', () => {
+    const first = { ...player('p1'), participantCode: 'A01', name: '张三' };
+    const duplicate = { ...player('p1-copy'), participantCode: 'A01', name: '张三' };
+    const others = [player('p2'), player('p3'), player('p4')];
+
+    const bracket = createOrderedEliminationBracket([first, duplicate, ...others]);
+    const ids = bracket.slots.filter((id): id is string => Boolean(id));
+
+    expect(bracket.size).toBe(4);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain('p1-copy');
+  });
+
+  it('keeps the bracket view free of self pairings with duplicate slots', () => {
+    const players = [player('p1'), player('p2')];
+    const bracket = {
+      id: 'b',
+      size: 4,
+      slots: ['p1', 'p1', 'p2', null],
+      source: 'custom' as const,
+    };
+    const initialGroup = group(players);
+    const matches = createEliminationFirstRoundMatches(initialGroup, bracket);
+
+    expect(matches).toHaveLength(2);
+    expect(matches.some(match => match.player1Id === match.player2Id)).toBe(false);
+    expect(matches[0].isBye).toBe(true);
+
+    const view = getEliminationBracketView({ ...initialGroup, eliminationBracket: bracket, matches });
+    const firstNode = view.rounds[0].nodes[0];
+    expect(firstNode.player1Id).toBe('p1');
+    expect(firstNode.player2Id).toBeNull();
+  });
+
   it('assigns byes to the earliest roster positions without bye-vs-bye', () => {
     const players = Array.from({ length: 6 }, (_, index) => player(`p${index + 1}`));
     const bracket = createOrderedEliminationBracket(players);

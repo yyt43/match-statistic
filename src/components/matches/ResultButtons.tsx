@@ -96,12 +96,12 @@ export function ResultButtons({
         {!noDraw && (
           <button
             onClick={() => {
-              const score = getDoubleLossScore('bo1');
+              const score = getDoubleLossScore();
               onResult('draw', score.player1Games, score.player2Games);
             }}
             className="w-full py-2 rounded-lg text-sm font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30"
           >
-            {formatDoubleLoss('bo1', isEnglish)}
+            {formatDoubleLoss(isEnglish)}
           </button>
         )}
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">
@@ -179,12 +179,12 @@ export function ResultButtons({
       {!noDraw && (
         <button
           onClick={() => {
-            const score = getDoubleLossScore(gameType);
+            const score = getDoubleLossScore();
             onResult('draw', score.player1Games, score.player2Games);
           }}
           className="w-full py-2 rounded-lg text-xs font-medium bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors border border-orange-500/30"
         >
-          {formatDoubleLoss(gameType, isEnglish)}
+          {formatDoubleLoss(isEnglish)}
         </button>
       )}
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-700/40">

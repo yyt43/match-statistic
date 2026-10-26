@@ -70,13 +70,18 @@ export function EliminationBracketConfirmModal({
   const handleSelectSlot = (slotIndex: number) => {
     setError(null);
     if (editMode === 'swap') {
-      setSelectedSlots(current => {
-        if (current.includes(slotIndex)) return current.filter(index => index !== slotIndex);
-        if (current.length === 0) return [slotIndex];
-        const [first] = current;
-        swapEliminationBracketSlots(first, slotIndex, activeGroupIndex);
-        return [];
-      });
+      // 注意：这里必须在 updater 之外调用 store。StrictMode 会双调用 updater，
+      // 之前放在 setSelectedSlots 内部会把同一对签位交换两次，看起来像“改签无效”。
+      if (selectedSlots.includes(slotIndex)) {
+        setSelectedSlots(current => current.filter(index => index !== slotIndex));
+        return;
+      }
+      if (selectedSlots.length === 0) {
+        setSelectedSlots([slotIndex]);
+        return;
+      }
+      swapEliminationBracketSlots(selectedSlots[0], slotIndex, activeGroupIndex);
+      setSelectedSlots([]);
       return;
     }
 

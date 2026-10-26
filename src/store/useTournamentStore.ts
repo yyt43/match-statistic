@@ -334,6 +334,7 @@ function hasRegularResultChanged(
   player2Games?: number,
   preDrop?: boolean
 ): boolean {
+  if (match.result === 'draw' && result === 'draw') return false;
   return match.result !== result
     || match.player1Games !== player1Games
     || match.player2Games !== player2Games
@@ -1276,6 +1277,7 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const group = competition.groups[competition.currentGroupIndex];
     if (!group) return;
+    if (player1Id && player2Id && player1Id === player2Id) return;
 
     const matchIndex = group.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;

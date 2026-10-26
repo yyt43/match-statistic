@@ -111,4 +111,24 @@ describe('storage migrations', () => {
     expect(migrated.groups[0].eliminationBracket).toBeUndefined();
     expect(migrated.groups[0].matches[0].bracketNodeId).toBeUndefined();
   });
+
+  it('converts version 7 double losses to 0-0', () => {
+    const competition = createNewCompetition('Version 7 double loss', 1, 4, 3, 'bo3');
+    competition.groups[0].matches = [{
+      id: 'draw-match',
+      round: 1,
+      player1Id: competition.groups[0].players[0].id,
+      player2Id: competition.groups[0].players[1].id,
+      result: 'draw',
+      player1Games: 2,
+      player2Games: 2,
+    }];
+
+    const migrated = migrateCompetitionData(competition, 7);
+    expect(migrated.groups[0].matches[0]).toMatchObject({
+      result: 'draw',
+      player1Games: 0,
+      player2Games: 0,
+    });
+  });
 });
