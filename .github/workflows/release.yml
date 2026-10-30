@@ -19,8 +19,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run release:check
+      # 先同步再校验：release:sync 把 README 徽章/版本号对齐 package.json，release:check 再验证一致性（反了会让 --check 在未同步时直接失败）。
       - run: npm run release:sync
+      - run: npm run release:check
       - run: npm audit --omit=dev --audit-level=high
       - name: Report full dependency audit
         run: npm audit --audit-level=high
@@ -30,6 +31,7 @@ jobs:
       - run: npm run test:coverage
       - run: npm run build
       - run: npm run check:bundle
+      - run: npm run smoke
       - run: npm run smoke:offline
       - run: npm run visual:check
       - name: Create GitHub Release

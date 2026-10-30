@@ -40,8 +40,10 @@ let lastSavedAt: string | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 
 /**
- * 轻量级 JSON 压缩：移除 playedAgainst 中的重复 'bye'，避免轮空多次累积。
- * 同时移除运行时计算的胜率字段（加载后由 recalculate 重算），减小 30-40% 体积。
+ * 轻量级 JSON 压缩：仅对 playedAgainst 去重 —— 保留首次出现的顺序，
+ * 并把重复的 'bye'（轮空标记）收敛为一个，避免轮空多次累积。
+ * 胜率等运行时字段会原样保留（加载后由 recalculate 重算），这里不做删除，
+ * 因此体积收益仅来自 playedAgainst 去重，不要期待 30%~40% 的压缩率。
  */
 function compressCompetition(competition: TournamentCompetition): TournamentCompetition {
   return {
@@ -224,27 +226,85 @@ async function persistCompetitionEnvelope(
   return true;
 }
 
-function prepareStoredCompetition(
-  parsed: ParsedStoredCompetition | null
-): { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null {
-  if (!parsed) return null;
+interface MigratedStoredCompetition {
+  competition: TournamentCompetition;
+  wasMigrated: boolean;
+}
+
+type MigrateStoredResult =
+  | { ok: true; value: MigratedStoredCompetition }
+  | { ok: false; error: string };
+
+/**
+ * 加载路径与存储体检共用同一条"先迁移、再校验"的流水线。
+ * 分开返回可读错误，便于体检把"可迁移"和"损坏"分别报告。
+ */
+function migrateAndValidateStoredCompetition(
+  parsed: ParsedStoredCompetition
+): MigrateStoredResult {
   const wasMigrated = parsed.version < CURRENT_STORAGE_VERSION;
   let migrated: TournamentCompetition;
   try {
     migrated = migrateCompetitionData(parsed.competition, parsed.version);
   } catch (error) {
-    console.warn('[storage] Unsupported competition version:', error);
-    return null;
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
   const validation = validateCompetitionData(migrated);
   if (!validation.success) {
-    console.warn('[storage] Invalid competition data rejected:', validation.message);
+    return { ok: false, error: validation.message };
+  }
+  return {
+    ok: true,
+    value: { competition: validation.data as TournamentCompetition, wasMigrated },
+  };
+}
+
+function prepareStoredCompetition(
+  parsed: ParsedStoredCompetition | null
+): { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null {
+  if (!parsed) return null;
+  const result = migrateAndValidateStoredCompetition(parsed);
+  if (!result.ok) {
+    // 加载路径需要诊断日志；体检路径改用 prepareStoredRecord，避免重复打印。
+    console.warn('[storage] Stored competition rejected:', result.error);
     return null;
   }
   return {
-    competition: validation.data as TournamentCompetition,
+    competition: result.value.competition,
     savedAt: parsed.savedAt,
-    wasMigrated,
+    wasMigrated: result.value.wasMigrated,
+  };
+}
+
+export type StoredRecordStatus = 'ok' | 'migratable' | 'corrupt';
+
+export interface PreparedStoredRecord {
+  status: StoredRecordStatus;
+  competition?: TournamentCompetition;
+  savedAt?: string;
+  /** 仅 status === 'corrupt' 时有值：可读的损坏原因。 */
+  error?: string;
+}
+
+/**
+ * 解析一份原始存储记录（IndexedDB 里的对象或 localStorage 里的 JSON 字符串），
+ * 复用加载路径的"迁移 + 校验"逻辑，并把"旧版本可迁移"与"损坏"分开返回。
+ * raw 为 null/undefined/空串表示该存储位置没有记录，返回 null。
+ */
+export function prepareStoredRecord(raw: unknown): PreparedStoredRecord | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = typeof raw === 'string' ? tryParse(raw) : parseStoredValue(raw);
+  if (!parsed) {
+    return { status: 'corrupt', error: 'unrecognized stored payload' };
+  }
+  const result = migrateAndValidateStoredCompetition(parsed);
+  if (!result.ok) {
+    return { status: 'corrupt', error: result.error };
+  }
+  return {
+    status: result.value.wasMigrated ? 'migratable' : 'ok',
+    competition: result.value.competition,
+    savedAt: parsed.savedAt,
   };
 }
 

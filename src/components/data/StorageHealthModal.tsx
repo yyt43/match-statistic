@@ -77,6 +77,14 @@ export function StorageHealthModal({ isOpen, onClose }: StorageHealthModalProps)
     }
   };
 
+  // 只有确认为损坏或可确认的镜像不一致时才允许重写；可迁移记录交给加载路径自动处理。
+  const repairRecommended = report?.repairRecommended ?? false;
+  const repairHint = report && !report.repairRecommended
+    ? (isEnglish
+        ? 'Nothing needs rewriting; legacy records are migrated automatically when the event is opened.'
+        : '当前没有需要重写的记录；旧版本记录会在打开赛事时自动迁移。')
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -175,10 +183,15 @@ export function StorageHealthModal({ isOpen, onClose }: StorageHealthModalProps)
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-700/60 px-5 py-4">
-          <div className="text-[10px] text-slate-600">
-            {isEnglish ? 'Last saved: ' : '最近保存：'}{formatTime(report?.stats.lastSavedAt ?? null)}
+          <div className="min-w-0">
+            <div className="text-[10px] text-slate-600">
+              {isEnglish ? 'Last saved: ' : '最近保存：'}{formatTime(report?.stats.lastSavedAt ?? null)}
+            </div>
+            {repairHint && (
+              <div className="mt-0.5 text-[10px] text-emerald-400/80">{repairHint}</div>
+            )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <button
               onClick={onClose}
               disabled={isRepairing}
@@ -188,7 +201,8 @@ export function StorageHealthModal({ isOpen, onClose }: StorageHealthModalProps)
             </button>
             <button
               onClick={() => void repair()}
-              disabled={isChecking || isRepairing || !report}
+              disabled={isChecking || isRepairing || !report || !repairRecommended}
+              title={repairHint ?? undefined}
               className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/25 disabled:opacity-40"
             >
               <Wrench className={`h-4 w-4 ${isRepairing ? 'animate-pulse' : ''}`} />

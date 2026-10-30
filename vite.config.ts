@@ -3,6 +3,35 @@ import react from '@vitejs/plugin-react'
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from 'vite-plugin-pwa';
 
+// 生产构建注入 CSP。项目本身不向外部发送数据，只额外允许远程字体样式/字体文件；
+// 开发服务器不注入，避免和 Vite/React Refresh 的内联脚本冲突。
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "base-uri 'self'",
+  "form-action 'none'",
+  "object-src 'none'",
+].join('; ')
+
+function injectCspPlugin() {
+  return {
+    name: 'inject-csp-meta',
+    apply: 'build' as const,
+    transformIndexHtml(html: string) {
+      return html.replace(
+        '<head>',
+        `<head>\n    <meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}" />`,
+      )
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
   // GitHub Pages 部署：仓库名为 <repo-name>，base 需设为 '/<repo-name>/'
@@ -57,6 +86,7 @@ export default defineConfig(({ command }) => ({
       },
     }),
     tsconfigPaths(),
+    injectCspPlugin(),
     VitePWA({
       registerType: 'prompt',
       injectRegister: null,

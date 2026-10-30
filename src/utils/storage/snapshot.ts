@@ -15,7 +15,18 @@ export interface Snapshot {
   id: string;
   savedAt: string; // ISO 时间戳
   label: string;   // 人类可读描述，如 "小组01·第3轮完赛"
+  /** 快照所属赛事 id。旧版本条目没有该字段，读取时回退到 data.id。 */
+  competitionId?: string;
+  /** 快照所属赛事名。旧版本条目没有该字段，UI 显示为"未知赛事"。 */
+  competitionName?: string;
   data: TournamentCompetition;
+}
+
+/** 快照归属的赛事信息，用于恢复前校验和列表展示。 */
+export interface SnapshotOwner {
+  id: string;
+  /** 旧版本快照没有记录赛事名时为 null。 */
+  name: string | null;
 }
 
 export interface SaveSnapshotOptions {
@@ -27,12 +38,52 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 }
 
+/**
+ * 校验并归一化一条存储中的快照。旧版本条目缺少 competitionId/competitionName 时
+ * 保留为 undefined（兼容读取），结构不完整的条目直接丢弃。
+ */
+function normalizeSnapshot(value: unknown): Snapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const entry = value as Partial<Snapshot>;
+  if (typeof entry.id !== 'string' || typeof entry.savedAt !== 'string') return null;
+  if (typeof entry.label !== 'string') return null;
+  const data = entry.data;
+  if (!data || typeof data !== 'object' || !Array.isArray(data.groups)) return null;
+  return {
+    id: entry.id,
+    savedAt: entry.savedAt,
+    label: entry.label,
+    competitionId: typeof entry.competitionId === 'string' ? entry.competitionId : undefined,
+    competitionName: typeof entry.competitionName === 'string' ? entry.competitionName : undefined,
+    data,
+  };
+}
+
+function normalizeSnapshots(stored: unknown): Snapshot[] | null {
+  if (!Array.isArray(stored)) return null;
+  return stored
+    .map(normalizeSnapshot)
+    .filter((snapshot): snapshot is Snapshot => snapshot !== null);
+}
+
+/**
+ * 快照归属的赛事：优先用写入时记录的归属字段；旧版本快照没有归属字段时
+ * 回退到 data.id（赛事数据本身自带的 id）。赛事名缺失时返回 null。
+ */
+export function getSnapshotOwner(snapshot: Snapshot): SnapshotOwner {
+  return {
+    id: snapshot.competitionId ?? snapshot.data.id,
+    name: snapshot.competitionName ?? null,
+  };
+}
+
 /** 读取所有快照（按时间倒序，最新在前） */
 export async function listSnapshots(): Promise<Snapshot[]> {
   if (isIndexedDbAvailable()) {
     try {
       const stored = await idbGet<Snapshot[]>(SNAPSHOT_KEY);
-      if (Array.isArray(stored)) return stored;
+      const normalized = normalizeSnapshots(stored);
+      if (normalized) return normalized;
     } catch (error) {
       console.warn('[snapshot] IndexedDB read failed, falling back to localStorage', error);
     }
@@ -41,9 +92,7 @@ export async function listSnapshots(): Promise<Snapshot[]> {
   try {
     const raw = localStorage.getItem(SNAPSHOT_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Snapshot[];
+    return normalizeSnapshots(JSON.parse(raw)) ?? [];
   } catch {
     return [];
   }
@@ -100,6 +149,8 @@ export function saveSnapshot(
           id: generateId(),
           savedAt: new Date().toISOString(),
           label,
+          competitionId: competition.id,
+          competitionName: competition.name,
           data: compressForSnapshot(competition),
         };
 

@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { X, History, RotateCcw, Trash2, Plus, Clock } from 'lucide-react';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useTournamentStore } from '../../store/useTournamentStore';
-import { listSnapshots, deleteSnapshot, type Snapshot } from '../../utils/storage/snapshot';
+import {
+  listSnapshots,
+  deleteSnapshot,
+  getSnapshotOwner,
+  type Snapshot,
+} from '../../utils/storage/snapshot';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -15,7 +20,10 @@ interface BackupManagerProps {
 export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   useEscapeClose(isOpen, onClose);
   const { language, t } = useLanguagePreference();
-  const { createSnapshot, restoreFromSnapshot } = useTournamentStore();
+  const isEnglish = language === 'en';
+  const competitionId = useTournamentStore(state => state.competition.id);
+  const createSnapshot = useTournamentStore(state => state.createSnapshot);
+  const restoreFromSnapshot = useTournamentStore(state => state.restoreFromSnapshot);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Snapshot | null>(null);
@@ -43,6 +51,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   };
 
   const handleRestore = (snapshot: Snapshot) => {
+    if (!belongsToCurrentCompetition(snapshot)) {
+      showToast(otherEventRestoreHint);
+      return;
+    }
     setPendingRestore(snapshot);
   };
 
@@ -82,6 +94,18 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
       return iso;
     }
   };
+
+  /** 旧版本快照没有记录赛事名，显示为未知赛事。 */
+  const snapshotEventName = (snapshot: Snapshot): string =>
+    getSnapshotOwner(snapshot).name ?? (isEnglish ? 'Unknown event' : '未知赛事');
+
+  /** 只允许恢复属于当前赛事的快照，避免把别的赛事数据覆盖进来。 */
+  const belongsToCurrentCompetition = (snapshot: Snapshot): boolean =>
+    getSnapshotOwner(snapshot).id === competitionId;
+
+  const otherEventRestoreHint = isEnglish
+    ? 'This snapshot belongs to a different event and cannot be restored over the current event.'
+    : '该快照属于其他赛事，不能恢复到当前赛事。';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -139,6 +163,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                   <div className="text-sm text-slate-200 font-medium truncate">
                     {snapshot.label}
                   </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5 truncate" title={snapshotEventName(snapshot)}>
+                    {isEnglish ? 'Event: ' : '赛事：'}
+                    {snapshotEventName(snapshot)}
+                  </div>
                   <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {formatTime(snapshot.savedAt)}
@@ -147,8 +175,13 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => handleRestore(snapshot)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-[11px] border border-emerald-500/20"
-                    title={t.restoreThisSnapshot}
+                    disabled={!belongsToCurrentCompetition(snapshot)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors text-[11px] border ${
+                      belongsToCurrentCompetition(snapshot)
+                        ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
+                        : 'bg-slate-700/30 text-slate-500 border-slate-700 cursor-not-allowed'
+                    }`}
+                    title={belongsToCurrentCompetition(snapshot) ? t.restoreThisSnapshot : otherEventRestoreHint}
                   >
                     <RotateCcw className="w-3 h-3" />
                     {t.restore}
@@ -174,6 +207,10 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 rounded-2xl" onClick={() => setPendingRestore(null)}>
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 max-w-sm w-full" onClick={e => e.stopPropagation()}>
               <h4 className="text-sm font-semibold text-white mb-2">{t.confirmRestoreTitle}</h4>
+              <div className="text-[11px] text-sky-300/80 mb-2 truncate" title={snapshotEventName(pendingRestore)}>
+                {isEnglish ? 'Event: ' : '赛事：'}
+                {snapshotEventName(pendingRestore)}
+              </div>
               <p className="text-xs text-slate-400 mb-4">
                 {formatText(t.confirmRestoreMsg, { label: pendingRestore.label, time: formatTime(pendingRestore.savedAt) })}
               </p>

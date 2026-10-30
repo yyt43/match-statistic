@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
+    // 提供 localStorage 等浏览器存储的最小 stub，避免 node 环境下的回退路径噪声。
+    setupFiles: ['./vitest.setup.ts'],
     pool: 'threads',
     maxWorkers: 1,
     minWorkers: 1,

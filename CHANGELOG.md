@@ -15,11 +15,18 @@
 - 快捷键与导出：弹窗打开时全局快捷键不触发，ESC 一次只关最上层；导出预览与全部导出不再修改全局当前小组。
 - 界面：演示赛事替换前二次确认；弹窗、比赛卡与设置项补齐无障碍标签、焦点环与键盘操作；名单导入未填小组的行不再轮换分配，改为提示并跳过。
 - 构建与文档：生产构建默认不输出 sourcemap（避免源码公开）；PWA 清单补 `id`/`lang`/图标用途，iOS 主屏元信息补齐，页面标题随语言切换；`docs/ARCHITECTURE.md` 与 `PERSISTENCE_AUDIT.md` 同步当前代码与复核结论。
+- 渲染性能：18 处整 store 订阅改为 selector（多字段用 `useShallow`），Excel 导出表数据 `useMemo` 化并对进度更新节流，设置页的名单校验、赛段列表与开赛确认弹窗改为按需计算。
+- 存储体检：加载与体检共用同一套「迁移 + 校验」路径，旧版本但可迁移的记录不再被当成损坏，只有确认损坏或镜像漂移时才允许重写；快照记录赛事归属，跨赛事恢复会被拒绝并给出提示。
+- 帮助页：中英文内容抽成独立模块并补齐差异（英文补「选手档案」「赛果导入」两张卡与多阶段步骤），新增双语 parity 测试防止再次漂移。
+- 字体与安全：Google Fonts 改为首帧后异步注入，不再阻塞首屏；生产构建注入 `Content-Security-Policy` meta，收紧脚本、连接与 worker 来源。
+- 迁移：数据迁移函数改为显式 switch 派发，修复 CodeQL 对动态方法调用的高危告警。
+- 测试与 CI：vitest 注入内存 localStorage stub，消除 `[audit]`/`[history]` 噪声；部署工作流不再重复跑整条验证链，发布工作流改为先同步元数据再校验并补跑完整 smoke。
 
 ### 调整
 
 - 覆盖率门槛从 statements 49 / branches 43 / functions 56 / lines 51 提升到 64 / 53 / 70 / 67。
 - `tsconfig.json` 移除不存在的 `api` 目录、开启 `forceConsistentCasingInFileNames`。
+- `tailwind.config.js` 移除未启用的 `darkMode` 配置；`SECURITY.md` / `THIRD_PARTY_NOTICES.md` 补充 xlsx CDN tarball 等供应链例外说明。
 
 ## [0.6.3] - 2026-10-26
 

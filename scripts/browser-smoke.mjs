@@ -78,6 +78,19 @@ try {
   await page.addInitScript(() => {
     localStorage.setItem('tournament-onboarding-v1', '1');
     window.__capturedDownloads = [];
+    // CSP 收紧到 connect-src 'self' 后，页面内不能再 fetch(blob:)。
+    // 在创建 blob URL 时就把 Blob 本身存进 Map，后续直接用 blob.arrayBuffer() 读字节。
+    window.__capturedBlobs = new Map();
+    const originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = function (object) {
+      const url = originalCreateObjectURL.call(URL, object);
+      try {
+        if (object instanceof Blob) window.__capturedBlobs.set(url, object);
+      } catch {
+        // 非 Blob 参数保持原生行为。
+      }
+      return url;
+    };
     const originalClick = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () {
       if (this.download && this.href.startsWith('blob:')) {
@@ -225,8 +238,18 @@ try {
   await page.getByRole('button', { name: 'Storage health' }).click();
   await waitForText(page, 'Storage health');
   const healthDialog = page.getByRole('dialog').filter({ hasText: 'Storage health' });
-  await healthDialog.getByRole('button', { name: 'Rewrite storage' }).click();
-  await waitForText(page, 'Healthy');
+  // 存储健康时不再允许无意义的重写（只有损坏或镜像漂移才启用），因此这里断言具体的检查项：
+  // 结构校验、主/备记录、版本一致、镜像一致，以及“无需重写”的提示。
+  // 注意：此时还没有任何快照，level 会是 “Needs attention”，这是预期行为，不是错误。
+  await healthDialog.getByText('Structure and field validation passed.').waitFor();
+  await healthDialog.getByText('Valid primary record found in indexeddb-main.').waitFor();
+  await healthDialog.getByText('Valid backup record found in indexeddb-backup.').waitFor();
+  await healthDialog.getByText('All stored records use the current version.').waitFor();
+  const rewriteButton = healthDialog.getByRole('button', { name: 'Rewrite storage' });
+  if (await rewriteButton.isEnabled()) {
+    throw new Error('Rewrite storage should be disabled when no repair is recommended.');
+  }
+  await healthDialog.getByText('Nothing needs rewriting').waitFor();
   await healthDialog.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Export Excel' }).click();
@@ -320,8 +343,9 @@ async function readCapturedBlob(page, index) {
   );
   return page.evaluate(async capturedIndex => {
     const captured = window.__capturedDownloads[capturedIndex];
-    const response = await fetch(captured.href);
-    const buffer = await response.arrayBuffer();
+    const blob = window.__capturedBlobs?.get(captured.href);
+    if (!blob) throw new Error(`No captured blob for ${captured.name}`);
+    const buffer = await blob.arrayBuffer();
     const signature = Array.from(new Uint8Array(buffer).slice(0, 8))
       .map(byte => byte.toString(16).padStart(2, '0'))
       .join('');
