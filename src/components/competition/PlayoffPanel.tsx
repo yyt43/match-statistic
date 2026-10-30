@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { detectTieGroups, getRankedPlayers } from '../../utils/swissPairing';
 import { getPlayoffOrder, type ThreePlayerFormats } from '../../utils/playoffs';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -9,7 +10,11 @@ import { formatText } from '../../i18n/data';
 export function PlayoffPanel() {
   const group = useCurrentGroup();
   const { language, t } = useLanguagePreference();
-  const { generatePlayoff, resetPlayoffs, setViewRound } = useTournamentStore();
+  const { generatePlayoff, resetPlayoffs, setViewRound } = useTournamentStore(useShallow(state => ({
+    generatePlayoff: state.generatePlayoff,
+    resetPlayoffs: state.resetPlayoffs,
+    setViewRound: state.setViewRound,
+  })));
   const [formats, setFormats] = useState<ThreePlayerFormats>({});
   const [error, setError] = useState('');
   const [resetOpen, setResetOpen] = useState(false);

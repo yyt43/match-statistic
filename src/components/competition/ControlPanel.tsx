@@ -1,5 +1,5 @@
 import { PlayoffPanel } from './PlayoffPanel';
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
@@ -9,7 +9,8 @@ import {
   ShieldCheck, Swords
 } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
-import type { GameType, PairingType, TiebreakRule, TiebreakTemplate } from '../../types';
+import { useShallow } from 'zustand/react/shallow';
+import type { GameType, PairingType, TiebreakRule, TiebreakTemplate, TournamentGroup } from '../../types';
 import { exportCompetitionToFile } from '../../utils/export/fileStorage';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { validateRoster } from '../../utils/playerProfiles';
@@ -65,6 +66,73 @@ function fitRoundGameTypes(
   return next;
 }
 
+function renderStartConfirmGroup(group: TournamentGroup, isEnglish: boolean) {
+  const roundTypes = fitRoundGameTypes(
+    group.roundGameTypes,
+    group.totalRounds,
+    group.gameType
+  );
+  const willStart = group.status === 'setup' && group.players.length >= 2;
+  const statusLabel = group.status === 'setup'
+    ? willStart
+      ? (isEnglish ? 'Will start' : '将开赛')
+      : (isEnglish ? 'Needs at least 2 players' : '人数不足，无法开赛')
+    : group.status === 'in_progress'
+      ? (isEnglish ? 'Already started' : '已经开赛')
+      : (isEnglish ? 'Completed' : '已完成');
+  const uniformGameType = roundTypes.every(type => type === roundTypes[0]);
+  const tiebreakLabel = group.tiebreakTemplate === 'standard_bo1'
+    ? (isEnglish ? 'Standard BO1' : '标准 BO1')
+    : group.tiebreakTemplate === 'custom'
+      ? (isEnglish ? 'Custom' : '自定义')
+      : (isEnglish ? 'Standard multi-game' : '标准多局');
+
+  return (
+    <div
+      key={group.id}
+      className={`rounded-lg border p-3 ${
+        willStart
+          ? 'border-slate-700/60 bg-slate-900/35'
+          : 'border-slate-700/40 bg-slate-900/20 opacity-70'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-slate-100">{group.name}</span>
+        <span className={`rounded px-2 py-1 text-[10px] ${
+          willStart
+            ? 'bg-emerald-500/10 text-emerald-300'
+            : 'bg-slate-700/40 text-slate-400'
+        }`}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+        <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+          {group.players.length}{isEnglish ? ' players' : '人'}
+        </span>
+        <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+          {group.pairingType === 'swiss'
+            ? (isEnglish ? 'Swiss' : '瑞士轮')
+            : (isEnglish ? 'Single elimination' : '单败淘汰')}
+        </span>
+        <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+          {group.totalRounds}{isEnglish ? ' rounds' : '轮'}
+        </span>
+        <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+          {uniformGameType
+            ? roundTypes[0]?.toUpperCase()
+            : roundTypes.map(type => type.toUpperCase()).join(' / ')}
+        </span>
+        {group.pairingType === 'swiss' && (
+          <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
+            {isEnglish ? 'Tiebreak: ' : '破分链：'}{tiebreakLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ControlPanel({
   onShowConfirm,
   onShowConfirmAll,
@@ -89,7 +157,21 @@ export function ControlPanel({
     applyGroupConfiguration,
     actionError,
     clearActionError,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    startAllGroups: state.startAllGroups,
+    confirmEliminationBracketsAndStartAll: state.confirmEliminationBracketsAndStartAll,
+    generateNextRound: state.generateNextRound,
+    generateNextRoundAllGroups: state.generateNextRoundAllGroups,
+    undoLastRound: state.undoLastRound,
+    returnToPreviousRound: state.returnToPreviousRound,
+    returnToSetup: state.returnToSetup,
+    resetCompetition: state.resetCompetition,
+    updateCompetitionName: state.updateCompetitionName,
+    applyGroupConfiguration: state.applyGroupConfiguration,
+    actionError: state.actionError,
+    clearActionError: state.clearActionError,
+  })));
 
   const competitionKind = getCompetitionKind(competition);
   const rulesTabLabel = competitionKind === 'poetry_cup_s3'
@@ -98,8 +180,11 @@ export function ControlPanel({
       ? (isEnglish ? 'Rules' : '规则说明')
       : null;
   const stagedLayout = rulesTabLabel !== null;
-  const stageList = getOrderedStages(competition);
-  const currentStage = stageList.find(stage => stage.groupIds.includes(currentGroup.id));
+  const stageList = useMemo(() => getOrderedStages(competition), [competition]);
+  const currentStage = useMemo(
+    () => stageList.find(stage => stage.groupIds.includes(currentGroup.id)),
+    [stageList, currentGroup.id],
+  );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
@@ -203,15 +288,25 @@ export function ControlPanel({
     draftEffectiveRounds,
     draftGameType
   );
-  const rosterValidation = validateRoster(competition);
+  const rosterValidation = useMemo(() => validateRoster(competition), [competition]);
   // 开赛弹窗只列当前赛段的小组：其它赛段（例如还没打到的突围赛/淘汰赛）不应出现在这里。
-  const startScopeGroups = stageList.length > 0
-    ? (currentStage ? getStageGroups(competition, currentStage) : [])
-    : competition.groups;
-  const groupsForStart = startConfirmTarget === 'all' ? startScopeGroups : [currentGroup];
+  const startScopeGroups = useMemo(() => (
+    stageList.length > 0
+      ? (currentStage ? getStageGroups(competition, currentStage) : [])
+      : competition.groups
+  ), [stageList.length, currentStage, competition]);
+  const groupsForStart = useMemo(
+    () => (startConfirmTarget === 'all' ? startScopeGroups : [currentGroup]),
+    [startConfirmTarget, startScopeGroups, currentGroup],
+  );
   const startableGroupCount = startScopeGroups.filter(group =>
     group.status === 'setup' && group.players.length >= 2
   ).length;
+
+  const startConfirmRows = useMemo(
+    () => groupsForStart.map(group => renderStartConfirmGroup(group, isEnglish)),
+    [groupsForStart, isEnglish],
+  );
 
   const handleDraftGameTypeChange = (gameType: GameType) => {
     setDraftGameType(gameType);
@@ -240,7 +335,7 @@ export function ControlPanel({
     setShowFormatManager(false);
   };
 
-  const systemTools = (
+  const systemTools = useMemo(() => (
     <div className="grid grid-cols-2 gap-1.5 border-t border-slate-700/40 pt-2">
       <button
         onClick={() => setShowStorageHealth(true)}
@@ -278,7 +373,7 @@ export function ControlPanel({
         {isEnglish ? 'Reset tournament' : '重置比赛'}
       </button>
     </div>
-  );
+  ), [isEnglish, t.auditLog]);
 
   // 开赛入口：开赛设置页与运行页都要能用（多阶段赛事的后续赛段在运行页里开赛）。
   const pendingUpstreamNames = (currentGroup.stageId
@@ -518,13 +613,14 @@ export function ControlPanel({
             </button>
           </div>
         ) : (
-          <div
+          <button
+            type="button"
             onClick={() => setIsEditingName(true)}
-            className="px-3 py-2 bg-slate-800/50 rounded-lg text-sm text-slate-300 cursor-pointer hover:bg-slate-700/50 transition-colors flex items-center justify-between"
+            className="flex w-full items-center justify-between rounded-lg bg-slate-800/50 px-3 py-2 text-left text-sm text-slate-300 cursor-pointer hover:bg-slate-700/50 transition-colors"
           >
             <span>{competition.name}</span>
             <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-          </div>
+          </button>
         )}
 
         {/* 文件操作 */}
@@ -1067,72 +1163,7 @@ export function ControlPanel({
                 ? `${startScopeGroups.length} groups in this stage, ${startableGroupCount} ready to start together.`
                 : `本赛段共 ${startScopeGroups.length} 个小组，其中 ${startableGroupCount} 个将同时开始比赛。`}
             </div>
-            {groupsForStart.map(group => {
-              const roundTypes = fitRoundGameTypes(
-                group.roundGameTypes,
-                group.totalRounds,
-                group.gameType
-              );
-              const willStart = group.status === 'setup' && group.players.length >= 2;
-              const statusLabel = group.status === 'setup'
-                ? willStart
-                  ? (isEnglish ? 'Will start' : '将开赛')
-                  : (isEnglish ? 'Needs at least 2 players' : '人数不足，无法开赛')
-                : group.status === 'in_progress'
-                  ? (isEnglish ? 'Already started' : '已经开赛')
-                  : (isEnglish ? 'Completed' : '已完成');
-              const uniformGameType = roundTypes.every(type => type === roundTypes[0]);
-              const tiebreakLabel = group.tiebreakTemplate === 'standard_bo1'
-                ? (isEnglish ? 'Standard BO1' : '标准 BO1')
-                : group.tiebreakTemplate === 'custom'
-                  ? (isEnglish ? 'Custom' : '自定义')
-                  : (isEnglish ? 'Standard multi-game' : '标准多局');
-
-              return (
-                <div
-                  key={group.id}
-                  className={`rounded-lg border p-3 ${
-                    willStart
-                      ? 'border-slate-700/60 bg-slate-900/35'
-                      : 'border-slate-700/40 bg-slate-900/20 opacity-70'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium text-slate-100">{group.name}</span>
-                    <span className={`rounded px-2 py-1 text-[10px] ${
-                      willStart
-                        ? 'bg-emerald-500/10 text-emerald-300'
-                        : 'bg-slate-700/40 text-slate-400'
-                    }`}>
-                      {statusLabel}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
-                      {group.players.length}{isEnglish ? ' players' : '人'}
-                    </span>
-                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
-                      {group.pairingType === 'swiss'
-                        ? (isEnglish ? 'Swiss' : '瑞士轮')
-                        : (isEnglish ? 'Single elimination' : '单败淘汰')}
-                    </span>
-                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
-                      {group.totalRounds}{isEnglish ? ' rounds' : '轮'}
-                    </span>
-                    <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
-                      {uniformGameType
-                        ? roundTypes[0]?.toUpperCase()
-                        : roundTypes.map(type => type.toUpperCase()).join(' / ')}
-                    </span>
-                    {group.pairingType === 'swiss' && (
-                      <span className="rounded border border-slate-700/60 bg-slate-800/70 px-2 py-1 text-slate-300">
-                        {isEnglish ? 'Tiebreak: ' : '破分链：'}{tiebreakLabel}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {startConfirmRows}
           </div>
         </div>
       </ConfirmDialog>

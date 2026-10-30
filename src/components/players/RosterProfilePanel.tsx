@@ -2,6 +2,7 @@ import { BadgeCheck, ListPlus, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   getRosterWorkbookColumnsFromFile,
   parseRosterProfilesFromWorkbook,
@@ -23,7 +24,12 @@ export function RosterProfilePanel() {
     generateMissingParticipantCodes,
     importPlayerProfiles,
     lockRoster,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    generateMissingParticipantCodes: state.generateMissingParticipantCodes,
+    importPlayerProfiles: state.importPlayerProfiles,
+    lockRoster: state.lockRoster,
+  })));
   const [columns, setColumns] = useState<RosterColumnChoices>({ name: '' });
   const [headers, setHeaders] = useState<string[]>([]);
   const [summary, setSummary] = useState<RosterValidationSummary>(() => validateRoster(competition));

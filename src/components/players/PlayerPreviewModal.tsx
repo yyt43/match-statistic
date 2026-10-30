@@ -14,7 +14,7 @@ interface PlayerPreviewModalProps {
 }
 
 export function PlayerPreviewModal({ isOpen, onClose }: PlayerPreviewModalProps) {
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { language } = useLanguagePreference();
   const [search, setSearch] = useState('');
   const [copied, setCopied] = useState(false);

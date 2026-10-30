@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { TournamentCompetition } from '../../types';
 import type { AppLanguage } from '../../i18n/data';
 import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2, GitBranch } from 'lucide-react';
@@ -61,10 +61,20 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   );
   const [previewRound, setPreviewRound] = useState(() => useTournamentStore.getState().viewRound);
   const currentGroup = useCurrentGroup();
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { language, t } = useLanguagePreference();
   const dialogRef = useRef<HTMLDivElement>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
+  // 导出进度节流：百分比变化 ≥2 或距上次更新 ≥100ms 才写 state，避免每 tick 重渲染整表。
+  const progressThrottleRef = useRef({ percent: 0, at: 0 });
+  const updateExportProgress = (percent: number) => {
+    const next = Math.max(0, Math.min(100, Math.round(percent)));
+    const now = performance.now();
+    const previous = progressThrottleRef.current;
+    if (next - previous.percent < 2 && now - previous.at < 100) return;
+    progressThrottleRef.current = { percent: next, at: now };
+    setExportProgress(next);
+  };
 
   useEscapeClose(isOpen && !isExporting, onClose);
   useFocusTrap(isOpen, dialogRef);
@@ -77,6 +87,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
       setActiveType(initialType);
       setExportAllGroups(false);
       setExportProgress(0);
+      progressThrottleRef.current = { percent: 0, at: 0 };
       setPreviewGroupIndex(Math.max(0, groups.findIndex(group => group.id === activeGroup.id)));
       setPreviewRound(clampPreviewRound(activeGroup, state.viewRound));
     }
@@ -84,13 +95,28 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
 
   useEffect(() => () => exportAbortRef.current?.abort(), []);
 
+  // Hook 必须在 isOpen 提前 return 之前调用；关闭时这些派生值只算不用。
+  const allGroups = competition.groups;
+  const availableGroups = allGroups.filter(g => g.currentRound > 0);
+  const previewGroup = resolvePreviewGroup(allGroups, previewGroupIndex, currentGroup);
+  const isRanking = activeType === 'ranking';
+  const isSummary = activeType === 'summary';
+  const isBracket = activeType === 'bracket';
+  const tableData = useMemo(
+    () => (isRanking
+      ? getRankingTableData(previewGroup, language)
+      : isSummary
+        ? getRankingTableData(previewGroup, language)
+        : isBracket
+          ? getEliminationBracketTableData(previewGroup, language)
+          : getMatchTableData(previewGroup, previewRound, language)),
+    [isRanking, isSummary, isBracket, previewGroup, previewRound, language],
+  );
+
   if (!isOpen) return null;
 
-  const allGroups = competition.groups;
   const hasMultipleGroups = allGroups.length > 1;
-  const availableGroups = allGroups.filter(g => g.currentRound > 0);
   const hasAvailableGroups = availableGroups.length > 1;
-  const previewGroup = resolvePreviewGroup(allGroups, previewGroupIndex, currentGroup);
 
   const isGroupRoundComplete = (g: TournamentGroup): boolean => {
     if (g.currentRound === 0) return false;
@@ -111,27 +137,16 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     setPreviewRound(Math.max(1, targetGroup.currentRound));
   };
 
-  const isRanking = activeType === 'ranking';
-  const isSummary = activeType === 'summary';
-  const isBracket = activeType === 'bracket';
-
-  const tableData = isRanking
-    ? getRankingTableData(previewGroup, language)
-    : isSummary
-      ? getRankingTableData(previewGroup, language)
-      : isBracket
-        ? getEliminationBracketTableData(previewGroup, language)
-      : getMatchTableData(previewGroup, previewRound, language);
-
   const handleDownload = async () => {
     const controller = new AbortController();
     exportAbortRef.current = controller;
     setIsExporting(true);
     setExportPhase('loading');
     setExportProgress(0);
+    progressThrottleRef.current = { percent: 0, at: 0 };
     const options = {
       signal: controller.signal,
-      onProgress: (progress: { percent: number }) => setExportProgress(progress.percent),
+      onProgress: (progress: { percent: number }) => updateExportProgress(progress.percent),
     };
 
     try {

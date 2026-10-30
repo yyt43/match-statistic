@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { EvidenceVerificationStatus } from '../../types';
 import {
   generateRoundAnnouncement,
@@ -47,7 +48,10 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const {
     competition,
     applyImportedMatchResults,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    applyImportedMatchResults: state.applyImportedMatchResults,
+  })));
   const [preview, setPreview] = useState<MatchImportPreview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [verification, setVerification] = useState<Record<number, EvidenceVerificationStatus>>({});

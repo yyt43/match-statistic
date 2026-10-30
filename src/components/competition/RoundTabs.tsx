@@ -1,11 +1,15 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 
 export function RoundTabs() {
   const currentGroup = useCurrentGroup();
-  const { viewRound, setViewRound } = useTournamentStore();
+  const { viewRound, setViewRound } = useTournamentStore(useShallow(state => ({
+    viewRound: state.viewRound,
+    setViewRound: state.setViewRound,
+  })));
   const { t } = useLanguagePreference();
   
   const rounds = [];

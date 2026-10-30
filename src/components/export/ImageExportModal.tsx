@@ -45,7 +45,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   );
   const [previewRound, setPreviewRound] = useState(() => useTournamentStore.getState().viewRound);
   const currentGroup = useCurrentGroup();
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { language, t } = useLanguagePreference();
   const dialogRef = useRef<HTMLDivElement>(null);
   const exportAbortRef = useRef<AbortController | null>(null);

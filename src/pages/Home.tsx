@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Header } from '../components/common/Header';
 import { PlayerRanking } from '../components/players/PlayerRanking';
 import { MatchList } from '../components/matches/MatchList';
@@ -41,7 +42,13 @@ export default function Home() {
     startTournament,
     updateMatchResult,
     loadSavedCompetition,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    initCompetition: state.initCompetition,
+    startTournament: state.startTournament,
+    updateMatchResult: state.updateMatchResult,
+    loadSavedCompetition: state.loadSavedCompetition,
+  })));
   const undo = useTournamentStore(state => state.undo);
   const redo = useTournamentStore(state => state.redo);
   const currentGroup = useCurrentGroup();
@@ -478,7 +485,7 @@ export default function Home() {
 }
 
 function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const currentGroup = useCurrentGroup();
   const { t } = useLanguagePreference();
 
@@ -582,7 +589,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
  */
 function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
   const currentGroup = useCurrentGroup();
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { t } = useLanguagePreference();
 
   // 选择要预览的小组：单小组模式预览当前小组；全部小组模式找第一个待生成下一轮的小组作为样例

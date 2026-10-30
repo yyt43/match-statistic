@@ -1,5 +1,6 @@
 import { Swords, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, GripVertical } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { RoundTabs } from '../competition/RoundTabs';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { formatRecordedDoubleLoss } from '../../utils/matchResult';
@@ -18,7 +19,29 @@ interface MatchListProps {
 }
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, overrideMatchResult } = useTournamentStore();
+  const {
+    viewRound,
+    updateMatchResult,
+    competition,
+    randomGenerateAllGroups,
+    randomGenerateCurrentRoundAllGroups,
+    batchUpdateRoundMatches,
+    reorderMatches,
+    isRandomGenerating,
+    randomGenerateProgress,
+    overrideMatchResult,
+  } = useTournamentStore(useShallow(state => ({
+    viewRound: state.viewRound,
+    updateMatchResult: state.updateMatchResult,
+    competition: state.competition,
+    randomGenerateAllGroups: state.randomGenerateAllGroups,
+    randomGenerateCurrentRoundAllGroups: state.randomGenerateCurrentRoundAllGroups,
+    batchUpdateRoundMatches: state.batchUpdateRoundMatches,
+    reorderMatches: state.reorderMatches,
+    isRandomGenerating: state.isRandomGenerating,
+    randomGenerateProgress: state.randomGenerateProgress,
+    overrideMatchResult: state.overrideMatchResult,
+  })));
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [bracketView, setBracketView] = useState(false);

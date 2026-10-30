@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Dices, RotateCcw, Shuffle, Trophy, X } from 'lucide-react';
 import { useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { TournamentGroup } from '../../types';
 import { EliminationBracketTree } from './EliminationBracketTree';
 import { validateEliminationBracket } from '../../utils/elimination';
@@ -26,14 +27,20 @@ export function EliminationBracketConfirmModal({
   confirmLabel,
   onConfirm,
 }: EliminationBracketConfirmModalProps) {
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const {
     prepareEliminationBracket,
     resetEliminationBracketOrder,
     randomizeEliminationBracket,
     swapEliminationBracketSlots,
     assignEliminationBracketSlot,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    prepareEliminationBracket: state.prepareEliminationBracket,
+    resetEliminationBracketOrder: state.resetEliminationBracketOrder,
+    randomizeEliminationBracket: state.randomizeEliminationBracket,
+    swapEliminationBracketSlots: state.swapEliminationBracketSlots,
+    assignEliminationBracketSlot: state.assignEliminationBracketSlot,
+  })));
   const [activeGroupIndex, setActiveGroupIndex] = useState(groupIndices[0] ?? 0);
   const [editMode, setEditMode] = useState<EditMode>('swap');
   const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
