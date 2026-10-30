@@ -69,9 +69,17 @@ export default function Home() {
     () => localStorage.getItem(ONBOARDING_KEY) !== '1'
   );
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  // 是否已有赛事数据：加载示例赛事会覆盖主备存档并清空撤销历史，需要先二次确认。
+  const [hasSavedEvent, setHasSavedEvent] = useState(false);
 
   useEffect(() => {
-    void loadSavedCompetition();
+    let active = true;
+    void loadSavedCompetition().then(loaded => {
+      if (active) setHasSavedEvent(Boolean(loaded));
+    });
+    return () => {
+      active = false;
+    };
   }, [loadSavedCompetition]);
 
   useEffect(() => {
@@ -141,6 +149,11 @@ export default function Home() {
     localStorage.setItem(ONBOARDING_KEY, '1');
     setShowOnboarding(false);
   };
+
+  // 存档里已有赛事，或内存中已有名单/对局，都视为“现有赛事”，演示数据不能静默覆盖。
+  const hasExistingEvent =
+    hasSavedEvent ||
+    competition.groups.some(group => group.players.length > 0 || group.matches.length > 0);
 
   const loadDemo = () => {
     initCompetition(t.demoEventName, 1, 8, 3, 'bo1', 'swiss');
@@ -328,6 +341,7 @@ export default function Home() {
         isOpen={showOnboarding}
         onClose={completeOnboarding}
         onLoadDemo={loadDemo}
+        hasExistingEvent={hasExistingEvent}
       />
       <CommandPalette
         isOpen={showCommandPalette}

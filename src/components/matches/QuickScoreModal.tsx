@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Keyboard, Search, Swords, X } from 'lucide-react';
 import type { Match, MatchResult, TournamentGroup } from '../../types';
 import { useTournamentStore } from '../../store/useTournamentStore';
@@ -43,6 +43,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
   const [recentlyRecordedKey, setRecentlyRecordedKey] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const recordFlashTimer = useRef<number | null>(null);
+  const titleId = useId();
 
   useEscapeClose(isOpen, onClose);
   useFocusTrap(isOpen, dialogRef);
@@ -283,6 +284,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
       >
@@ -292,7 +294,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
               <Swords className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-white">{isEnglish ? 'Quick score entry' : '快速录分'}</h3>
+              <h3 id={titleId} className="font-semibold text-white">{isEnglish ? 'Quick score entry' : '快速录分'}</h3>
               <p className="text-[11px] text-slate-500">
                 {isEnglish
                   ? `${activeGroupCount} groups · ${pendingCount} pending`
@@ -300,7 +302,11 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white">
+          <button
+            onClick={onClose}
+            aria-label={isEnglish ? 'Dismiss quick score entry' : '关闭快速记分面板'}
+            className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -320,8 +326,9 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
               <input
                 value={searchQuery}
                 onChange={event => setSearchQuery(event.target.value)}
+                aria-label={isEnglish ? 'Search matches' : '搜索比赛'}
                 placeholder={isEnglish ? 'Search group, player, or match number...' : '搜索小组、选手或场次编号...'}
-                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-800/60 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-gold-500/40"
+                className="h-10 w-full rounded-lg border border-slate-700 bg-slate-800/60 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
               />
             </label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -334,7 +341,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                   key={value}
                   type="button"
                   onClick={() => setMatchFilter(value)}
-                  className={`rounded-lg border px-3 py-2 text-xs transition-colors ${
+                  className={`rounded-lg border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 ${
                     matchFilter === value
                       ? 'border-gold-500/40 bg-gold-500/15 text-gold-300'
                       : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-700/60'
@@ -350,7 +357,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
             <button
               type="button"
               onClick={() => setGroupFilter('all')}
-              className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs ${
+              className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 ${
                 groupFilter === 'all'
                   ? 'border-gold-500/40 bg-gold-500/15 text-gold-300'
                   : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-700/60'
@@ -363,7 +370,7 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
                 key={option.groupIndex}
                 type="button"
                 onClick={() => setGroupFilter(option.groupIndex)}
-                className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs ${
+                className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 ${
                   groupFilter === option.groupIndex
                     ? 'border-gold-500/40 bg-gold-500/15 text-gold-300'
                     : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-700/60'
@@ -379,7 +386,8 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
             <button
               onClick={() => moveSelection(-1)}
               disabled={visibleEntries.length <= 1}
-              className="mt-1 rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+              aria-label={isEnglish ? 'Previous match' : '上一场'}
+              className="mt-1 rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -454,7 +462,8 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
             <button
               onClick={() => moveSelection(1)}
               disabled={visibleEntries.length <= 1}
-              className="mt-1 rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+              aria-label={isEnglish ? 'Next match' : '下一场'}
+              className="mt-1 rounded-lg border border-slate-700 p-2 text-slate-400 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -620,7 +629,10 @@ export function QuickScoreModal({ isOpen, onClose }: QuickScoreModalProps) {
               ? '1/2 straight wins · 3+ other scores · D double loss · N next pending · ← → switch match'
               : '1/2 直落 · 3+ 其他比分 · D 双负 · N 下一场待录 · ← → 切换比赛'}
           </span>
-          <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+          <button
+            onClick={onClose}
+            className="rounded-lg px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+          >
             {isEnglish ? 'Close' : '关闭'}
           </button>
         </div>
