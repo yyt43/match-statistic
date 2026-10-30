@@ -1,5 +1,6 @@
 import { useCurrentGroup } from '../../store/useTournamentStore';
 import { useMemo, useState, useEffect } from 'react';
+import type { TournamentGroup } from '../../types';
 import { getEliminationTitleI18n, getEliminatedRound, getPlayerMatchHistory } from '../../utils/ranking';
 import { getRankedPlayers } from '../../utils/swissPairing';
 import { useLanguagePreference } from '../../i18n/context';
@@ -8,8 +9,14 @@ import { formatText } from '../../i18n/data';
 const EXPORT_BADGE_TEXT_OFFSET_Y = -6;
 const EXPORT_LEGEND_TEXT_OFFSET_Y = -2.5;
 
-export function RankingImageView() {
-  const currentGroup = useCurrentGroup();
+interface RankingImageViewProps {
+  /** 导出弹窗预览/批量截图时传入目标小组，不传则沿用全局当前小组。 */
+  group?: TournamentGroup;
+}
+
+export function RankingImageView({ group }: RankingImageViewProps = {}) {
+  const storeGroup = useCurrentGroup();
+  const currentGroup = group ?? storeGroup;
   const { t, language } = useLanguagePreference();
 
   const rankedPlayers = useMemo(() => {

@@ -14,8 +14,16 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { isAbortError } from '../../utils/async';
 import { getGroupDisplayName } from '../../utils/multiStage';
 import { buildFinalStandings } from '../../utils/advancement';
+import { clampPreviewRound, resolvePreviewGroup } from './exportPreviewState';
 
 type ExportType = 'ranking' | 'match' | 'bracket' | 'standings';
+
+/** 等两帧，确保本地预览状态已经渲染到 DOM 再截图（不切全局当前组）。 */
+function waitForNextFrame(): Promise<void> {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
 
 interface ImageExportModalProps {
   isOpen: boolean;
@@ -30,8 +38,14 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingGroupIdx, setGeneratingGroupIdx] = useState(0);
   const [exportProgress, setExportProgress] = useState(0);
+  // 预览小组/轮次只改弹窗本地状态，不再切全局 currentGroupIndex/viewRound（P1-15）。
+  // 初始值直接取当前全局组，避免首次渲染闪一下第 1 组。
+  const [previewGroupIndex, setPreviewGroupIndex] = useState(
+    () => useTournamentStore.getState().competition.currentGroupIndex,
+  );
+  const [previewRound, setPreviewRound] = useState(() => useTournamentStore.getState().viewRound);
   const currentGroup = useCurrentGroup();
-  const { competition, viewRound, setViewRound } = useTournamentStore();
+  const { competition } = useTournamentStore();
   const { language, t } = useLanguagePreference();
   const dialogRef = useRef<HTMLDivElement>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
@@ -41,10 +55,15 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
 
   useEffect(() => {
     if (isOpen) {
+      const state = useTournamentStore.getState();
+      const groups = state.competition.groups;
+      const activeGroup = groups[state.competition.currentGroupIndex] ?? groups[0];
       setActiveType(initialType);
       setExportAllGroups(initialExportAll);
       setGeneratingGroupIdx(0);
       setExportProgress(0);
+      setPreviewGroupIndex(Math.max(0, groups.findIndex(group => group.id === activeGroup.id)));
+      setPreviewRound(clampPreviewRound(activeGroup, state.viewRound));
     }
   }, [isOpen, initialType, initialExportAll]);
 
@@ -54,6 +73,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
 
   const availableGroups = competition.groups.filter(g => g.currentRound > 0);
   const allGroups = competition.groups;
+  const previewGroup = resolvePreviewGroup(allGroups, previewGroupIndex, currentGroup);
   const standings = buildFinalStandings(competition);
   const hasStandings = standings.length > 0;
   const hasMultipleGroups = allGroups.length > 1;
@@ -64,24 +84,22 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
     const ms = g.matches.filter(m => m.round === g.currentRound);
     return ms.length > 0 && ms.every(m => m.result !== 'pending');
   };
-  const currentGroupRoundComplete = isGroupRoundComplete(currentGroup);
   const allAvailableGroupsRoundComplete = availableGroups.every(isGroupRoundComplete);
-  const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : currentGroupRoundComplete;
+  const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : isGroupRoundComplete(previewGroup);
   const rankingBlockedReason = !canExportRanking
     ? (exportAllGroups ? t.blockedReasonAllImage : t.blockedReasonSingleImage)
     : '';
 
   const groupsToExport: TournamentGroup[] = exportAllGroups
     ? availableGroups
-    : [currentGroup];
-
-  const currentPreviewIdx = allGroups.findIndex(g => g === currentGroup);
+    : [previewGroup];
 
   const handlePreviewGroup = (idx: number) => {
     const targetGroup = allGroups[idx];
     if (!targetGroup) return;
     if (exportAllGroups) setExportAllGroups(false);
-    useTournamentStore.getState().setCurrentGroup(idx);
+    setPreviewGroupIndex(idx);
+    setPreviewRound(Math.max(1, targetGroup.currentRound));
   };
 
   const handleDownload = async () => {
@@ -101,22 +119,24 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
           return;
         }
         for (let i = 0; i < groupsToExport.length; i++) {
+          const targetGroup = groupsToExport[i];
+          const targetRound = Math.max(1, targetGroup.currentRound);
           setGeneratingGroupIdx(i);
-          const groupIdx = competition.groups.indexOf(groupsToExport[i]);
-          useTournamentStore.getState().setCurrentGroup(groupIdx);
-          await new Promise(resolve => setTimeout(resolve, 300));
+          // 只切弹窗本地预览状态，等目标组的图像渲染完成后再截图。
+          setPreviewGroupIndex(Math.max(0, allGroups.indexOf(targetGroup)));
+          if (activeType === 'match') setPreviewRound(targetRound);
+          await waitForNextFrame();
           const elementId = activeType === 'ranking'
             ? 'ranking-image'
             : activeType === 'match'
               ? 'match-image'
               : 'bracket-image';
-          const groupViewRound = useTournamentStore.getState().viewRound;
           const suffix = activeType === 'ranking'
             ? t.ranking
             : activeType === 'match'
-              ? formatText(t.roundN, { round: groupViewRound })
+              ? formatText(t.roundN, { round: targetRound })
               : (language === 'en' ? 'Bracket' : '淘汰签表');
-          await generateImage(elementId, `${groupsToExport[i].name}-${suffix}`, {
+          await generateImage(elementId, `${targetGroup.name}-${suffix}`, {
             signal: controller.signal,
             onProgress: percent => {
               setExportProgress(Math.round(((i + percent / 100) / groupsToExport.length) * 100));
@@ -140,9 +160,9 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
         const suffix = activeType === 'ranking'
           ? t.ranking
           : activeType === 'match'
-            ? formatText(t.roundN, { round: viewRound })
+            ? formatText(t.roundN, { round: previewRound })
             : (language === 'en' ? 'Bracket' : '淘汰签表');
-        await generateImage(elementId, `${currentGroup.name}-${suffix}`, {
+        await generateImage(elementId, `${previewGroup.name}-${suffix}`, {
           signal: controller.signal,
           onProgress: setExportProgress,
         });
@@ -160,6 +180,35 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
       }
     }
   };
+
+  // 预览与截图统一渲染"预览组"；全部导出时只切本地预览状态，全局当前组保持不变（P1-15）。
+  const captureView = (
+    <div className="flex justify-center min-w-fit">
+      {activeType === 'standings' ? (
+        <FinalStandingsImageView />
+      ) : activeType === 'ranking' ? (
+        <RankingImageView group={previewGroup} />
+      ) : activeType === 'match' ? (
+        <MatchImageView group={previewGroup} viewRound={previewRound} />
+      ) : (
+        <div
+          id="bracket-image"
+          className="rounded-xl border border-slate-700/60 bg-slate-900 p-4"
+        >
+          <div className="mb-3 text-center text-sm font-semibold text-white">
+            {previewGroup.name} · {language === 'en' ? 'Bracket' : '淘汰签表'}
+          </div>
+          {previewGroup.eliminationBracket ? (
+            <EliminationBracketTree group={previewGroup} isEnglish={language === 'en'} />
+          ) : (
+            <div className="py-16 text-center text-sm text-slate-500">
+              {language === 'en' ? 'This group has no fixed bracket.' : '该小组暂无固定签表。'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -204,7 +253,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             </button>
             <button
               onClick={() => setActiveType('bracket')}
-              disabled={!currentGroup.eliminationBracket}
+              disabled={!previewGroup.eliminationBracket}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
                 activeType === 'bracket'
                   ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
@@ -249,7 +298,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
                     key={group.id}
                     onClick={() => handlePreviewGroup(idx)}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      !exportAllGroups && idx === currentPreviewIdx
+                      !exportAllGroups && idx === previewGroupIndex
                         ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
@@ -261,22 +310,22 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             </div>
           )}
 
-          {activeType === 'match' && !exportAllGroups && currentGroup.currentRound > 0 && (
+          {activeType === 'match' && !exportAllGroups && previewGroup.currentRound > 0 && (
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
               <div className="flex gap-1.5 flex-wrap">
-                {Array.from({ length: currentGroup.currentRound }, (_, i) => i + 1).map(round => (
+                {Array.from({ length: previewGroup.currentRound }, (_, i) => i + 1).map(round => (
                   <button
                     key={round}
-                    onClick={() => setViewRound(round)}
+                    onClick={() => setPreviewRound(round)}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      viewRound === round
+                      previewRound === round
                         ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
                     {formatText(t.roundN, { round })}
-                    {round === currentGroup.currentRound && (
+                    {round === previewGroup.currentRound && (
                       <span className="ml-1 text-[10px] text-emerald-400">{t.current}</span>
                     )}
                   </button>
@@ -295,7 +344,9 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
               </div>
             </div>
           )}
-          {exportAllGroups ? (
+          {isGenerating ? (
+            captureView
+          ) : exportAllGroups ? (
             activeType === 'standings' ? (
               <div className="flex justify-center min-w-fit">
                 <FinalStandingsImageView />
@@ -320,31 +371,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
             </div>
             )
           ) : (
-            <div className="flex justify-center min-w-fit">
-              {activeType === 'standings' ? (
-                <FinalStandingsImageView />
-              ) : activeType === 'ranking' ? (
-                <RankingImageView />
-              ) : activeType === 'match' ? (
-                <MatchImageView />
-              ) : (
-                    <div
-                      id="bracket-image"
-                      className="rounded-xl border border-slate-700/60 bg-slate-900 p-4"
-                    >
-                      <div className="mb-3 text-center text-sm font-semibold text-white">
-                        {currentGroup.name} · {language === 'en' ? 'Bracket' : '淘汰签表'}
-                      </div>
-                      {currentGroup.eliminationBracket ? (
-                        <EliminationBracketTree group={currentGroup} isEnglish={language === 'en'} />
-                      ) : (
-                        <div className="py-16 text-center text-sm text-slate-500">
-                          {language === 'en' ? 'This group has no fixed bracket.' : '该小组暂无固定签表。'}
-                        </div>
-                      )}
-                    </div>
-                  )}
-            </div>
+            captureView
           )}
         </div>
 

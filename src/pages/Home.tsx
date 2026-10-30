@@ -19,6 +19,12 @@ import { getEliminationBracketView } from '../utils/elimination';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Redo2, Swords, Languages, RefreshCw } from 'lucide-react';
 import { useLanguagePreference } from '../i18n/context';
 import { formatText } from '../i18n/data';
+import {
+  classifyHomeShortcut,
+  hasOpenOverlay,
+  isEditableShortcutTarget,
+  resolveHomeShortcut,
+} from '../hooks/shortcutGuards';
 
 const ImageExportModal = lazy(() => import('../components/export/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
 const ExcelExportModal = lazy(() => import('../components/export/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
@@ -84,10 +90,16 @@ export default function Home() {
 
   useEffect(() => {
     const handleCommandShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setShowCommandPalette(true);
-      }
+      const intent = classifyHomeShortcut(event);
+      if (!intent) return;
+      // 任一弹窗打开时快捷键不生效，避免命令面板叠在其它弹窗上（P1-15）。
+      const shortcut = resolveHomeShortcut(intent, {
+        hasOpenOverlay: hasOpenOverlay(document),
+        targetEditable: isEditableShortcutTarget(event.target as HTMLElement | null),
+      });
+      if (shortcut !== 'open-command-palette') return;
+      event.preventDefault();
+      setShowCommandPalette(true);
     };
     document.addEventListener('keydown', handleCommandShortcut);
     return () => document.removeEventListener('keydown', handleCommandShortcut);
@@ -169,20 +181,16 @@ export default function Home() {
   // Ctrl+Z / Cmd+Z 撤销上一操作，Ctrl+Shift+Z / Ctrl+Y 重做。
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const withModifier = e.ctrlKey || e.metaKey;
-      const isUndo = withModifier && key === 'z' && !e.shiftKey;
-      const isRedo = withModifier && ((key === 'z' && e.shiftKey) || key === 'y');
-      if (!isUndo && !isRedo) return;
+      const intent = classifyHomeShortcut(e);
+      if (!intent) return;
+      // 用 DOM 信号统一判断弹窗：任何弹窗（含子组件内部弹窗）打开时都不触发撤销/重做。
+      const shortcut = resolveHomeShortcut(intent, {
+        hasOpenOverlay: hasOpenOverlay(document),
+        targetEditable: isEditableShortcutTarget(e.target as HTMLElement | null),
+      });
+      if (shortcut !== 'undo' && shortcut !== 'redo') return;
 
-      if (isExportOpen || isExcelOpen || showConfirm || showHelp || showPlayerPreview) return;
-
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
-      }
-
+      const isRedo = shortcut === 'redo';
       const state = useTournamentStore.getState();
       if (state.isReadOnly) return;
       const label = isRedo
@@ -197,7 +205,7 @@ export default function Home() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isExportOpen, isExcelOpen, showConfirm, showHelp, showPlayerPreview, redo, undo]);
+  }, [redo, undo]);
 
   return (
     <div className="min-h-screen flex flex-col relative pb-16 md:pb-0">
