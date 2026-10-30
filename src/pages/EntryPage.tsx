@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
+import { Download, FileUp, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
 import type { TournamentCompetition } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createPoetryCupS3Competition } from '../store/multiStageFactory';
 import { getCompetitionKind } from '../utils/multiStage';
 import { importCompetitionFromFile } from '../utils/export/fileStorage';
+import { downloadBlob } from '../utils/export/download';
+import { isAbortError } from '../utils/async';
+import {
+  BackupImportError,
+  IMPORT_TIMEOUT_MS,
+  MAX_IMPORT_FILE_BYTES,
+} from '../utils/import/competitionBackup';
+import { collectStoredRawRecords, loadCompetitionResult } from '../utils/storage/storage';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
@@ -22,6 +30,57 @@ interface EntryOption {
   badge?: string;
 }
 
+const IMPORT_LIMIT_MB = Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024));
+const IMPORT_TIMEOUT_SECONDS = Math.round(IMPORT_TIMEOUT_MS / 1000);
+
+/** 把导入层错误码转成可读提示；版本号、校验细节等放在括号里便于排查。 */
+function describeImportError(error: unknown, isEnglish: boolean): string {
+  if (!(error instanceof BackupImportError)) {
+    return error instanceof Error ? error.message : (isEnglish ? 'Import failed' : '导入失败');
+  }
+
+  switch (error.code) {
+    case 'too-large':
+      return isEnglish
+        ? `The backup file is larger than ${IMPORT_LIMIT_MB} MB and was not imported.`
+        : `备份文件超过 ${IMPORT_LIMIT_MB} MB 上限，已拒绝导入。`;
+    case 'invalid-json':
+      return isEnglish
+        ? 'The file is not valid JSON and may be corrupted.'
+        : '文件不是有效的 JSON，可能已损坏。';
+    case 'invalid-format':
+      return isEnglish
+        ? 'Unrecognized backup format. Choose a JSON file exported by this app.'
+        : '无法识别的备份格式，请选择本应用导出的 JSON 文件。';
+    case 'unsupported-version':
+      return isEnglish
+        ? `This backup comes from a newer app version (${error.detail ?? 'unknown'}) and cannot be read.`
+        : `备份数据来自更新版本的应用（${error.detail ?? '未知版本'}），当前版本无法读取。`;
+    case 'invalid-data':
+      return isEnglish
+        ? `Tournament data failed validation: ${error.detail ?? error.message}`
+        : `赛事数据校验失败：${error.detail ?? error.message}`;
+    case 'timeout':
+      return isEnglish
+        ? `Parsing did not finish within ${IMPORT_TIMEOUT_SECONDS} seconds, import cancelled.`
+        : `解析超过 ${IMPORT_TIMEOUT_SECONDS} 秒仍未完成，已取消导入。`;
+    case 'worker-unavailable':
+      return isEnglish
+        ? 'The background parser could not start in this browser, import failed.'
+        : '当前浏览器无法启动后台解析，导入失败。';
+    case 'read-failed':
+      return isEnglish
+        ? 'Failed to read the file. Choose it again.'
+        : '读取文件失败，请重新选择。';
+    case 'aborted':
+      return isEnglish ? 'Import cancelled.' : '已取消导入。';
+    case 'internal':
+      return isEnglish ? `Import failed: ${error.message}` : `导入失败：${error.message}`;
+    default:
+      return error.message;
+  }
+}
+
 export default function EntryPage() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguagePreference();
@@ -33,22 +92,75 @@ export default function EntryPage() {
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
 
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ok' | 'empty' | 'corrupt'>('loading');
+  const [corruptReason, setCorruptReason] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<EntryKind | null>(null);
   const [pendingImport, setPendingImport] = useState<TournamentCompetition | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let active = true;
-    void loadSavedCompetition().then(loaded => {
-      if (active) setHasSavedEvent(loaded);
-    });
+    void loadCompetitionResult()
+      .then(async result => {
+        if (!active) return;
+        if (result.status !== 'ok') {
+          // 数据损坏：不写入 store、不覆盖任何记录，提示用户导出原始数据。
+          setLoadStatus(result.status);
+          setCorruptReason(result.error ?? null);
+          return;
+        }
+        const loaded = await loadSavedCompetition();
+        if (!active) return;
+        setHasSavedEvent(loaded);
+        setLoadStatus(loaded ? 'ok' : 'empty');
+      })
+      .catch(error => {
+        console.error('[entry] Failed to inspect saved competition:', error);
+        if (active) setLoadStatus('empty');
+      });
     return () => {
       active = false;
     };
   }, [loadSavedCompetition]);
 
-  const openKind = (kind: EntryKind) => {
+  /** 把主/备镜像里的原始记录打包下载，避免损坏数据被新建赛事覆盖后彻底丢失。 */
+  const downloadRecoveredData = async (): Promise<boolean> => {
+    try {
+      const records = await collectStoredRawRecords();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        reason: 'stored-competition-data-corrupt',
+        records,
+      };
+      downloadBlob(
+        new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+        `recovered-${stamp}.json`
+      );
+      return true;
+    } catch (error) {
+      console.error('[entry] Failed to export recovered data:', error);
+      return false;
+    }
+  };
+
+  /** 覆盖损坏数据前自动留一份原始记录。 */
+  const backupCorruptDataBeforeOverwrite = async () => {
+    if (loadStatus !== 'corrupt') return;
+    await downloadRecoveredData();
+  };
+
+  /** 离开页面时终止仍在解析的后台任务。 */
+  useEffect(() => () => {
+    importAbortRef.current?.abort();
+  }, []);
+
+  const openKind = async (kind: EntryKind) => {
+    // 覆盖/离开前先备份损坏数据，包括进入多阶段设置页（那里也可能重新保存赛事）。
+    await backupCorruptDataBeforeOverwrite();
     if (kind === 'multi_stage') {
       navigate('/multi-stage');
       return;
@@ -63,11 +175,15 @@ export default function EntryPage() {
   };
 
   const chooseKind = (kind: EntryKind) => {
+    if (loadStatus === 'corrupt') {
+      void openKind(kind);
+      return;
+    }
     if (hasSavedEvent) {
       setPendingKind(kind);
       return;
     }
-    openKind(kind);
+    void openKind(kind);
   };
 
   const importedKindLabel = (competition: TournamentCompetition) => {
@@ -83,16 +199,28 @@ export default function EntryPage() {
   };
 
   const handleImportFile = async (file: File) => {
+    importAbortRef.current?.abort();
+    const controller = new AbortController();
+    importAbortRef.current = controller;
+    setIsImporting(true);
+    setImportError(null);
     try {
-      const data = await importCompetitionFromFile(file);
-      setImportError(null);
+      const data = await importCompetitionFromFile(file, { signal: controller.signal });
+      // 导入会覆盖当前存储，损坏状态下先自动下载原始数据。
+      await backupCorruptDataBeforeOverwrite();
       if (hasSavedEvent) {
         setPendingImport(data);
         return;
       }
       applyImported(data);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : (isEnglish ? 'Import failed' : '导入失败'));
+      if (isAbortError(error)) return;
+      setImportError(describeImportError(error, isEnglish));
+    } finally {
+      if (importAbortRef.current === controller) {
+        importAbortRef.current = null;
+        setIsImporting(false);
+      }
     }
   };
 
@@ -176,6 +304,32 @@ export default function EntryPage() {
 
       <main className="flex-1 px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-7xl space-y-4">
+          {loadStatus === 'corrupt' && (
+            <section className="space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
+              <div className="text-xs font-semibold text-rose-200">
+                {isEnglish ? 'Saved event data is corrupted' : '已保存的赛事数据损坏'}
+              </div>
+              <p className="text-[11px] leading-relaxed text-rose-200/80">
+                {isEnglish
+                  ? 'A stored record exists but cannot be read. Creating a new event or importing a file will overwrite it, so the original records are downloaded as recovered-*.json first. You can also export them now.'
+                  : '检测到本地存在赛事记录，但内容无法读取。新建赛事或导入文件会覆盖原有记录，继续前会自动把原始数据下载为 recovered-*.json；也可以现在手动导出。'}
+              </p>
+              {corruptReason && (
+                <p className="break-all text-[10px] text-rose-300/70">
+                  {isEnglish ? 'Detected in: ' : '损坏位置：'}
+                  {corruptReason}
+                </p>
+              )}
+              <button
+                onClick={() => void downloadRecoveredData()}
+                className="flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-xs text-rose-200 transition-colors hover:bg-rose-500/25 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {isEnglish ? 'Export raw records' : '导出原始数据'}
+              </button>
+            </section>
+          )}
+
           <section className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/50 p-3">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-slate-300">
@@ -200,11 +354,29 @@ export default function EntryPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
+              disabled={isImporting}
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FileUp className="h-3.5 w-3.5" />
               {isEnglish ? 'Choose JSON' : '选择 JSON 文件'}
             </button>
+            {isImporting && (
+              <div className="flex w-full items-center gap-2 rounded bg-slate-700/30 px-2 py-1.5 text-[11px] text-slate-300">
+                <span
+                  className="h-3 w-3 shrink-0 animate-spin rounded-full border border-slate-400 border-t-transparent"
+                  aria-hidden="true"
+                />
+                <span className="flex-1">
+                  {isEnglish ? 'Parsing backup file…' : '正在解析备份文件…'}
+                </span>
+                <button
+                  onClick={() => importAbortRef.current?.abort()}
+                  className="shrink-0 rounded border border-slate-600/70 px-2 py-0.5 text-[11px] text-slate-200 transition-colors hover:bg-slate-600/50 hover:text-white"
+                >
+                  {isEnglish ? 'Cancel import' : '取消导入'}
+                </button>
+              </div>
+            )}
             {importError && (
               <p className="w-full rounded bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
                 {importError}
@@ -308,7 +480,7 @@ export default function EntryPage() {
           }
           const kind = pendingKind;
           setPendingKind(null);
-          if (kind) openKind(kind);
+          if (kind) void openKind(kind);
         }}
       />
     </div>

@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 export default {
-  darkMode: "class",
+  // 界面固定深色（src 里没有 dark: 类），不需要 class 策略。
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     container: {

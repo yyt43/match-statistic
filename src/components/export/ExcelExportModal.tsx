@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { TournamentCompetition } from '../../types';
 import type { AppLanguage } from '../../i18n/data';
 import { X, Download, FileSpreadsheet, Trophy, Swords, Users, Calendar, Layers, AlertTriangle, Loader2, GitBranch } from 'lucide-react';
@@ -25,6 +25,7 @@ import { isAbortError } from '../../utils/async';
 import { getGroupDisplayName } from '../../utils/multiStage';
 import { buildFinalStandings } from '../../utils/advancement';
 import { getOrderedStages } from '../../utils/multiStage';
+import { clampPreviewRound, resolvePreviewGroup } from './exportPreviewState';
 
 /** 多阶段导出：工作表名带赛段，并把汇总工作表并入同一个工作簿。 */
 function buildExportExtras(competition: TournamentCompetition, language: AppLanguage) {
@@ -53,30 +54,68 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
   const [isExporting, setIsExporting] = useState(false);
   const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'building' | 'saving'>('idle');
   const [exportProgress, setExportProgress] = useState(0);
+  // 预览小组/轮次只改弹窗本地状态，不再改全局 currentGroupIndex/viewRound（P1-15）。
+  // 初始值直接取当前全局组，避免首次渲染闪一下第 1 组。
+  const [previewGroupIndex, setPreviewGroupIndex] = useState(
+    () => useTournamentStore.getState().competition.currentGroupIndex,
+  );
+  const [previewRound, setPreviewRound] = useState(() => useTournamentStore.getState().viewRound);
   const currentGroup = useCurrentGroup();
-  const { competition, viewRound, setViewRound } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { language, t } = useLanguagePreference();
   const dialogRef = useRef<HTMLDivElement>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
+  // 导出进度节流：百分比变化 ≥2 或距上次更新 ≥100ms 才写 state，避免每 tick 重渲染整表。
+  const progressThrottleRef = useRef({ percent: 0, at: 0 });
+  const updateExportProgress = (percent: number) => {
+    const next = Math.max(0, Math.min(100, Math.round(percent)));
+    const now = performance.now();
+    const previous = progressThrottleRef.current;
+    if (next - previous.percent < 2 && now - previous.at < 100) return;
+    progressThrottleRef.current = { percent: next, at: now };
+    setExportProgress(next);
+  };
 
   useEscapeClose(isOpen && !isExporting, onClose);
   useFocusTrap(isOpen, dialogRef);
 
   useEffect(() => {
     if (isOpen) {
+      const state = useTournamentStore.getState();
+      const groups = state.competition.groups;
+      const activeGroup = groups[state.competition.currentGroupIndex] ?? groups[0];
       setActiveType(initialType);
       setExportAllGroups(false);
       setExportProgress(0);
+      progressThrottleRef.current = { percent: 0, at: 0 };
+      setPreviewGroupIndex(Math.max(0, groups.findIndex(group => group.id === activeGroup.id)));
+      setPreviewRound(clampPreviewRound(activeGroup, state.viewRound));
     }
   }, [isOpen, initialType]);
 
   useEffect(() => () => exportAbortRef.current?.abort(), []);
 
+  // Hook 必须在 isOpen 提前 return 之前调用；关闭时这些派生值只算不用。
+  const allGroups = competition.groups;
+  const availableGroups = allGroups.filter(g => g.currentRound > 0);
+  const previewGroup = resolvePreviewGroup(allGroups, previewGroupIndex, currentGroup);
+  const isRanking = activeType === 'ranking';
+  const isSummary = activeType === 'summary';
+  const isBracket = activeType === 'bracket';
+  const tableData = useMemo(
+    () => (isRanking
+      ? getRankingTableData(previewGroup, language)
+      : isSummary
+        ? getRankingTableData(previewGroup, language)
+        : isBracket
+          ? getEliminationBracketTableData(previewGroup, language)
+          : getMatchTableData(previewGroup, previewRound, language)),
+    [isRanking, isSummary, isBracket, previewGroup, previewRound, language],
+  );
+
   if (!isOpen) return null;
 
-  const allGroups = competition.groups;
   const hasMultipleGroups = allGroups.length > 1;
-  const availableGroups = allGroups.filter(g => g.currentRound > 0);
   const hasAvailableGroups = availableGroups.length > 1;
 
   const isGroupRoundComplete = (g: TournamentGroup): boolean => {
@@ -84,32 +123,19 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     const ms = g.matches.filter(m => m.round === g.currentRound);
     return ms.length > 0 && ms.every(m => m.result !== 'pending');
   };
-  const currentGroupRoundComplete = isGroupRoundComplete(currentGroup);
   const allAvailableGroupsRoundComplete = availableGroups.every(isGroupRoundComplete);
-  const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : currentGroupRoundComplete;
+  const canExportRanking = exportAllGroups ? allAvailableGroupsRoundComplete : isGroupRoundComplete(previewGroup);
   const rankingBlockedReason = !canExportRanking
     ? (exportAllGroups ? t.blockedReasonAllExcel : t.blockedReasonSingleExcel)
     : '';
 
-  const currentPreviewIdx = allGroups.findIndex(g => g === currentGroup);
-
   const handlePreviewGroup = (idx: number) => {
+    const targetGroup = allGroups[idx];
+    if (!targetGroup) return;
     if (exportAllGroups) setExportAllGroups(false);
-    useTournamentStore.getState().setCurrentGroup(idx);
+    setPreviewGroupIndex(idx);
+    setPreviewRound(Math.max(1, targetGroup.currentRound));
   };
-
-  const previewGroup = currentGroup;
-  const isRanking = activeType === 'ranking';
-  const isSummary = activeType === 'summary';
-  const isBracket = activeType === 'bracket';
-
-  const tableData = isRanking
-    ? getRankingTableData(previewGroup, language)
-    : isSummary
-      ? getRankingTableData(previewGroup, language)
-      : isBracket
-        ? getEliminationBracketTableData(previewGroup, language)
-      : getMatchTableData(previewGroup, viewRound, language);
 
   const handleDownload = async () => {
     const controller = new AbortController();
@@ -117,9 +143,10 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
     setIsExporting(true);
     setExportPhase('loading');
     setExportProgress(0);
+    progressThrottleRef.current = { percent: 0, at: 0 };
     const options = {
       signal: controller.signal,
-      onProgress: (progress: { percent: number }) => setExportProgress(progress.percent),
+      onProgress: (progress: { percent: number }) => updateExportProgress(progress.percent),
     };
 
     try {
@@ -171,12 +198,12 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
         setExportPhase('saving');
         const { headers, rows } = isRanking
           ? getRankingTableData(previewGroup, language)
-          : getMatchTableData(previewGroup, viewRound, language);
+          : getMatchTableData(previewGroup, previewRound, language);
         const data: (string | number)[][] = [headers, ...rows];
-        const sheetName = isRanking ? t.ranking : formatText(t.roundN, { round: viewRound });
+        const sheetName = isRanking ? t.ranking : formatText(t.roundN, { round: previewRound });
         const fileName = isRanking
           ? `${competition.name}-${previewGroup.name}-${t.ranking}.xlsx`
-          : `${competition.name}-${previewGroup.name}-${formatText(t.roundN, { round: viewRound })} ${t.matchTable}.xlsx`;
+          : `${competition.name}-${previewGroup.name}-${formatText(t.roundN, { round: previewRound })} ${t.matchTable}.xlsx`;
         await exportSingleSheetToExcel(sheetName, data, fileName, options, {
           extraSheets: buildExportExtras(competition, language).extraSheets,
         });
@@ -257,7 +284,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
             </button>
             <button
               onClick={() => setActiveType('bracket')}
-              disabled={!currentGroup.eliminationBracket}
+              disabled={!previewGroup.eliminationBracket}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
                 activeType === 'bracket'
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -289,7 +316,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                     key={group.id}
                     onClick={() => handlePreviewGroup(idx)}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      !exportAllGroups && idx === currentPreviewIdx
+                      !exportAllGroups && idx === previewGroupIndex
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
@@ -301,22 +328,22 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
             </div>
           )}
 
-          {activeType === 'match' && !exportAllGroups && currentGroup.currentRound > 0 && !isSummary && (
+          {activeType === 'match' && !exportAllGroups && previewGroup.currentRound > 0 && !isSummary && (
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
               <div className="flex gap-1.5 flex-wrap">
-                {Array.from({ length: currentGroup.currentRound }, (_, i) => i + 1).map(round => (
+                {Array.from({ length: previewGroup.currentRound }, (_, i) => i + 1).map(round => (
                   <button
                     key={round}
-                    onClick={() => setViewRound(round)}
+                    onClick={() => setPreviewRound(round)}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      viewRound === round
+                      previewRound === round
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 border border-transparent'
                     }`}
                   >
                     {formatText(t.roundN, { round })}
-                    {round === currentGroup.currentRound && (
+                    {round === previewGroup.currentRound && (
                       <span className="ml-1 text-[10px] text-emerald-400">{t.current}</span>
                     )}
                   </button>
@@ -366,7 +393,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                 <p>· {formatText(t.exportAllGroupsTip4, { count: availableGroups.length })}</p>
               </div>
             </div>
-          ) : currentGroup.currentRound === 0 ? (
+          ) : previewGroup.currentRound === 0 ? (
             <div className="text-center text-slate-500 py-20">
               {t.noRankingData}
             </div>
@@ -378,7 +405,7 @@ export function ExcelExportModal({ isOpen, onClose, initialType = 'ranking' }: E
                   {isRanking && ` · ${t.ranking}`}
                   {isSummary && ` · ${t.summary}`}
                   {isBracket && ` · ${language === 'en' ? 'Bracket' : '淘汰签表'}`}
-                  {!isRanking && !isSummary && !isBracket && ` · ${formatText(t.roundN, { round: viewRound })}`}
+                  {!isRanking && !isSummary && !isBracket && ` · ${formatText(t.roundN, { round: previewRound })}`}
                 </div>
                 <table className="border-collapse bg-slate-800/60 rounded-lg overflow-hidden">
                   <thead>

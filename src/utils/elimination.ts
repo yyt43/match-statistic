@@ -53,7 +53,11 @@ function getPairCount(size: number): number {
   return Math.floor(size / 2);
 }
 
-/** 同一参赛身份（id / 编号 / UID / 昵称+QQ 任一相同）只保留一次，避免签位重复。 */
+/**
+ * 同一参赛身份（id / 编号 / UID 任一相同）只保留一次，避免签位重复。
+ * 昵称+QQ 不再作为身份键：同名同QQ但编号不同的选手可能是两个真实参赛者，
+ * 按昵称去重会把其中一人静默丢弃（并导致签表人数与名单不符、校验失败）。
+ */
 function dedupePlayers(players: Player[]): Player[] {
   const seen = new Set<string>();
   const unique: Player[] = [];
@@ -62,7 +66,6 @@ function dedupePlayers(players: Player[]): Player[] {
       player.id ? `id:${player.id}` : '',
       player.participantCode?.trim() ? `code:${player.participantCode.trim()}` : '',
       player.profile?.uid?.trim() ? `uid:${player.profile.uid.trim()}` : '',
-      player.name?.trim() ? `name:${player.name.trim()}#${player.profile?.qq?.trim() ?? ''}` : '',
     ].filter(Boolean);
     if (keys.some(key => seen.has(key))) continue;
     keys.forEach(key => seen.add(key));

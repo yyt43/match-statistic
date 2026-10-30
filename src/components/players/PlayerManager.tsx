@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useCurrentGroup, useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { isRosterLocked, sortPlayersByParticipantCode } from '../../utils/playerProfiles';
 import { getUnconfirmedUpstreamStageIds } from '../../utils/advancement';
 
@@ -8,7 +9,11 @@ export function PlayerManagerList() {
   const currentGroup = useCurrentGroup();
   const { language } = useLanguagePreference();
   const isEnglish = language === 'en';
-  const { competition, removePlayer, updatePlayerProfile } = useTournamentStore();
+  const { competition, removePlayer, updatePlayerProfile } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    removePlayer: state.removePlayer,
+    updatePlayerProfile: state.updatePlayerProfile,
+  })));
   const rosterLocked = isRosterLocked(competition);
   const sortedPlayers = sortPlayersByParticipantCode(currentGroup.players);
   const groupIndex = competition.currentGroupIndex;

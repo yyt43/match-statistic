@@ -2,14 +2,8 @@ import type { Match, Player } from '../types';
 import type { AppLanguage } from '../i18n/data';
 
 /**
- * 单败淘汰头衔：根据排名与总轮次计算。默认中文，保持向后兼容。
- * 推荐使用 getEliminationTitleI18n(rank, totalRounds, language)。
+ * 单败淘汰头衔：根据排名与总轮次计算，按 language 返回本地化标题。
  */
-export function getEliminationTitle(rank: number, totalRounds: number): string {
-  return getEliminationTitleI18n(rank, totalRounds, 'zh');
-}
-
-/** 同上，但根据 language 返回本地化标题。 */
 export function getEliminationTitleI18n(rank: number, totalRounds: number, language: AppLanguage): string {
   const isEn = language === 'en';
   if (rank === 1) return isEn ? 'Champion' : '冠军';

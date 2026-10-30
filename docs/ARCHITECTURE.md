@@ -76,8 +76,13 @@ UI 组件不直接实现评分和配对算法，只负责交互、格式化展�
 
 ```text
 src/store/actions/
-├── competitionActions.ts
-└── snapshotActions.ts
+├── actionTypes.ts
+├── competitionActions.ts   # 新建/加载/保存/导入/重置赛事
+├── snapshotActions.ts      # 快照创建与恢复
+├── groupActions.ts         # 小组增删与当前小组切换
+├── playerActions.ts        # 选手增删改、弃赛、名单导入落库
+├── importActions.ts        # 赛果导入、裁判改判
+└── advancementActions.ts   # 赛段晋级计算与落库
 ```
 
 其他纯状态变更仍由 `competitionState`、`gameFlow`、`roundActions` 和多个 Mutator 模块提供。
@@ -234,7 +239,7 @@ src/
 │   ├── useFocusTrap.ts
 │   ├── usePwaUpdate.ts
 │   ├── useStorageSync.ts
-│   └── useTheme.ts
+│   └── useWriterLock.ts
 ├── i18n/
 │   ├── context.ts
 │   ├── data.ts
@@ -249,6 +254,13 @@ src/
 │   ├── export/
 │   ├── import/
 │   ├── storage/
+│   ├── advancement.ts
+│   ├── elimination.ts
+│   ├── multiStage.ts
+│   ├── matchResult.ts
+│   ├── stageDraftValidation.ts
+│   ├── tiebreak.ts
+│   ├── maximumMatching.ts
 │   ├── async.ts
 │   ├── auditLog.ts
 │   ├── errorReport.ts

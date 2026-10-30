@@ -8,12 +8,16 @@
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#111827" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="比赛战绩" />
+    <meta name="format-detection" content="telephone=no" />
     <meta name="description" content="诗意 · 比赛战绩统计系统，支持瑞士轮 / 单败淘汰、多小组管理、多表格 Excel 批量导入（sheet 名称即小组名）、排名计算与 GitHub Pages 发布。" />
     <meta name="keywords" content="比赛统计, 瑞士轮, 单败淘汰, Excel 导入, 多表格 Excel, 小组管理, 赛制管理, 排名系统, GitHub Pages" />
     <title>诗意 · 比赛战绩统计系统</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 字体样式表由 src/utils/loadWebFonts.ts 在首帧后异步注入；这里不做阻塞式加载，避免离线/被墙时卡首屏。 -->
     <script type="module">
       if (import.meta.hot?.on) {
         import.meta.hot.on('vite:error', (error) => {

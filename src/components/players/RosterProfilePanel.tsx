@@ -2,11 +2,14 @@ import { BadgeCheck, ListPlus, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   getRosterWorkbookColumnsFromFile,
   parseRosterProfilesFromWorkbook,
   type RosterColumnChoices,
+  type RosterProfileImportRow,
 } from '../../utils/import/rosterProfileImport';
+import { mapRosterRowsToGroups } from '../../utils/import/rosterGroupMapping';
 import {
   isRosterLocked,
   validateRoster,
@@ -21,7 +24,12 @@ export function RosterProfilePanel() {
     generateMissingParticipantCodes,
     importPlayerProfiles,
     lockRoster,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    generateMissingParticipantCodes: state.generateMissingParticipantCodes,
+    importPlayerProfiles: state.importPlayerProfiles,
+    lockRoster: state.lockRoster,
+  })));
   const [columns, setColumns] = useState<RosterColumnChoices>({ name: '' });
   const [headers, setHeaders] = useState<string[]>([]);
   const [summary, setSummary] = useState<RosterValidationSummary>(() => validateRoster(competition));
@@ -53,7 +61,7 @@ export function RosterProfilePanel() {
       setHeaders(detected.headers);
       setColumns(detected.detected);
       if (detected.detected.name) {
-        await importProfiles(file, detected.detected);
+        await importProfiles(file, detected.detected, { preview: true });
       } else {
         setMessage(isEnglish
           ? 'Columns detected, but no nickname column was found.'
@@ -64,15 +72,54 @@ export function RosterProfilePanel() {
     }
   };
 
+  const isGenericWorksheetName = (name: string) => /^(sheet|工作表)\s*\d*$/i.test(name.trim());
+
+  const shouldMapByWorksheetName = (rows: RosterProfileImportRow[]) => {
+    const names = Array.from(new Set(
+      rows
+        .map(row => row.groupName?.trim())
+        .filter((name): name is string => !!name)
+    ));
+    if (names.length === 0) return false;
+    const hasOnlyGenericSources = names.every(isGenericWorksheetName);
+    return !hasOnlyGenericSources || names.length > 1;
+  };
+
+  const findUngroupedRows = (rows: RosterProfileImportRow[]) => {
+    if (!shouldMapByWorksheetName(rows)) return [];
+    return mapRosterRowsToGroups(
+      competition.groups.map(group => ({ id: group.id, name: group.name })),
+      rows,
+      { allowNewGroups: true }
+    ).ungroupedRows;
+  };
+
+  const describeUngroupedRows = (rows: RosterProfileImportRow[]) => {
+    const shown = rows.slice(0, 5)
+      .map(row => row.name.trim())
+      .filter(Boolean)
+      .join(isEnglish ? ', ' : '、');
+    const remaining = rows.length - Math.min(rows.length, 5);
+    return `${shown}${remaining > 0 ? (isEnglish ? ` and ${remaining} more` : ` 等 ${remaining} 人`) : ''}`;
+  };
+
   const importProfiles = async (
     file: File,
-    selectedColumns: RosterColumnChoices
+    selectedColumns: RosterColumnChoices,
+    options: { preview?: boolean } = {}
   ) => {
     const rows = await parseRosterProfilesFromWorkbook(file, selectedColumns);
     if (rows.length === 0) {
       throw new Error(isEnglish
         ? 'No player rows were found. Current players, groups, and format settings were kept unchanged.'
         : '没有从表格中读取到选手数据，当前选手、分组和赛制数据已保留。');
+    }
+    const ungrouped = findUngroupedRows(rows);
+    if (options.preview && ungrouped.length > 0) {
+      setMessage(isEnglish
+        ? `Preview: ${ungrouped.length} row(s) have no group and will be skipped on import (${describeUngroupedRows(ungrouped)}). Fill in the group column and import again, or use "Import mapped profiles" to import the rest.`
+        : `预览：有 ${ungrouped.length} 行没有填写小组，导入时会被跳过（${describeUngroupedRows(ungrouped)}）。请先在表格中补填小组后重新导入，或点击“按当前映射导入”导入其余选手。`);
+      return;
     }
     const result = importPlayerProfiles(rows);
     const finalCompetition = useTournamentStore.getState().competition;
@@ -88,13 +135,18 @@ export function RosterProfilePanel() {
     const missingCodes = finalSummary.issues.filter(
       issue => issue.code === 'MISSING_PARTICIPANT_CODE'
     ).length;
+    const skippedNote = ungrouped.length > 0
+      ? (isEnglish
+        ? ` ${ungrouped.length} row(s) had no group and were skipped; fill in the group column and import again, or assign them manually.`
+        : ` 其中 ${ungrouped.length} 行没有填写小组，已跳过；请在表格中补填小组后重新导入，或手动分配到小组。`)
+      : '';
     setSummary(finalSummary);
     setHasImported(true);
     setHeaders([]);
     setColumns({ name: '' });
     setMessage(isEnglish
-      ? `Imported ${result.playerCount} player profiles across ${importedGroupCount} ${importedGroupCount === 1 ? 'group' : 'groups'}.${missingCodes > 0 ? ` ${missingCodes} players still need participant codes; use Fill missing codes to complete them.` : ''}`
-      : `已导入 ${importedGroupCount} 个小组、共 ${result.playerCount} 名选手。${missingCodes > 0 ? `另有 ${missingCodes} 名选手缺少编号，可点击“一键编号”补齐。` : ''}`);
+      ? `Imported ${result.playerCount} player profiles across ${importedGroupCount} ${importedGroupCount === 1 ? 'group' : 'groups'}.${missingCodes > 0 ? ` ${missingCodes} players still need participant codes; use Fill missing codes to complete them.` : ''}${skippedNote}`
+      : `已导入 ${importedGroupCount} 个小组、共 ${result.playerCount} 名选手。${missingCodes > 0 ? `另有 ${missingCodes} 名选手缺少编号，可点击“一键编号”补齐。` : ''}${skippedNote}`);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 

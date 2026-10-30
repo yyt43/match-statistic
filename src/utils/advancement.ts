@@ -9,6 +9,7 @@ import type {
   TournamentGroup,
   TournamentStage,
 } from '../types';
+import type { AppLanguage } from '../i18n/data';
 import { buildRankedGroup } from '../store/competitionState';
 import { generateId } from '../store/tournamentFactory';
 import { getOrderedStages, getStageGroups } from './multiStage';
@@ -129,7 +130,11 @@ export function getUnconfirmedUpstreamStageIds(
   );
 }
 
-/** 下游赛段是否已经开赛或录入赛果（只有名单不算）。 */
+/**
+ * 下游赛段是否已经开赛或录入赛果（只有名单不算）。
+ * `status` 也纳入判断：已有对阵但尚未录结果的小组同样视为已开赛，
+ * 避免「重新确认晋级」把已经开打的赛程静默清空。
+ */
 export function hasDownstreamResults(
   competition: TournamentCompetition,
   stage: TournamentStage
@@ -138,6 +143,7 @@ export function hasDownstreamResults(
     getStageGroups(competition, target).some(
       group =>
         group.currentRound > 0
+        || group.status !== 'setup'
         || group.matches.some(match => match.result !== 'pending')
     )
   );
@@ -154,6 +160,28 @@ export function isStageResultLocked(
   return hasDownstreamResults(competition, stage);
 }
 
+/** 赛果锁定提示（中英双语，供 store 与界面复用）。 */
+export interface StageLockMessage {
+  zh: string;
+  en: string;
+}
+
+/**
+ * 赛段赛果是否因下游已开赛而锁定；锁定返回可展示的双语提示。
+ * 与 isStageResultLocked 共用同一判定，避免各入口各写一套锁检查。
+ */
+export function getStageResultLockMessage(
+  competition: TournamentCompetition,
+  stageId: string | undefined
+): StageLockMessage | null {
+  if (!stageId) return null;
+  if (!isStageResultLocked(competition, stageId)) return null;
+  return {
+    zh: '下游赛段已开赛或已录入结果，本赛段赛果已锁定；请先清空下游数据并回退晋级。',
+    en: 'The downstream stage has started or already has results, so this stage is locked. Clear the downstream data and revert the advancement first.',
+  };
+}
+
 export function findAdvancementRecord(
   competition: TournamentCompetition,
   sourceStageId: string
@@ -166,6 +194,113 @@ export function findAdvancementRecord(
 interface SeatCollection {
   seats: StageAdvancementSeat[];
   pairings: StageAdvancementPairing[];
+}
+
+/** 双语提示：与界面语言保持一致，缺省中文。 */
+function message(language: AppLanguage, zh: string, en: string): string {
+  return language === 'en' ? en : zh;
+}
+
+function describeSeat(seat: StageAdvancementSeat): string {
+  const participant = seat.participantCode?.trim() || seat.name;
+  return `${seat.sourceGroupName} #${seat.finalRank} ${participant}`;
+}
+
+/**
+ * 目标赛段里已经不能覆盖的小组：有对阵、轮次已推进或已开赛。
+ * 只有名单（setup 且无对阵）的小组仍允许重写，这样「小组赛 → 突围赛 → 淘汰赛」
+ * 逐段确认时不会互相误伤。
+ */
+function getBlockedTargetGroups(
+  competition: TournamentCompetition,
+  targetStage: TournamentStage
+): TournamentGroup[] {
+  const seen = new Set<string>();
+  const blocked: TournamentGroup[] = [];
+  for (const groupId of targetStage.groupIds) {
+    if (seen.has(groupId)) continue;
+    seen.add(groupId);
+    const group = competition.groups.find(item => item.id === groupId);
+    if (!group) continue;
+    if (group.matches.length > 0 || group.currentRound > 0 || group.status !== 'setup') {
+      blocked.push(group);
+    }
+  }
+  return blocked;
+}
+
+/**
+ * 确认前的席位校验：把「会丢人 / 会撞签位」的席位变成可见错误。
+ * 身份只按参赛编号 / UID 判定——同名且都没编号的选手是合法参赛者，
+ * 不能按昵称去重（旧实现按 name#qq 去重会静默丢人）。
+ */
+function validateAdvancementSeats(
+  competition: TournamentCompetition,
+  seats: StageAdvancementSeat[],
+  language: AppLanguage
+): string[] {
+  const errors: string[] = [];
+  const identities = new Map<string, StageAdvancementSeat>();
+  const slots = new Map<string, StageAdvancementSeat>();
+  for (const seat of seats) {
+    const label = describeSeat(seat);
+    const targetStageId = seat.targetStageId ?? '';
+    const identityKeys = [
+      seat.participantCode?.trim() ? `code:${seat.participantCode.trim()}` : '',
+      seat.uid?.trim() ? `uid:${seat.uid.trim()}` : '',
+    ].filter(Boolean);
+    for (const identityKey of identityKeys) {
+      const key = `${targetStageId}|${identityKey}`;
+      const duplicate = identities.get(key);
+      if (duplicate) {
+        errors.push(
+          message(
+            language,
+            `晋级席位重复：${describeSeat(duplicate)} 与 ${label} 是同一参赛身份，已阻止确认。`,
+            `Duplicate advancement seat: ${describeSeat(duplicate)} and ${label} refer to the same participant; confirmation is blocked.`
+          )
+        );
+      } else {
+        identities.set(key, seat);
+      }
+    }
+    if (seat.targetSlot !== undefined) {
+      const key = `${targetStageId}|${seat.targetSlot}`;
+      const conflict = slots.get(key);
+      if (conflict) {
+        errors.push(
+          message(
+            language,
+            `晋级席位冲突：${describeSeat(conflict)} 与 ${label} 争用同一签位 #${seat.targetSlot}，已阻止确认。`,
+            `Advancement slot conflict: ${describeSeat(conflict)} and ${label} target slot #${seat.targetSlot}; confirmation is blocked.`
+          )
+        );
+      } else {
+        slots.set(key, seat);
+      }
+    }
+    if (!findSourcePlayer(competition, seat)) {
+      errors.push(
+        message(
+          language,
+          `晋级席位 ${label} 在赛事名单中找不到对应选手，已阻止确认。`,
+          `Advancement seat ${label} has no matching player in this competition; confirmation is blocked.`
+        )
+      );
+    }
+  }
+  return errors;
+}
+
+/** 目标赛段是否包含「单败淘汰赛」以外的分组：这类分组不该自动生成签表。 */
+function getNonEliminationTargetGroups(
+  competition: TournamentCompetition,
+  targetStage: TournamentStage
+): TournamentGroup[] {
+  return targetStage.groupIds
+    .map(groupId => competition.groups.find(group => group.id === groupId))
+    .filter((group): group is TournamentGroup => Boolean(group))
+    .filter(group => group.pairingType !== 'single_elimination');
 }
 
 /**
@@ -454,7 +589,8 @@ function applySeedRules(
 
 export function computeStageAdvancement(
   competition: TournamentCompetition,
-  sourceStageId: string
+  sourceStageId: string,
+  language: AppLanguage = 'zh'
 ): StageAdvancementPreview {
   const stages = getOrderedStages(competition);
   const sourceStage = stages.find(stage => stage.id === sourceStageId);
@@ -477,20 +613,73 @@ export function computeStageAdvancement(
     preview.warnings.push('来源赛段仍有小组未结束，晋级名单可能继续变化。');
   }
 
+  // 该赛段已确认晋级且下游已开赛/已录结果：禁止重新计算并覆盖下游数据。
+  if (isStageResultLocked(competition, sourceStage.id)) {
+    return {
+      ...preview,
+      errors: [
+        ...preview.errors,
+        message(
+          language,
+          '下游赛段已开赛或已录入结果，晋级结果已锁定；如需重新确认，请先清空下游数据并回退晋级。',
+          'The downstream stage already started or has results, so the advancement is locked. Clear the downstream stage and revert the advancement before confirming again.'
+        ),
+      ],
+    };
+  }
+
+  // 一个下游赛段对应多个小组时，晋级名单写不进确定的签表。
+  const multiGroupTargets = targets.filter(stage => stage.groupIds.length > 1);
+  if (multiGroupTargets.length > 0) {
+    return {
+      ...preview,
+      errors: [
+        ...preview.errors,
+        ...multiGroupTargets.map(stage =>
+          message(
+            language,
+            `下游赛段「${stage.name}」包含多个小组，无法确定晋级名单写入哪个小组，请先调整赛段设置。`,
+            `Downstream stage "${stage.name}" contains multiple groups; the advancement roster cannot be written into a specific group. Adjust the stage settings first.`
+          )
+        ),
+      ],
+    };
+  }
+
+  // 非单败淘汰赛的下游只写名单，不自动生成签表。
+  const nonEliminationTargets = targets.filter(
+    stage => getNonEliminationTargetGroups(competition, stage).length > 0
+  );
+  if (nonEliminationTargets.length > 0) {
+    preview.warnings.push(
+      ...nonEliminationTargets.map(stage =>
+        message(
+          language,
+          `下游赛段「${stage.name}」不是单败淘汰赛，晋级后只写入名单，不生成签表。`,
+          `Downstream stage "${stage.name}" is not a single-elimination stage; advancement only writes the roster and does not create a bracket.`
+        )
+      )
+    );
+  }
+
   if (sourceStage.breakout) {
     const collected = collectBreakoutSeats(competition, sourceStage);
     const playoffStage = targets.find(stage => (stage.seedRules?.length ?? 0) > 0);
     const seeded = playoffStage
       ? applySeedRules(playoffStage, collected.seats)
       : { seats: collected.seats, unresolvedSlots: 0 };
+    const seats = seeded.seats.map(seat => ({
+      ...seat,
+      targetStageId: playoffStage?.id ?? targets[0].id,
+    }));
     return {
       ...preview,
-      seats: seeded.seats.map(seat => ({
-        ...seat,
-        targetStageId: playoffStage?.id ?? targets[0].id,
-      })),
+      seats,
       warnings: [...preview.warnings, ...collected.warnings],
-      errors: collected.errors,
+      errors: [
+        ...collected.errors,
+        ...validateAdvancementSeats(competition, seats, language),
+      ],
     };
   }
 
@@ -511,7 +700,10 @@ export function computeStageAdvancement(
       ...preview,
       seats: targetedSeats,
       breakoutPairings: targetedPairings,
-      errors: collected.errors,
+      errors: [
+        ...collected.errors,
+        ...validateAdvancementSeats(competition, targetedSeats, language),
+      ],
     };
   }
 
@@ -527,16 +719,20 @@ export function computeStageAdvancement(
       originRank: seat.finalRank,
     }))
   );
+  const finalSeats = [
+    ...targetedSeats.filter(
+      seat => !(seat.route === 'direct' && seat.targetStageId === playoffStage.id)
+    ),
+    ...seeded.seats,
+  ];
   return {
     ...preview,
-    seats: [
-      ...targetedSeats.filter(
-        seat => !(seat.route === 'direct' && seat.targetStageId === playoffStage.id)
-      ),
-      ...seeded.seats,
-    ],
+    seats: finalSeats,
     breakoutPairings: targetedPairings,
-    errors: collected.errors,
+    errors: [
+      ...collected.errors,
+      ...validateAdvancementSeats(competition, finalSeats, language),
+    ],
     warnings: [
       ...preview.warnings,
       ...(seeded.unresolvedSlots > 0
@@ -585,29 +781,52 @@ function findSourcePlayer(
   return undefined;
 }
 
+interface MaterializeResult {
+  competition: TournamentCompetition;
+  errors: string[];
+}
+
 /**
- * 把晋级席位写进下游赛段：名单按固定签位排序，并按签位生成单败签表，
- * 空签位即轮空（不补位）。
+ * 把晋级席位写进下游赛段：名单按固定签位排序，
+ * 单败淘汰赛的分组同时生成签表（空签位即轮空，不补位）。
+ *
+ * 目标小组已有对阵/已开赛时返回错误而不是静默清空——重复确认晋级不能抹掉下游赛果。
+ * 每个目标小组拿到互相独立的对象，避免多个小组共享同一份 players 引用。
  */
 function materializeTargetStage(
   competition: TournamentCompetition,
-  targetStage: TournamentStage
-): TournamentCompetition {
+  targetStage: TournamentStage,
+  language: AppLanguage = 'zh'
+): MaterializeResult {
   const seats = (competition.stageAdvancements ?? [])
     .flatMap(record => record.seats)
     .filter(seat => seat.targetStageId === targetStage.id)
     .sort((a, b) => (a.targetSlot ?? 999) - (b.targetSlot ?? 999));
-  if (seats.length === 0) return competition;
+  if (seats.length === 0) return { competition, errors: [] };
+
+  const blockedGroups = getBlockedTargetGroups(competition, targetStage);
+  if (blockedGroups.length > 0) {
+    return {
+      competition,
+      errors: blockedGroups.map(group =>
+        message(
+          language,
+          `下游小组「${group.name}」已有对阵或已开赛，不能覆盖晋级名单；请先清空下游数据并回退晋级。`,
+          `Group "${group.name}" already has matches or has started; the advancement roster cannot be overwritten. Clear the downstream stage and revert the advancement first.`
+        )
+      ),
+    };
+  }
 
   const players: Player[] = [];
   const slotIds = new Map<number, string>();
   const seenIdentities = new Set<string>();
   seats.forEach((seat, index) => {
     // 防御历史数据：同一个参赛身份在同一目标赛段只能出现一次。
+    // 身份只按编号 / UID，同名无编号的选手是不同的人。
     const identities = [
       seat.participantCode?.trim() ? `code:${seat.participantCode.trim()}` : '',
       seat.uid?.trim() ? `uid:${seat.uid.trim()}` : '',
-      seat.name?.trim() ? `name:${seat.name.trim()}#${seat.qq?.trim() ?? ''}` : '',
     ].filter(Boolean);
     if (identities.some(identity => seenIdentities.has(identity))) return;
     const slot = seat.targetSlot ?? index;
@@ -636,29 +855,43 @@ function materializeTargetStage(
     const groupIndex = groups.findIndex(group => group.id === groupId);
     if (groupIndex < 0) continue;
     const group = groups[groupIndex];
+    // 每个小组独立克隆名单与签位，避免多个小组共享同一数组引用。
+    const groupPlayers = players.map(player => ({
+      ...player,
+      profile: player.profile ? { ...player.profile } : player.profile,
+      playedAgainst: [...player.playedAgainst],
+    }));
+    const groupSlots = [...slots];
     groups[groupIndex] = {
       ...group,
-      players,
+      players: groupPlayers,
       matches: [],
       status: 'setup',
       currentRound: 0,
-      eliminationBracket: {
-        id: `elimination-${generateId()}`,
-        size: bracketSize,
-        slots,
-        source: 'custom',
-      },
+      // 只有单败淘汰赛的分组才生成签表；其它赛制只接收名单。
+      eliminationBracket: group.pairingType === 'single_elimination'
+        ? {
+            id: `elimination-${generateId()}`,
+            size: bracketSize,
+            slots: groupSlots,
+            source: 'custom',
+          }
+        : undefined,
     };
   }
 
-  return { ...competition, groups };
+  return { competition: { ...competition, groups }, errors: [] };
 }
 
 export function confirmStageAdvancement(
   competition: TournamentCompetition,
-  preview: StageAdvancementPreview
+  preview: StageAdvancementPreview,
+  language: AppLanguage = 'zh'
 ): TournamentCompetition {
   if (preview.errors.length > 0 || preview.seats.length === 0) return competition;
+
+  // 该赛段已确认晋级且下游已有赛果：重复确认会覆盖下游数据，直接拒绝。
+  if (isStageResultLocked(competition, preview.sourceStageId)) return competition;
 
   const record: StageAdvancementRecord = {
     id: generateId(),
@@ -677,7 +910,11 @@ export function confirmStageAdvancement(
   };
   for (const targetStageId of preview.targetStageIds) {
     const targetStage = next.stages?.find(stage => stage.id === targetStageId);
-    if (targetStage) next = materializeTargetStage(next, targetStage);
+    if (!targetStage) continue;
+    const materialized = materializeTargetStage(next, targetStage, language);
+    // 有小组无法安全覆盖时整次确认作废，保持原赛事不变。
+    if (materialized.errors.length > 0) return competition;
+    next = materialized.competition;
   }
   return next;
 }

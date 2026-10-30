@@ -24,12 +24,26 @@ interface StorageEnvelope {
 
 const STORAGE_VERSION = CURRENT_STORAGE_VERSION;
 const LOCAL_MIRROR_LIMIT_BYTES = 2 * 1024 * 1024;
+/**
+ * 独立的轻量元信息 key：主数据超出 localStorage 镜像上限时会删掉镜像，
+ * 但保存时间等元信息单独保留，避免"最后保存于..."丢失。
+ */
+export const META_KEY = 'swiss_tournament_data_meta';
+
+interface StorageMeta {
+  savedAt: string;
+  competitionId: string;
+  version: number;
+}
+
 let lastSavedAt: string | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 
 /**
- * 轻量级 JSON 压缩：移除 playedAgainst 中的重复 'bye'，避免轮空多次累积。
- * 同时移除运行时计算的胜率字段（加载后由 recalculate 重算），减小 30-40% 体积。
+ * 轻量级 JSON 压缩：仅对 playedAgainst 去重 —— 保留首次出现的顺序，
+ * 并把重复的 'bye'（轮空标记）收敛为一个，避免轮空多次累积。
+ * 胜率等运行时字段会原样保留（加载后由 recalculate 重算），这里不做删除，
+ * 因此体积收益仅来自 playedAgainst 去重，不要期待 30%~40% 的压缩率。
  */
 function compressCompetition(competition: TournamentCompetition): TournamentCompetition {
   return {
@@ -212,28 +226,115 @@ async function persistCompetitionEnvelope(
   return true;
 }
 
-function prepareStoredCompetition(
-  parsed: ParsedStoredCompetition | null
-): { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null {
-  if (!parsed) return null;
+interface MigratedStoredCompetition {
+  competition: TournamentCompetition;
+  wasMigrated: boolean;
+}
+
+type MigrateStoredResult =
+  | { ok: true; value: MigratedStoredCompetition }
+  | { ok: false; error: string };
+
+/**
+ * 加载路径与存储体检共用同一条"先迁移、再校验"的流水线。
+ * 分开返回可读错误，便于体检把"可迁移"和"损坏"分别报告。
+ */
+function migrateAndValidateStoredCompetition(
+  parsed: ParsedStoredCompetition
+): MigrateStoredResult {
   const wasMigrated = parsed.version < CURRENT_STORAGE_VERSION;
   let migrated: TournamentCompetition;
   try {
     migrated = migrateCompetitionData(parsed.competition, parsed.version);
   } catch (error) {
-    console.warn('[storage] Unsupported competition version:', error);
-    return null;
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
   const validation = validateCompetitionData(migrated);
   if (!validation.success) {
-    console.warn('[storage] Invalid competition data rejected:', validation.message);
+    return { ok: false, error: validation.message };
+  }
+  return {
+    ok: true,
+    value: { competition: validation.data as TournamentCompetition, wasMigrated },
+  };
+}
+
+function prepareStoredCompetition(
+  parsed: ParsedStoredCompetition | null
+): { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null {
+  if (!parsed) return null;
+  const result = migrateAndValidateStoredCompetition(parsed);
+  if (!result.ok) {
+    // 加载路径需要诊断日志；体检路径改用 prepareStoredRecord，避免重复打印。
+    console.warn('[storage] Stored competition rejected:', result.error);
     return null;
   }
   return {
-    competition: validation.data as TournamentCompetition,
+    competition: result.value.competition,
     savedAt: parsed.savedAt,
-    wasMigrated,
+    wasMigrated: result.value.wasMigrated,
   };
+}
+
+export type StoredRecordStatus = 'ok' | 'migratable' | 'corrupt';
+
+export interface PreparedStoredRecord {
+  status: StoredRecordStatus;
+  competition?: TournamentCompetition;
+  savedAt?: string;
+  /** 仅 status === 'corrupt' 时有值：可读的损坏原因。 */
+  error?: string;
+}
+
+/**
+ * 解析一份原始存储记录（IndexedDB 里的对象或 localStorage 里的 JSON 字符串），
+ * 复用加载路径的"迁移 + 校验"逻辑，并把"旧版本可迁移"与"损坏"分开返回。
+ * raw 为 null/undefined/空串表示该存储位置没有记录，返回 null。
+ */
+export function prepareStoredRecord(raw: unknown): PreparedStoredRecord | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = typeof raw === 'string' ? tryParse(raw) : parseStoredValue(raw);
+  if (!parsed) {
+    return { status: 'corrupt', error: 'unrecognized stored payload' };
+  }
+  const result = migrateAndValidateStoredCompetition(parsed);
+  if (!result.ok) {
+    return { status: 'corrupt', error: result.error };
+  }
+  return {
+    status: result.value.wasMigrated ? 'migratable' : 'ok',
+    competition: result.value.competition,
+    savedAt: parsed.savedAt,
+  };
+}
+
+/** 清掉 localStorage 里的主/备镜像（仅在 IndexedDB 确认落库后调用）。 */
+function removeLocalMirrors(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore mirror cleanup errors when IndexedDB has the data.
+  }
+  try {
+    localStorage.removeItem(BACKUP_KEY);
+  } catch {
+    // Ignore backup mirror cleanup errors.
+  }
+}
+
+/** 保存时间等轻量元信息：localStorage 优先（同步可读），IndexedDB 作为镜像。 */
+async function persistStorageMeta(meta: StorageMeta): Promise<void> {
+  try {
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+  } catch {
+    // 元信息只用于展示，写不进 localStorage 时继续尝试 IndexedDB。
+  }
+  if (!isIndexedDbAvailable()) return;
+  try {
+    await idbSet(META_KEY, meta);
+  } catch (error) {
+    console.warn('[storage] Failed to persist save metadata', error);
+  }
 }
 
 export function saveCompetition(competition: TournamentCompetition): void {
@@ -244,9 +345,11 @@ export function saveCompetition(competition: TournamentCompetition): void {
     savedAt: new Date().toISOString(),
     data: dataToSave,
   };
+  // 大数据走 IndexedDB，localStorage 只作为兜底（无 IndexedDB 时）。
+  const useLocalMirror = !isIndexedDbAvailable() || rawSize <= LOCAL_MIRROR_LIMIT_BYTES;
   let localStorageSaved = false;
   let localError: unknown = null;
-  if (!isIndexedDbAvailable() || rawSize <= LOCAL_MIRROR_LIMIT_BYTES) {
+  if (useLocalMirror) {
     try {
       const serialized = JSON.stringify(envelope);
       localStorage.setItem(STORAGE_KEY, serialized);
@@ -255,14 +358,9 @@ export function saveCompetition(competition: TournamentCompetition): void {
     } catch (error) {
       localError = error;
     }
-  } else {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(BACKUP_KEY);
-    } catch {
-      // Ignore mirror cleanup errors when IndexedDB is available.
-    }
   }
+  // 超过镜像上限时不再提前删除旧镜像：必须等 IndexedDB 事务真正提交后再删，
+  // 否则写入失败或页面在异步写完成前关闭会把最后的可用数据一起丢掉。
 
   // Serialize writes so a slower older request can never overwrite newer data.
   writeQueue = writeQueue
@@ -276,7 +374,14 @@ export function saveCompetition(competition: TournamentCompetition): void {
       );
       if (!persisted) return;
 
+      // IndexedDB 已确认落库，这时才清掉超限的旧 localStorage 镜像。
+      if (!useLocalMirror) removeLocalMirrors();
       lastSavedAt = envelope.savedAt;
+      await persistStorageMeta({
+        savedAt: envelope.savedAt,
+        competitionId: competition.id,
+        version: STORAGE_VERSION,
+      });
       broadcastCompetitionSaved(envelope.savedAt, competition.id);
     });
 }
@@ -285,56 +390,87 @@ export function flushStorage(): Promise<void> {
   return writeQueue;
 }
 
-export async function loadCompetition(): Promise<TournamentCompetition | null> {
+export type LoadCompetitionStatus = 'ok' | 'empty' | 'corrupt';
+
+export interface LoadCompetitionResult {
+  status: LoadCompetitionStatus;
+  competition?: TournamentCompetition;
+  savedAt?: string;
+  /** 数据损坏时的可读原因，用于界面提示与原始数据导出。 */
+  error?: string;
+}
+
+type StoredSource = 'indexeddb-main' | 'indexeddb-backup' | 'local-main' | 'local-backup';
+
+interface StoredCandidate {
+  competition: TournamentCompetition;
+  savedAt?: string;
+  wasMigrated: boolean;
+  source: StoredSource;
+}
+
+/**
+ * 读取已保存的赛事，并区分"没有数据"与"数据存在但损坏"。
+ * 数据损坏时不会清空任何记录，调用方可以提示并导出原始数据。
+ */
+export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
   await writeQueue.catch(() => undefined);
 
-  type Source = 'indexeddb-main' | 'indexeddb-backup' | 'local-main' | 'local-backup';
-  interface Candidate {
-    competition: TournamentCompetition;
-    savedAt?: string;
-    wasMigrated: boolean;
-    source: Source;
-  }
+  const candidates: StoredCandidate[] = [];
+  const corruptSources: string[] = [];
 
-  const candidates: Candidate[] = [];
   const addCandidate = (
-    candidate: { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null,
-    source: Source
+    parsed: { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null,
+    source: StoredSource
   ) => {
-    if (candidate) candidates.push({ ...candidate, source });
+    if (parsed) {
+      candidates.push({ ...parsed, source });
+    } else {
+      corruptSources.push(source);
+    }
+  };
+
+  // 只有确实存在记录、但解析/迁移/校验失败时才登记为损坏。
+  const addStored = (stored: unknown, source: StoredSource) => {
+    if (stored === null || stored === undefined) return;
+    addCandidate(prepareStoredCompetition(parseStoredValue(stored)), source);
+  };
+
+  const addLocal = (key: string, source: StoredSource) => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(key);
+    } catch (error) {
+      console.warn('[storage] Failed to read localStorage record', error);
+      return;
+    }
+    if (raw === null) return;
+    addCandidate(prepareStoredCompetition(tryParse(raw)), source);
   };
 
   if (isIndexedDbAvailable()) {
     try {
-      addCandidate(
-        prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(STORAGE_KEY))),
-        'indexeddb-main'
-      );
+      addStored(await idbGet<unknown>(STORAGE_KEY), 'indexeddb-main');
     } catch (error) {
       console.warn('[storage] IndexedDB read failed, falling back to localStorage', error);
     }
     try {
-      addCandidate(
-        prepareStoredCompetition(parseStoredValue(await idbGet<unknown>(BACKUP_KEY))),
-        'indexeddb-backup'
-      );
+      addStored(await idbGet<unknown>(BACKUP_KEY), 'indexeddb-backup');
     } catch (error) {
       console.warn('[storage] IndexedDB backup read failed', error);
     }
   }
 
-  addCandidate(
-    prepareStoredCompetition(tryParse(localStorage.getItem(STORAGE_KEY))),
-    'local-main'
-  );
-  addCandidate(
-    prepareStoredCompetition(tryParse(localStorage.getItem(BACKUP_KEY))),
-    'local-backup'
-  );
+  addLocal(STORAGE_KEY, 'local-main');
+  addLocal(BACKUP_KEY, 'local-backup');
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    return corruptSources.length > 0
+      ? { status: 'corrupt', error: corruptSources.join(', ') }
+      : { status: 'empty' };
+  }
 
-  const sourcePriority: Record<Source, number> = {
+  const sourcePriority: Record<StoredSource, number> = {
     'indexeddb-main': 0,
     'local-main': 1,
     'indexeddb-backup': 2,
@@ -368,12 +504,91 @@ export async function loadCompetition(): Promise<TournamentCompetition | null> {
     notifyStorageStatus('ok', { key: 'storageRestored' });
   }
 
-  return competition;
+  return { status: 'ok', competition, savedAt: parsed.savedAt };
+}
+
+export async function loadCompetition(): Promise<TournamentCompetition | null> {
+  const result = await loadCompetitionResult();
+  return result.competition ?? null;
+}
+
+export interface StoredRawRecord {
+  source: StoredSource;
+  savedAt: string | null;
+  raw: string;
+}
+
+/**
+ * 汇总各存储位置的原始记录（不做迁移/校验），供数据损坏时导出排查。
+ * 这些记录可能是主/备镜像中的任意一份，尽量原样保留。
+ */
+export async function collectStoredRawRecords(): Promise<StoredRawRecord[]> {
+  const records: StoredRawRecord[] = [];
+
+  const addRecord = (source: StoredSource, value: unknown) => {
+    if (value === null || value === undefined) return;
+    let raw: string;
+    try {
+      raw = typeof value === 'string' ? value : JSON.stringify(value);
+    } catch {
+      return;
+    }
+    let savedAt: string | null = null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        parsed && typeof parsed === 'object'
+        && 'savedAt' in parsed && typeof (parsed as { savedAt?: unknown }).savedAt === 'string'
+      ) {
+        savedAt = (parsed as { savedAt: string }).savedAt;
+      }
+    } catch {
+      // 内容已损坏时保留原始字符串即可。
+    }
+    records.push({ source, savedAt, raw });
+  };
+
+  if (isIndexedDbAvailable()) {
+    try {
+      addRecord('indexeddb-main', await idbGet<unknown>(STORAGE_KEY));
+    } catch (error) {
+      console.warn('[storage] Failed to read raw IndexedDB record', error);
+    }
+    try {
+      addRecord('indexeddb-backup', await idbGet<unknown>(BACKUP_KEY));
+    } catch (error) {
+      console.warn('[storage] Failed to read raw IndexedDB backup record', error);
+    }
+  }
+  try {
+    addRecord('local-main', localStorage.getItem(STORAGE_KEY));
+  } catch (error) {
+    console.warn('[storage] Failed to read raw localStorage record', error);
+  }
+  try {
+    addRecord('local-backup', localStorage.getItem(BACKUP_KEY));
+  } catch (error) {
+    console.warn('[storage] Failed to read raw localStorage backup record', error);
+  }
+  return records;
 }
 
 /** 返回上次保存的 ISO 时间戳（没有则返回 null），用于 UI 显示"最后保存于..." */
 export function getLastSavedAt(): string | null {
   if (lastSavedAt) return lastSavedAt;
+  // 大数据会删掉 localStorage 主/备镜像，保存时间改从轻量 meta 读取。
+  try {
+    const rawMeta = localStorage.getItem(META_KEY);
+    if (rawMeta) {
+      const meta: unknown = JSON.parse(rawMeta);
+      if (meta && typeof meta === 'object' && 'savedAt' in meta
+          && typeof (meta as StorageMeta).savedAt === 'string') {
+        return (meta as StorageMeta).savedAt;
+      }
+    }
+  } catch {
+    // Fall through to the legacy envelope lookup.
+  }
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
@@ -385,7 +600,49 @@ export function getLastSavedAt(): string | null {
   return null;
 }
 
+/**
+ * 页面隐藏/关闭前尽量把排队的写入刷到 IndexedDB。
+ * 测试环境（无 window/document）下注册函数会直接跳过。
+ */
+function registerStorageLifecycle(): (() => void) | null {
+  if (typeof window === 'undefined') return null;
+  const flushInBackground = () => {
+    void flushStorage().catch(() => undefined);
+  };
+  const handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      flushInBackground();
+    }
+  };
+  window.addEventListener('pagehide', flushInBackground);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
+  return () => {
+    window.removeEventListener('pagehide', flushInBackground);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  };
+}
+
+const unregisterStorageLifecycle = registerStorageLifecycle();
+
+/** 注销页面生命周期监听（测试/HMR 时清理用）。 */
+export function disposeStorageLifecycle(): void {
+  unregisterStorageLifecycle?.();
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => disposeStorageLifecycle());
+}
+
 export function clearCompetition(): void {
+  try {
+    localStorage.removeItem(META_KEY);
+  } catch {
+    // Ignore meta cleanup errors.
+  }
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (e) {
@@ -400,7 +657,7 @@ export function clearCompetition(): void {
     .catch(() => undefined)
     .then(async () => {
       if (!isIndexedDbAvailable()) return;
-      await Promise.all([idbDelete(STORAGE_KEY), idbDelete(BACKUP_KEY)]);
+      await Promise.all([idbDelete(STORAGE_KEY), idbDelete(BACKUP_KEY), idbDelete(META_KEY)]);
     })
     .catch(error => {
       console.error('Failed to clear IndexedDB:', error);

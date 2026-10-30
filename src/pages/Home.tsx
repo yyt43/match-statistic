@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Header } from '../components/common/Header';
 import { PlayerRanking } from '../components/players/PlayerRanking';
 import { MatchList } from '../components/matches/MatchList';
@@ -19,6 +20,12 @@ import { getEliminationBracketView } from '../utils/elimination';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Redo2, Swords, Languages, RefreshCw } from 'lucide-react';
 import { useLanguagePreference } from '../i18n/context';
 import { formatText } from '../i18n/data';
+import {
+  classifyHomeShortcut,
+  hasOpenOverlay,
+  isEditableShortcutTarget,
+  resolveHomeShortcut,
+} from '../hooks/shortcutGuards';
 
 const ImageExportModal = lazy(() => import('../components/export/ImageExportModal').then(module => ({ default: module.ImageExportModal })));
 const ExcelExportModal = lazy(() => import('../components/export/ExcelExportModal').then(module => ({ default: module.ExcelExportModal })));
@@ -35,7 +42,13 @@ export default function Home() {
     startTournament,
     updateMatchResult,
     loadSavedCompetition,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    initCompetition: state.initCompetition,
+    startTournament: state.startTournament,
+    updateMatchResult: state.updateMatchResult,
+    loadSavedCompetition: state.loadSavedCompetition,
+  })));
   const undo = useTournamentStore(state => state.undo);
   const redo = useTournamentStore(state => state.redo);
   const currentGroup = useCurrentGroup();
@@ -69,17 +82,31 @@ export default function Home() {
     () => localStorage.getItem(ONBOARDING_KEY) !== '1'
   );
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  // 是否已有赛事数据：加载示例赛事会覆盖主备存档并清空撤销历史，需要先二次确认。
+  const [hasSavedEvent, setHasSavedEvent] = useState(false);
 
   useEffect(() => {
-    void loadSavedCompetition();
+    let active = true;
+    void loadSavedCompetition().then(loaded => {
+      if (active) setHasSavedEvent(Boolean(loaded));
+    });
+    return () => {
+      active = false;
+    };
   }, [loadSavedCompetition]);
 
   useEffect(() => {
     const handleCommandShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setShowCommandPalette(true);
-      }
+      const intent = classifyHomeShortcut(event);
+      if (!intent) return;
+      // 任一弹窗打开时快捷键不生效，避免命令面板叠在其它弹窗上（P1-15）。
+      const shortcut = resolveHomeShortcut(intent, {
+        hasOpenOverlay: hasOpenOverlay(document),
+        targetEditable: isEditableShortcutTarget(event.target as HTMLElement | null),
+      });
+      if (shortcut !== 'open-command-palette') return;
+      event.preventDefault();
+      setShowCommandPalette(true);
     };
     document.addEventListener('keydown', handleCommandShortcut);
     return () => document.removeEventListener('keydown', handleCommandShortcut);
@@ -142,6 +169,11 @@ export default function Home() {
     setShowOnboarding(false);
   };
 
+  // 存档里已有赛事，或内存中已有名单/对局，都视为“现有赛事”，演示数据不能静默覆盖。
+  const hasExistingEvent =
+    hasSavedEvent ||
+    competition.groups.some(group => group.players.length > 0 || group.matches.length > 0);
+
   const loadDemo = () => {
     initCompetition(t.demoEventName, 1, 8, 3, 'bo1', 'swiss');
     startTournament(3);
@@ -156,20 +188,16 @@ export default function Home() {
   // Ctrl+Z / Cmd+Z 撤销上一操作，Ctrl+Shift+Z / Ctrl+Y 重做。
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const withModifier = e.ctrlKey || e.metaKey;
-      const isUndo = withModifier && key === 'z' && !e.shiftKey;
-      const isRedo = withModifier && ((key === 'z' && e.shiftKey) || key === 'y');
-      if (!isUndo && !isRedo) return;
+      const intent = classifyHomeShortcut(e);
+      if (!intent) return;
+      // 用 DOM 信号统一判断弹窗：任何弹窗（含子组件内部弹窗）打开时都不触发撤销/重做。
+      const shortcut = resolveHomeShortcut(intent, {
+        hasOpenOverlay: hasOpenOverlay(document),
+        targetEditable: isEditableShortcutTarget(e.target as HTMLElement | null),
+      });
+      if (shortcut !== 'undo' && shortcut !== 'redo') return;
 
-      if (isExportOpen || isExcelOpen || showConfirm || showHelp || showPlayerPreview) return;
-
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
-      }
-
+      const isRedo = shortcut === 'redo';
       const state = useTournamentStore.getState();
       if (state.isReadOnly) return;
       const label = isRedo
@@ -184,7 +212,7 @@ export default function Home() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isExportOpen, isExcelOpen, showConfirm, showHelp, showPlayerPreview, redo, undo]);
+  }, [redo, undo]);
 
   return (
     <div className="min-h-screen flex flex-col relative pb-16 md:pb-0">
@@ -328,6 +356,7 @@ export default function Home() {
         isOpen={showOnboarding}
         onClose={completeOnboarding}
         onLoadDemo={loadDemo}
+        hasExistingEvent={hasExistingEvent}
       />
       <CommandPalette
         isOpen={showCommandPalette}
@@ -456,7 +485,7 @@ export default function Home() {
 }
 
 function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const currentGroup = useCurrentGroup();
   const { t } = useLanguagePreference();
 
@@ -560,7 +589,7 @@ function RoundSummaryInfo({ confirmType }: { confirmType: 'single' | 'all' }) {
  */
 function PairingPreview({ confirmType }: { confirmType: 'single' | 'all' }) {
   const currentGroup = useCurrentGroup();
-  const { competition } = useTournamentStore();
+  const competition = useTournamentStore(state => state.competition);
   const { t } = useLanguagePreference();
 
   // 选择要预览的小组：单小组模式预览当前小组；全部小组模式找第一个待生成下一轮的小组作为样例

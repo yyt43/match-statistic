@@ -67,7 +67,10 @@ export function generateNextRoundForCompetition(
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return competition;
 
-  const bracketMatches: Match[] | null = group.eliminationBracket
+  // 只有"单败淘汰赛 + 已有签表"才按签表生成对阵；
+  // 其它配对类型即使残留了 eliminationBracket 也必须走正常配对（P1-4）。
+  const isEliminationGroup = group.pairingType === 'single_elimination' && !!group.eliminationBracket;
+  const bracketMatches: Match[] | null = isEliminationGroup && group.eliminationBracket
     ? (nextRound === 1
       ? createEliminationFirstRoundMatches(group, group.eliminationBracket)
       : createEliminationNextRoundMatches(group, nextRound))
@@ -85,7 +88,7 @@ export function generateNextRoundForCompetition(
   const matches = generated.matches;
   const pairedPlayers = generated.updatedPlayers;
 
-  if (group.eliminationBracket && matches.length === 0) return competition;
+  if (isEliminationGroup && matches.length === 0) return competition;
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
   for (const match of matches) {
@@ -107,8 +110,8 @@ export function generateNextRoundForCompetition(
   const allMatches = [...group.matches, ...matches];
   updatedPlayers = calculateAllWinRates(updatedPlayers, allMatches, group.gameType);
 
-  const isBracketComplete = !!group.eliminationBracket
-    && nextRound === getSingleEliminationRounds(group.eliminationBracket.size);
+  const isBracketComplete = isEliminationGroup
+    && nextRound === getSingleEliminationRounds(group.eliminationBracket!.size);
 
   const updatedGroups = [...competition.groups];
   const updatedGroup = {

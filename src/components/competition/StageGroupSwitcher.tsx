@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Edit2, Minus, Plus } from 'lucide-react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getOrderedStages, getStageGroups } from '../../utils/multiStage';
 
 /** 赛段与小组切换器：统一放在工作区左上角，开赛前后位置一致。 */
@@ -15,7 +16,13 @@ export function StageGroupSwitcher() {
     addGroup,
     removeGroup,
     updateGroupName,
-  } = useTournamentStore();
+  } = useTournamentStore(useShallow(state => ({
+    competition: state.competition,
+    setCurrentGroup: state.setCurrentGroup,
+    addGroup: state.addGroup,
+    removeGroup: state.removeGroup,
+    updateGroupName: state.updateGroupName,
+  })));
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
   const [editGroupNameValue, setEditGroupNameValue] = useState('');
 

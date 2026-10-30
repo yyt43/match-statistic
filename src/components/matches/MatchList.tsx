@@ -1,11 +1,14 @@
 import { Swords, Trophy, Award, Medal, ChevronDown, ChevronUp, Dice3, Pencil, GripVertical } from 'lucide-react';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
+import { useShallow } from 'zustand/react/shallow';
 import { RoundTabs } from '../competition/RoundTabs';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { formatRecordedDoubleLoss } from '../../utils/matchResult';
 import type { Match, MatchResult } from '../../types';
-import { useMemo, useState, useEffect } from 'react';
+import { useId, useMemo, useRef, useState, useEffect } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { ResultButtons } from './ResultButtons';
 import { RoundEditor } from './RoundEditor';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
@@ -16,7 +19,29 @@ interface MatchListProps {
 }
 export function MatchList({ testMode = false }: MatchListProps) {
   const currentGroup = useCurrentGroup();
-  const { viewRound, updateMatchResult, competition, randomGenerateAllGroups, randomGenerateCurrentRoundAllGroups, batchUpdateRoundMatches, reorderMatches, isRandomGenerating, randomGenerateProgress, overrideMatchResult } = useTournamentStore();
+  const {
+    viewRound,
+    updateMatchResult,
+    competition,
+    randomGenerateAllGroups,
+    randomGenerateCurrentRoundAllGroups,
+    batchUpdateRoundMatches,
+    reorderMatches,
+    isRandomGenerating,
+    randomGenerateProgress,
+    overrideMatchResult,
+  } = useTournamentStore(useShallow(state => ({
+    viewRound: state.viewRound,
+    updateMatchResult: state.updateMatchResult,
+    competition: state.competition,
+    randomGenerateAllGroups: state.randomGenerateAllGroups,
+    randomGenerateCurrentRoundAllGroups: state.randomGenerateCurrentRoundAllGroups,
+    batchUpdateRoundMatches: state.batchUpdateRoundMatches,
+    reorderMatches: state.reorderMatches,
+    isRandomGenerating: state.isRandomGenerating,
+    randomGenerateProgress: state.randomGenerateProgress,
+    overrideMatchResult: state.overrideMatchResult,
+  })));
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [bracketView, setBracketView] = useState(false);
@@ -37,6 +62,11 @@ export function MatchList({ testMode = false }: MatchListProps) {
     player2Games?: number;
   } | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
+  const overrideDialogRef = useRef<HTMLDivElement>(null);
+  const overrideTitleId = useId();
+  const overrideDescId = useId();
+  useEscapeClose(overrideRequest !== null, () => setOverrideRequest(null));
+  useFocusTrap(overrideRequest !== null, overrideDialogRef);
 
   useEffect(() => {
     if (currentGroup.currentRound === 0) {
@@ -504,8 +534,18 @@ export function MatchList({ testMode = false }: MatchListProps) {
                       </div>
                     )}
                     <div
-                      className="p-3"
+                      role={canEditMatch ? 'button' : undefined}
+                      tabIndex={canEditMatch ? 0 : undefined}
+                      aria-expanded={canEditMatch ? isExpanded : undefined}
+                      className="p-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-400/60"
                       onClick={() => canEditMatch && handleToggleExpand(match.id)}
+                      onKeyDown={(event) => {
+                        if (!canEditMatch) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          handleToggleExpand(match.id);
+                        }
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -517,9 +557,9 @@ export function MatchList({ testMode = false }: MatchListProps) {
                           </span>
                         </div>
                         {canEditMatch && (
-                          <button className="text-slate-500 hover:text-white transition-colors">
+                          <span aria-hidden="true" className="text-slate-500">
                             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </button>
+                          </span>
                         )}
                       </div>
 
@@ -673,11 +713,19 @@ export function MatchList({ testMode = false }: MatchListProps) {
 
       {overrideRequest && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-white">
+          <div
+            ref={overrideDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={overrideTitleId}
+            aria-describedby={overrideDescId}
+            tabIndex={-1}
+            className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+          >
+            <h3 id={overrideTitleId} className="text-sm font-semibold text-white">
               {isEnglish ? 'Referee result override' : '裁判改判'}
             </h3>
-            <p className="mt-1 text-xs text-slate-400">
+            <p id={overrideDescId} className="mt-1 text-xs text-slate-400">
               {isEnglish
                 ? 'This match came from an import. A reason is required, and unplayed later rounds will be invalidated.'
                 : '该场来自结果导入。必须填写改判原因；尚未开赛的后续轮次会失效并重新计算。'}
@@ -685,13 +733,14 @@ export function MatchList({ testMode = false }: MatchListProps) {
             <textarea
               value={overrideReason}
               onChange={event => setOverrideReason(event.target.value)}
-              className="mt-3 h-24 w-full resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-rose-500/40"
+              aria-label={isEnglish ? 'Override reason' : '改判原因'}
+              className="mt-3 h-24 w-full resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-rose-500/40 focus-visible:ring-1 focus-visible:ring-rose-400/50"
               placeholder={isEnglish ? 'Reason and evidence reference...' : '填写改判原因和证据引用...'}
             />
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => setOverrideRequest(null)}
-                className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-slate-300"
+                className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
               >
                 {isEnglish ? 'Cancel' : '取消'}
               </button>
@@ -719,7 +768,7 @@ export function MatchList({ testMode = false }: MatchListProps) {
                   }
                   setOverrideRequest(null);
                 }}
-                className="rounded-lg border border-rose-500/30 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+                className="rounded-lg border border-rose-500/30 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
               >
                 {isEnglish ? 'Confirm override' : '确认改判'}
               </button>

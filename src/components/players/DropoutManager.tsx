@@ -7,7 +7,7 @@ import { collectPreDroppedPlayerIds } from '../../store/competitionState';
 export function DropoutManager() {
   const currentGroup = useCurrentGroup();
   const { language, t } = useLanguagePreference();
-  const { togglePlayerDropped } = useTournamentStore();
+  const togglePlayerDropped = useTournamentStore(state => state.togglePlayerDropped);
   const [expanded, setExpanded] = useState(false);
   const isEnglish = language === 'en';
 

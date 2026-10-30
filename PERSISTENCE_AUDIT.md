@@ -1,11 +1,26 @@
 # Persistence-layer audit (read-only)
 
+> **2026-10-30 更新**：本文件是 2026-09-19 的历史快照，之后代码已多次修改。逐条复核与处理状态如下；
+> 未在表中标注的条目视为"未复核/未处理"，请勿直接当作现存缺陷。
+>
+> | 条目 | 状态 | 说明 |
+> | --- | --- | --- |
+> | H1 | **误报（已撤销）** | `persist !== false` 守卫在审计撰写前一个版本（commit b127752，2026-09-12）就已存在；`loadSavedCompetition` 传 `persist:false`，不会写回空历史。CI 的 `browser-smoke` 一直断言 reload 后 undo 可用且历史对话框有 "Restore before"，与 H1 结论矛盾。 |
+> | H2 | 部分缓解 | 保存顺序已改为"IDB 事务提交成功后才删 localStorage 镜像"，但"IDB 存在却不可用 + localStorage 满"时仍会读到旧镜像，未彻底修复。 |
+> | H3 | 已修复 | 现在先写 IDB、事务 `oncomplete` 后才删除本地镜像；失败保留旧镜像并报错；新增 `pagehide` 与 `visibilitychange(hidden)` 尽力 flush。 |
+> | H4 | 已修复 | `idbSet`/`idbGet` 等改为等 `transaction.oncomplete` 才 resolve，abort/error 一律 reject。 |
+> | M1 | 已修复 | 导入/重置改为 `{history:'replace'}`；`historyStore.parseEnvelope` 逐条校验 `entry.competition.id`。 |
+> | M2 | 已修复 | 加载返回 `ok/empty/corrupt` 三态，入口页对损坏存档提示并可导出原始数据，新建前自动备份。 |
+> | M3 | 已修复 | 快照写入改为模块级串行队列，保存失败返回 boolean 并在 UI 提示。 |
+> | M4 | 处理中 | 多标签页写保护正在改造（无 Web Locks 时的多写者问题）。 |
+> | H2 之外的其它条目 | 未复核 | 需要按当前代码重新验证。 |
+
 Scope: `src/utils/storage/*`, `src/utils/schema.ts`, `src/store/{competitionHistory,useTournamentStore,actions/*}.ts`,
 `src/hooks/{useStorageSync,useWriterLock}.ts`. Nothing was modified except this report.
 
 ## HIGH
 
-### H1. Undo/redo history is wiped on every reload (load path writes empty history over the restored one)
+### H1. Undo/redo history is wiped on every reload (load path writes empty history over the restored one) — **已复核为误报，见文首说明**
 - `src/store/competitionHistory.ts:92-98`
   ```ts
   rawSet(nextPartial);

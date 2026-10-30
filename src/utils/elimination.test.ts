@@ -144,6 +144,19 @@ describe('fixed elimination bracket', () => {
     expect(ids).not.toContain('p1-copy');
   });
 
+  it('keeps same-name players without QQ when their identities differ', () => {
+    // P1-1：昵称+QQ 不再是身份键。两名同名、无 QQ、编号不同的选手是真实的两名参赛者，
+    // 不能被静默去重，否则签表人数会少于名单人数导致校验失败。
+    const first = { ...player('p1'), participantCode: 'A01', name: '张三', profile: {} };
+    const second = { ...player('p2'), participantCode: 'A02', name: '张三', profile: {} };
+    const bracket = createOrderedEliminationBracket([first, second, player('p3'), player('p4')]);
+    const ids = bracket.slots.filter((id): id is string => Boolean(id));
+
+    expect(bracket.size).toBe(4);
+    expect(ids).toHaveLength(4);
+    expect(ids).toEqual(expect.arrayContaining(['p1', 'p2']));
+  });
+
   it('keeps the bracket view free of self pairings with duplicate slots', () => {
     const players = [player('p1'), player('p2')];
     const bracket = {

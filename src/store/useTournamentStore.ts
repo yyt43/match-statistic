@@ -15,7 +15,7 @@ import type {
   PlayerSchemaId,
   EvidenceVerificationStatus,
 } from '../types';
-import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType } from '../utils/swissPairing';
+import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType, PairingBlockedError } from '../utils/swissPairing';
 import {
   assignEliminationBracketSlot as assignBracketSlot,
   createOrderedEliminationBracket,
@@ -36,8 +36,9 @@ import { normalizeResultScore } from '../utils/matchResult';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
 import { getCurrentStageGroupIndices } from '../utils/multiStage';
 import {
+  getStageResultLockMessage,
   getUnconfirmedUpstreamStageIds,
-  isStageResultLocked,
+  type StageLockMessage,
 } from '../utils/advancement';
 import { createCompetitionActions } from './actions/competitionActions';
 import { createSnapshotActions } from './actions/snapshotActions';
@@ -46,6 +47,8 @@ import { createPlayerActions } from './actions/playerActions';
 import { createImportActions } from './actions/importActions';
 import { createAdvancementActions } from './actions/advancementActions';
 import { logAudit } from '../utils/auditLog';
+import { subscribeLocalPersistSuccess } from '../utils/storage/storageSync';
+import type { StoreSet } from './actions/actionTypes';
 import {
   cloneCompetition,
   createHistoryEntry,
@@ -54,6 +57,7 @@ import {
 } from './competitionHistory';
 import type { CompetitionHistoryEntry } from './historyTypes';
 import { validateRoster, type RosterValidationSummary } from '../utils/playerProfiles';
+import type { AppLanguage } from '../i18n/data';
 
 function resetMatchResult(match: Match): Match {
   return {
@@ -183,12 +187,28 @@ export interface CompetitionState {
   historyPast: CompetitionHistoryEntry[];
   historyFuture: CompetitionHistoryEntry[];
   isReadOnly: boolean;
+  /**
+   * 是否有尚未成功写入持久层的赛事改动。
+   * 多标签页收到对方保存时据此判断：有脏改动必须弹冲突让用户选择，绝不静默重载丢编辑。
+   */
+  dirtySinceLastPersist: boolean;
+  /** 丢弃本页未保存改动（例如加载了其他标签页的版本）后同步重置脏标记。 */
+  discardUnsavedChanges: () => void;
+  /**
+   * 把当前状态重新标记为未保存。
+   * 用于"保留本页并覆盖对方"这类直接写入：在持久化完成前保持脏标记，
+   * 避免竞态下被其他标签页的更新当作无改动而自动重载。
+   */
+  markUnsavedChanges: () => void;
+  /** 最近一次被拒绝的操作原因（中英双语）；界面展示后由 clearActionError 清除。 */
+  actionError: StageLockMessage | null;
+  clearActionError: () => void;
 
   // 赛事级别操作
   initCompetition: (name: string, groupCount?: number, playerCountPerGroup?: number, roundsPerGroup?: number, gameType?: GameType, pairingType?: PairingType) => void;
   initMultiStageCompetition: (competition: TournamentCompetition) => void;
-  previewStageAdvancement: (stageId?: string) => StageAdvancementPreview;
-  confirmStageAdvancement: (preview: StageAdvancementPreview) => boolean;
+  previewStageAdvancement: (stageId?: string, language?: AppLanguage) => StageAdvancementPreview;
+  confirmStageAdvancement: (preview: StageAdvancementPreview, language?: AppLanguage) => boolean;
   revertStageAdvancement: (stageId?: string) => boolean;
   loadSavedCompetition: () => Promise<boolean>;
   importCompetition: (competition: TournamentCompetition) => void;
@@ -291,7 +311,7 @@ export interface CompetitionState {
     evidenceRefs?: string[]
   ) => boolean;
   restoreFromSnapshot: (snapshotId: string) => Promise<boolean>;
-  createSnapshot: (label?: string) => Promise<void>;
+  createSnapshot: (label?: string) => Promise<boolean>;
 
   /** 生成加赛：检测当前小组排名中是否存在平分选手，若有则生成加赛对阵 */
   generatePlayoff: (formats?: ThreePlayerFormats) => void;
@@ -344,8 +364,69 @@ function hasRegularResultChanged(
 
 const initialCompetition = createNewCompetition('新建赛事');
 
+function getRosterErrorMessage(summary: RosterValidationSummary): StageLockMessage {
+  const issue = summary.issues[0];
+  return {
+    zh: `名单校验未通过：${issue?.message ?? '请检查参赛名单'}`,
+    en: `Roster validation failed: ${issue?.messageEn ?? issue?.message ?? 'Please check the roster.'}`,
+  };
+}
+
+function getBracketErrorMessage(message: string): StageLockMessage {
+  return {
+    zh: `单败签表校验失败：${message}`,
+    en: `Elimination bracket is invalid: ${message}`,
+  };
+}
+
+/** 配对失败时转成可展示的双语提示；其它异常继续抛出。 */
+function getPairingErrorMessage(error: unknown): StageLockMessage | null {
+  if (error instanceof PairingBlockedError) {
+    return { zh: error.zh, en: error.en };
+  }
+  return null;
+}
+
+/**
+ * 判断一次 competition 变化是否会被 createStoreSet 真正持久化。
+ * 仅切换 currentGroupIndex 的导航操作不会落库，也不应算作未保存改动。
+ */
+function hasPersistedCompetitionChange(
+  previous: TournamentCompetition,
+  next: TournamentCompetition
+): boolean {
+  return previous.id !== next.id
+    || previous.name !== next.name
+    || previous.createdAt !== next.createdAt
+    || previous.groups !== next.groups
+    || previous.currentGroupIndex === next.currentGroupIndex;
+}
+
 export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
-  const set = createStoreSet(rawSet, get);
+  const baseSet = createStoreSet(rawSet, get);
+  // 尚未落库的改动计数：每产生一次会落库的改动 +1，每收到一次本页持久化成功 -1。
+  // 用计数而非布尔值，避免"较旧的保存成功"把之后新产生的改动误判为已保存。
+  let pendingPersistWrites = 0;
+
+  const set: StoreSet = (partial, options) => {
+    const previousCompetition = get().competition;
+    baseSet(partial, options);
+    const nextCompetition = get().competition;
+    if (nextCompetition === previousCompetition) return;
+    if (options?.persist === false) return;
+    if (!hasPersistedCompetitionChange(previousCompetition, nextCompetition)) return;
+
+    pendingPersistWrites += 1;
+    if (!get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: true });
+  };
+
+  // 只有 saveCompetition 确认落库后才会发出该事件，因此可以安全地清掉脏标记。
+  subscribeLocalPersistSuccess(() => {
+    if (pendingPersistWrites > 0) pendingPersistWrites -= 1;
+    if (pendingPersistWrites === 0 && get().dirtySinceLastPersist) {
+      rawSet({ dirtySinceLastPersist: false });
+    }
+  });
 
   return {
   competition: initialCompetition,
@@ -355,7 +436,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   historyPast: [],
   historyFuture: [],
   isReadOnly: false,
-  ...createCompetitionActions(set),
+  dirtySinceLastPersist: false,
+  actionError: null,
+  clearActionError: () => set({ actionError: null }),
+  ...createCompetitionActions(set, get),
   ...createSnapshotActions(set, get),
   ...createGroupActions(set, get),
   ...createPlayerActions(set, get),
@@ -429,6 +513,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     set({ isReadOnly: readOnly });
   },
 
+  discardUnsavedChanges: () => {
+    pendingPersistWrites = 0;
+    if (get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: false });
+  },
+
+  markUnsavedChanges: () => {
+    pendingPersistWrites += 1;
+    if (!get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: true });
+  },
+
   updateCompetitionName: (name: string) => {
     const { competition } = get();
     const updated = { ...competition, name: name.trim() || '新建赛事' };
@@ -452,7 +546,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     };
     set({ competition: updated }, { label: '开始比赛' });
 
-    updated = generateNextRoundForCompetition(updated, idx);
+    try {
+      updated = generateNextRoundForCompetition(updated, idx);
+    } catch (error) {
+      const pairingMessage = getPairingErrorMessage(error);
+      if (!pairingMessage) throw error;
+      set({ actionError: pairingMessage });
+      return;
+    }
     set(
       { competition: updated, viewRound: updated.groups[idx].currentRound },
       { label: '开始比赛' }
@@ -491,7 +592,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       if (!g) continue;
       if (g.pairingType === 'single_elimination' && !g.eliminationBracket?.lockedAt) continue;
       if (g.status === 'in_progress' && g.currentRound === 0) {
-        updated = generateNextRoundForCompetition(updated, i);
+        try {
+          updated = generateNextRoundForCompetition(updated, i);
+        } catch (error) {
+          const pairingMessage = getPairingErrorMessage(error);
+          if (!pairingMessage) throw error;
+          set({ competition: updated, actionError: pairingMessage });
+          return;
+        }
       }
     }
 
@@ -512,7 +620,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const bracket = group.eliminationBracket?.lockedAt
       ? group.eliminationBracket
       : createOrderedEliminationBracket(group.players);
-    if (validateEliminationBracket(bracket, group.players)) return;
+    const bracketError = validateEliminationBracket(bracket, group.players);
+    if (bracketError) {
+      set({ actionError: getBracketErrorMessage(bracketError) });
+      return;
+    }
 
     const updated = updateGroupAtIndex(competition, idx, current => ({
       ...current,
@@ -575,14 +687,22 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   confirmEliminationBracket: (groupIdx) => {
     const { competition } = get();
-    if (!validateRoster(competition).valid) return;
+    const rosterValidation = validateRoster(competition);
+    if (!rosterValidation.valid) {
+      set({ actionError: getRosterErrorMessage(rosterValidation) });
+      return;
+    }
     const idx = groupIdx ?? competition.currentGroupIndex;
     const group = competition.groups[idx];
     if (!group || group.pairingType !== 'single_elimination') return;
     if (group.status !== 'setup' || group.eliminationBracket?.lockedAt) return;
 
     const bracket = group.eliminationBracket ?? createOrderedEliminationBracket(group.players);
-    if (validateEliminationBracket(bracket, group.players)) return;
+    const bracketError = validateEliminationBracket(bracket, group.players);
+    if (bracketError) {
+      set({ actionError: getBracketErrorMessage(bracketError) });
+      return;
+    }
 
     let updated = updateGroupAtIndex(competition, idx, current => ({
       ...current,
@@ -605,7 +725,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   confirmEliminationBracketsAndStartAll: (groupIndices) => {
     const { competition } = get();
-    if (!validateRoster(competition).valid) return;
+    const rosterValidation = validateRoster(competition);
+    if (!rosterValidation.valid) {
+      set({ actionError: getRosterErrorMessage(rosterValidation) });
+      return;
+    }
 
     // 与 startAllGroups 一致：只开当前赛段的小组，避免其它赛段的空小组把开赛整体拦下。
     const scopeIndices = getCurrentStageGroupIndices(competition)
@@ -622,7 +746,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     for (const index of indices) {
       const group = competition.groups[index];
       const bracket = group.eliminationBracket ?? createOrderedEliminationBracket(group.players);
-      if (validateEliminationBracket(bracket, group.players)) return;
+      const bracketError = validateEliminationBracket(bracket, group.players);
+      if (bracketError) {
+        set({
+          actionError: {
+            zh: `${group.name}：单败签表校验失败：${bracketError}`,
+            en: `${group.name}: elimination bracket is invalid: ${bracketError}`,
+          },
+        });
+        return;
+      }
       brackets.set(index, { ...bracket, lockedAt: bracket.lockedAt ?? new Date().toISOString() });
     }
 
@@ -668,7 +801,17 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   generateNextRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
-    const updated = generateNextRoundForCompetition(competition, idx);
+    let updated: TournamentCompetition;
+    try {
+      updated = generateNextRoundForCompetition(competition, idx);
+    } catch (error) {
+      const pairingMessage = getPairingErrorMessage(error);
+      if (pairingMessage) {
+        set({ actionError: pairingMessage });
+        return;
+      }
+      throw error;
+    }
     set(
       { competition: updated, viewRound: updated.groups[idx].currentRound },
       { label: '生成下一轮' }
@@ -683,21 +826,33 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const nextRound = group.currentRound + 1;
     if (nextRound > group.totalRounds) return;
 
-    if (group.eliminationBracket) {
+    // 只有单败淘汰赛才走签表生成；瑞士轮即使残留签表也按正常配对生成（P1-4）。
+    if (group.pairingType === 'single_elimination' && group.eliminationBracket) {
       const updated = generateNextRoundForCompetition(competition, groupIdx);
       set({ competition: updated }, { label: '生成小组下一轮' });
       return;
     }
 
     const roundGameType = getRoundGameType(group, nextRound);
-    const { matches, updatedPlayers: pairedPlayers } = generatePairings(
-      group.players,
-      nextRound,
-      roundGameType,
-      group.pairingType,
-      group.matches,
-      group.tiebreakRules
-    );
+    let pairingResult: ReturnType<typeof generatePairings>;
+    try {
+      pairingResult = generatePairings(
+        group.players,
+        nextRound,
+        roundGameType,
+        group.pairingType,
+        group.matches,
+        group.tiebreakRules
+      );
+    } catch (error) {
+      const pairingMessage = getPairingErrorMessage(error);
+      if (pairingMessage) {
+        set({ actionError: pairingMessage });
+        return;
+      }
+      throw error;
+    }
+    const { matches, updatedPlayers: pairedPlayers } = pairingResult;
 
     // 使用配对后更新的选手（含上下匹配标记/次数）
     const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
@@ -751,6 +906,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   undoLastRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
+    const lockedMessage = getStageResultLockMessage(competition, competition.groups[idx]?.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
     const group = clearPlayoffs(competition.groups[idx]);
     if (group.currentRound <= 0) return;
 
@@ -819,6 +979,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   returnToPreviousRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
+    const lockedMessage = getStageResultLockMessage(competition, competition.groups[idx]?.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
     const group = clearPlayoffs(competition.groups[idx]);
     const currentRound = group.currentRound;
     if (currentRound <= 1) return;
@@ -894,6 +1059,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   returnToSetup: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
+    const lockedMessage = getStageResultLockMessage(competition, competition.groups[idx]?.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
     const group = clearPlayoffs(competition.groups[idx]);
     if (group.currentRound !== 1) return;
 
@@ -973,7 +1143,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const storedGroup = competition.groups[idx];
-    if (storedGroup?.stageId && isStageResultLocked(competition, storedGroup.stageId)) return;
+    const lockedMessage = getStageResultLockMessage(competition, storedGroup?.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
 
     const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
@@ -1145,7 +1319,11 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const storedGroup = competition.groups[groupIdx];
     if (!storedGroup) return;
-    if (storedGroup.stageId && isStageResultLocked(competition, storedGroup.stageId)) return;
+    const lockedMessage = getStageResultLockMessage(competition, storedGroup.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
 
     const matchIndex = storedGroup.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
@@ -1433,8 +1611,9 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const updatedGroups = [...competition.groups];
     let doneSteps = 0;
+    let pairingMessage: StageLockMessage | null = null;
 
-    for (let gi = 0; gi < updatedGroups.length; gi++) {
+    outer: for (let gi = 0; gi < updatedGroups.length; gi++) {
       const group = updatedGroups[gi];
       if (group.status !== 'in_progress') continue;
 
@@ -1442,7 +1621,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       for (let r = 1; r <= g.totalRounds; r++) {
         const roundMatches = g.matches.filter(m => m.round === r);
         if (roundMatches.length === 0) {
-          g = generateNextRoundFast(g);
+          try {
+            g = generateNextRoundFast(g);
+          } catch (error) {
+            const message = getPairingErrorMessage(error);
+            if (!message) throw error;
+            pairingMessage = message;
+            break outer;
+          }
         }
 
         const matchesToUpdate = g.matches.filter(m => m.round === r && m.result === 'pending');
@@ -1486,6 +1672,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       // 每完成一个小组让出一次主线程并更新进度
       set({ randomGenerateProgress: { total: Math.max(1, totalSteps), current: doneSteps } });
       await yieldToMain();
+    }
+
+    // 配对失败（例如轮次超过可配对数）：保留已生成的部分赛程并提示原因。
+    if (pairingMessage) {
+      set({
+        isRandomGenerating: false,
+        randomGenerateProgress: { total: 0, current: 0 },
+        actionError: pairingMessage,
+      });
+      return;
     }
 
     const updated = { ...competition, groups: updatedGroups };

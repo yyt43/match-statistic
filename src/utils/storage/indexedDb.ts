@@ -49,12 +49,46 @@ async function runRequest<T>(
   if (!database) return null;
 
   return new Promise<T>((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, mode);
-    const request = operation(transaction.objectStore(STORE_NAME));
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(STORE_NAME, mode);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
-    transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
+    let settled = false;
+    let requestResult: T | undefined;
+
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    // put/delete 的 request.onsuccess 只代表请求执行完毕，事务真正提交还要等
+    // oncomplete；配额不足或 versionchange 会触发 abort，此时必须按失败处理，
+    // 否则上层会把没落库的数据当成保存成功并广播。
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(requestResult as T);
+    };
+    transaction.onabort = () => fail(transaction.error ?? new Error('IndexedDB transaction aborted'));
+    transaction.onerror = () => fail(transaction.error ?? new Error('IndexedDB transaction failed'));
+
+    let request: IDBRequest<T>;
+    try {
+      request = operation(transaction.objectStore(STORE_NAME));
+    } catch (error) {
+      fail(error);
+      return;
+    }
+
+    request.onsuccess = () => {
+      requestResult = request.result;
+    };
+    request.onerror = () => fail(request.error ?? new Error('IndexedDB request failed'));
   });
 }
 

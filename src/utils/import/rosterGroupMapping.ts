@@ -19,6 +19,14 @@ export interface RosterGroupMappingOptions {
   createGroupId?: () => string;
 }
 
+/**
+ * 组别映射结果：保持数组形态以兼容既有调用方，同时把「组别列为空、无法判断属于哪个小组」
+ * 的行单独返回。调用方应当提示用户补填小组，而不是把这些行静默塞进任意小组。
+ */
+export type RosterGroupMappingResult = RosterGroupMapping[] & {
+  ungroupedRows: RosterProfileImportRow[];
+};
+
 function normalize(value: string): string {
   return value
     .trim()
@@ -68,7 +76,7 @@ export function mapRosterRowsToGroups(
   groups: RosterGroupMappingGroup[],
   rows: RosterProfileImportRow[],
   options: RosterGroupMappingOptions = {}
-): RosterGroupMapping[] {
+): RosterGroupMappingResult {
   const createGroupId = options.createGroupId ?? generateId;
   const mappings: RosterGroupMapping[] = groups.map(group => ({
     groupId: group.id,
@@ -141,14 +149,12 @@ export function mapRosterRowsToGroups(
     }
   }
 
-  if (ungrouped.length > 0 && mappings.length > 0) {
-    ungrouped.forEach((row, index) => {
-      mappings[index % mappings.length].rows.push(row);
-    });
-  }
-
-  return mappings.map(mapping => ({
+  // 组别列为空的行不再轮转分配到各小组：无法判断归属时宁可保留为「未分组」，
+  // 交由导入预览提示用户补填，避免把选手悄悄塞进错误的小组。
+  const result = mappings.map(mapping => ({
     ...mapping,
     sourceLabels: Array.from(sourceLabels.get(mapping.groupId) ?? []),
-  }));
+  })) as RosterGroupMappingResult;
+  result.ungroupedRows = [...ungrouped];
+  return result;
 }

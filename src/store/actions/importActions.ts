@@ -10,6 +10,11 @@ import type { CompetitionState } from '../useTournamentStore';
 import type { StoreGet, StoreSet } from './actionTypes';
 import { applyMatchResultFast, recalculateRanking } from '../gameFlow';
 import { logAudit } from '../../utils/auditLog';
+import { clearPlayoffs } from '../../utils/playoffs';
+import {
+  getStageResultLockMessage,
+  type StageLockMessage,
+} from '../../utils/advancement';
 import {
   hasPlayedDownstreamBracketMatches,
   rebuildEliminationMatchesAfterResult,
@@ -70,6 +75,44 @@ function clearUnplayedRoundsAfter(
   };
 }
 
+function hasPlayoffData(group: TournamentGroup): boolean {
+  return (group.playoffBrackets?.length ?? 0) > 0 || group.matches.some(match => match.isPlayoff);
+}
+
+/**
+ * 普通轮次赛果是否变化（加赛结果与赛果锁定无关）。
+ * 与 store.updateMatchResult 的 clearPlayoffs 判定保持一致。
+ */
+function hasRegularResultChanged(
+  previous: TournamentGroup,
+  next: TournamentGroup
+): boolean {
+  const before = new Map(
+    previous.matches
+      .filter(match => !match.isPlayoff)
+      .map(match => [match.id, match])
+  );
+  return next.matches.some(match => {
+    if (match.isPlayoff) return false;
+    const original = before.get(match.id);
+    if (!original) return false;
+    return original.result !== match.result
+      || original.player1Games !== match.player1Games
+      || original.player2Games !== match.player2Games
+      || !!original.preDrop !== !!match.preDrop;
+  });
+}
+
+/** 普通轮次赛果变化后，已有加赛数据必须清空，避免加赛基于旧排名。 */
+function clearPlayoffsIfRegularResultChanged(
+  previous: TournamentGroup,
+  next: TournamentGroup
+): TournamentGroup {
+  if (!hasPlayoffData(previous)) return next;
+  if (!hasRegularResultChanged(previous, next)) return next;
+  return clearPlayoffs(next);
+}
+
 export function createImportActions(
   set: StoreSet,
   get: StoreGet
@@ -80,6 +123,7 @@ export function createImportActions(
       const { competition } = get();
       const groups = cloneGroups(competition);
       let changed = false;
+      let blockedLock: StageLockMessage | null = null;
 
       for (const candidate of candidates) {
         if (candidate.identityVerified === false) continue;
@@ -89,6 +133,11 @@ export function createImportActions(
         }
         const group = groups[candidate.groupIndex];
         if (!group) continue;
+        const lockedMessage = getStageResultLockMessage(competition, group.stageId);
+        if (lockedMessage) {
+          blockedLock = lockedMessage;
+          continue;
+        }
         const matchIndex = group.matches.findIndex(match => match.id === candidate.matchId);
         if (matchIndex < 0) continue;
         const match = group.matches[matchIndex];
@@ -144,10 +193,13 @@ export function createImportActions(
             { ...applied, matches: updatedMatches },
             match.round
           );
-          groups[candidate.groupIndex] = recalculateRanking({
-            ...applied,
-            matches: updatedMatches,
-          });
+          groups[candidate.groupIndex] = clearPlayoffsIfRegularResultChanged(
+            group,
+            recalculateRanking({
+              ...applied,
+              matches: updatedMatches,
+            })
+          );
           changed = true;
           continue;
         }
@@ -197,15 +249,26 @@ export function createImportActions(
             updatedMatch.round
           );
         }
-        groups[candidate.groupIndex] = recalculateRanking({
-          ...updatedGroup,
-          matches: updatedMatches,
-        });
+        groups[candidate.groupIndex] = clearPlayoffsIfRegularResultChanged(
+          group,
+          recalculateRanking({
+            ...updatedGroup,
+            matches: updatedMatches,
+          })
+        );
         changed = true;
       }
 
-      if (!changed) return;
-      set({ competition: { ...competition, groups } }, { label });
+      if (!changed) {
+        if (blockedLock) set({ actionError: blockedLock });
+        return;
+      }
+      set(
+        blockedLock
+          ? { competition: { ...competition, groups }, actionError: blockedLock }
+          : { competition: { ...competition, groups } },
+        { label }
+      );
       void logAudit('match-result-import', `Imported ${candidates.length} result(s)`, {
         count: candidates.length,
       });
@@ -273,6 +336,11 @@ export function createImportActions(
 
       if (!previous || targetGroupIndex < 0) return false;
       const targetGroup = groups[targetGroupIndex];
+      const lockedMessage = getStageResultLockMessage(competition, targetGroup.stageId);
+      if (lockedMessage) {
+        set({ actionError: lockedMessage });
+        return false;
+      }
       if (targetGroup.eliminationBracket && previous.bracketNodeId && result === 'draw') {
         return false;
       }
@@ -316,10 +384,13 @@ export function createImportActions(
             evidenceVerificationStatus: 'not_required',
           }
         : match);
-      groups[targetGroupIndex] = recalculateRanking({
-        ...applied,
-        matches: appliedMatches,
-      });
+      groups[targetGroupIndex] = clearPlayoffsIfRegularResultChanged(
+        targetGroup,
+        recalculateRanking({
+          ...applied,
+          matches: appliedMatches,
+        })
+      );
       set({ competition: { ...competition, groups } }, { label: '裁判改判' });
       void logAudit('match-result-override', matchId, {
         matchId,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
@@ -18,6 +18,7 @@ import { createDefaultStageDraft, createMultiStageCompetition } from '../store/m
 import { getDraftGroupNames, type MultiStageDraftStage } from '../utils/multiStage';
 import { validateStageDrafts } from '../utils/stageDraftValidation';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { EventFlowDiagram } from '../components/competition/EventFlowDiagram';
@@ -69,20 +70,23 @@ function Stepper({
   max: number;
   onChange: (value: number) => void;
 }) {
+  const inputId = useId();
   return (
-    <label className="block space-y-1.5">
-      <span className="text-xs text-slate-500">{label}</span>
+    <div className="block space-y-1.5">
+      <label htmlFor={inputId} className="text-xs text-slate-500">{label}</label>
       <span className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => onChange(Math.max(min, value - 1))}
           disabled={value <= min}
-          className="h-7 w-7 shrink-0 rounded border border-slate-700/50 bg-slate-800/50 text-slate-300 transition-colors hover:bg-slate-700/50 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label={`${label} -1`}
+          className="h-7 w-7 shrink-0 rounded border border-slate-700/50 bg-slate-800/50 text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
         >
           −
         </button>
         <span className="min-w-[3rem] flex-1 rounded border border-slate-700/50 bg-slate-800/30 py-1 text-center text-sm tabular-nums text-slate-200">
           <input
+            id={inputId}
             type="number"
             value={value}
             min={min}
@@ -92,19 +96,20 @@ function Stepper({
               if (Number.isNaN(next)) return;
               onChange(Math.max(min, Math.min(max, next)));
             }}
-            className="w-full bg-transparent text-center text-sm tabular-nums text-slate-200 outline-none"
+            className="w-full bg-transparent text-center text-sm tabular-nums text-slate-200 outline-none focus-visible:ring-1 focus-visible:ring-gold-400/50"
           />
         </span>
         <button
           type="button"
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={value >= max}
-          className="h-7 w-7 shrink-0 rounded border border-slate-700/50 bg-slate-800/50 text-slate-300 transition-colors hover:bg-slate-700/50 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label={`${label} +1`}
+          className="h-7 w-7 shrink-0 rounded border border-slate-700/50 bg-slate-800/50 text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
         >
           +
         </button>
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -113,9 +118,28 @@ export default function MultiStageSetup() {
   const { language, setLanguage, t } = useLanguagePreference();
   const isEnglish = language === 'en';
   const initMultiStageCompetition = useTournamentStore(state => state.initMultiStageCompetition);
+  const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
+  const competition = useTournamentStore(state => state.competition);
 
   const [nameInput, setNameInput] = useState('新建赛事');
   const [stages, setStages] = useState<MultiStageDraftStage[]>(() => [createDefaultStageDraft(1)]);
+  // 已有赛事（存档或内存中）时，开始搭建会覆盖它，需要二次确认。
+  const [hasSavedEvent, setHasSavedEvent] = useState(false);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void loadSavedCompetition().then(loaded => {
+      if (active) setHasSavedEvent(Boolean(loaded));
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadSavedCompetition]);
+
+  const hasExistingEvent =
+    hasSavedEvent ||
+    competition.groups.some(group => group.players.length > 0 || group.matches.length > 0);
 
   const updateStage = (stageId: string, patch: Partial<MultiStageDraftStage>) => {
     setStages(current => current.map(stage => {
@@ -256,11 +280,19 @@ export default function MultiStageSetup() {
   const ruleErrors = ruleIssues.filter(issue => issue.severity === 'error');
   const canStartEvent = !hasInvalidStage && ruleErrors.length === 0;
 
+  const doStartEvent = () => {
+    const nextCompetition = createMultiStageCompetition(nameInput.trim() || '多阶段赛事', stages);
+    initMultiStageCompetition(nextCompetition);
+    navigate('/workspace');
+  };
+
   const startEvent = () => {
     if (!canStartEvent) return;
-    const competition = createMultiStageCompetition(nameInput.trim() || '多阶段赛事', stages);
-    initMultiStageCompetition(competition);
-    navigate('/workspace');
+    if (hasExistingEvent) {
+      setShowReplaceConfirm(true);
+      return;
+    }
+    doStartEvent();
   };
 
   return (
@@ -321,7 +353,7 @@ export default function MultiStageSetup() {
               type="text"
               value={nameInput}
               onChange={event => setNameInput(event.target.value)}
-              className="w-full rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-2 text-sm text-white outline-none focus:border-gold-500/40"
+              className="w-full rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-2 text-sm text-white outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
             />
           </section>
 
@@ -365,14 +397,16 @@ export default function MultiStageSetup() {
                   value={stage.name}
                   onChange={event => updateStage(stage.id, { name: event.target.value })}
                   placeholder={isEnglish ? 'Stage name' : '赛段名称'}
-                  className="min-w-0 flex-1 rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-1.5 text-sm text-white outline-none focus:border-gold-500/40"
+                  aria-label={isEnglish ? `Stage ${index + 1} name` : `第${index + 1}赛段名称`}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-1.5 text-sm text-white outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                 />
                 <button
                   type="button"
                   onClick={() => moveStage(index, -1)}
                   disabled={index === 0}
-                  className="shrink-0 rounded-md border border-slate-700/50 bg-slate-800/50 p-1 text-slate-300 transition-colors hover:bg-slate-700/50 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="shrink-0 rounded-md border border-slate-700/50 bg-slate-800/50 p-1 text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
                   title={isEnglish ? 'Move up' : '上移'}
+                  aria-label={isEnglish ? 'Move stage up' : '上移赛段'}
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
@@ -380,8 +414,9 @@ export default function MultiStageSetup() {
                   type="button"
                   onClick={() => moveStage(index, 1)}
                   disabled={index === stages.length - 1}
-                  className="shrink-0 rounded-md border border-slate-700/50 bg-slate-800/50 p-1 text-slate-300 transition-colors hover:bg-slate-700/50 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="shrink-0 rounded-md border border-slate-700/50 bg-slate-800/50 p-1 text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
                   title={isEnglish ? 'Move down' : '下移'}
+                  aria-label={isEnglish ? 'Move stage down' : '下移赛段'}
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
                 </button>
@@ -389,8 +424,9 @@ export default function MultiStageSetup() {
                   type="button"
                   onClick={() => removeStage(stage.id)}
                   disabled={stages.length <= 1}
-                  className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 transition-colors hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-30"
                   title={isEnglish ? 'Delete stage' : '删除赛段'}
+                  aria-label={isEnglish ? 'Delete stage' : '删除赛段'}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -411,7 +447,7 @@ export default function MultiStageSetup() {
                       key={option.kind}
                       type="button"
                       onClick={() => updateStage(stage.id, { kind: option.kind })}
-                      className={`rounded-lg py-2 text-xs font-medium transition-colors ${
+                      className={`rounded-lg py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 ${
                         stage.kind === option.kind
                           ? 'border border-gold-500/30 bg-gold-500/20 text-gold-400'
                           : 'border border-slate-700/50 bg-slate-800/50 text-slate-400 hover:border-slate-600'
@@ -602,7 +638,8 @@ export default function MultiStageSetup() {
                               max={64}
                               value={pair[0]}
                               onChange={event => updateBreakoutPair(stage.id, pairIndex, 0, Number(event.target.value))}
-                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                              aria-label={isEnglish ? `Pairing ${pairIndex + 1} first rank` : `第${pairIndex + 1}组配对的第一个名次`}
+                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                             />
                             <span>vs</span>
                             <input
@@ -611,12 +648,14 @@ export default function MultiStageSetup() {
                               max={64}
                               value={pair[1]}
                               onChange={event => updateBreakoutPair(stage.id, pairIndex, 1, Number(event.target.value))}
-                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                              aria-label={isEnglish ? `Pairing ${pairIndex + 1} second rank` : `第${pairIndex + 1}组配对的第二个名次`}
+                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                             />
                             <button
                               type="button"
                               onClick={() => removeBreakoutPair(stage.id, pairIndex)}
-                              className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                              aria-label={isEnglish ? `Remove pairing ${pairIndex + 1}` : `删除第${pairIndex + 1}组配对`}
+                              className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                             >
                               {isEnglish ? 'Remove' : '删除'}</button>
                           </div>
@@ -625,7 +664,7 @@ export default function MultiStageSetup() {
                           type="button"
                           onClick={() => addBreakoutPair(stage.id)}
                           disabled={stage.breakout.pairings.length >= 4}
-                          className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           {isEnglish ? 'Add pairing' : '添加配对'}
                         </button>
@@ -655,7 +694,7 @@ export default function MultiStageSetup() {
                             targetSlot: rules.length,
                           },
                         ])}
-                        className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400"
+                        className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
                       >
                         {isEnglish ? 'Add slot' : '添加对位'}
                       </button>
@@ -670,7 +709,8 @@ export default function MultiStageSetup() {
                           onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
                             index === seedIndex ? { ...item, sourceGroupName: event.target.value } : item
                           ))}
-                          className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40"
+                          aria-label={isEnglish ? `Bracket slot ${seedIndex + 1} source group` : `签表第${seedIndex + 1}位的来源小组`}
+                          className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                         >
                           {upstreamGroupNames.map(name => (
                             <option key={name} value={name}>{name}</option>
@@ -690,7 +730,8 @@ export default function MultiStageSetup() {
                               ? { ...item, rank: Math.max(1, Number(event.target.value) || 1) }
                               : item
                           ))}
-                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                          aria-label={isEnglish ? `Bracket slot ${seedIndex + 1} source rank` : `签表第${seedIndex + 1}位的来源名次`}
+                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                         />
                         <span>{isEnglish ? '' : '名'}</span>
                         <span className="text-slate-500">→</span>
@@ -705,7 +746,8 @@ export default function MultiStageSetup() {
                               ? { ...item, targetSlot: Math.max(0, (Number(event.target.value) || 1) - 1) }
                               : item
                           ))}
-                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                          aria-label={isEnglish ? `Bracket slot ${seedIndex + 1} target slot` : `签表第${seedIndex + 1}位的目标签位`}
+                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                         />
                         <span>{isEnglish ? '' : '位'}</span>
                         <button
@@ -713,7 +755,8 @@ export default function MultiStageSetup() {
                           onClick={() => updateSeedRules(stage.id, rules =>
                             rules.filter((_, index) => index !== seedIndex)
                           )}
-                          className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                          aria-label={isEnglish ? `Remove bracket slot ${seedIndex + 1}` : `删除第${seedIndex + 1}个签表对位`}
+                          className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                         >
                           {isEnglish ? 'Remove' : '删除'}
                         </button>
@@ -749,7 +792,8 @@ export default function MultiStageSetup() {
                             ),
                           });
                         }}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        aria-label={isEnglish ? 'Advancement starting rank' : '晋级起始名次'}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                       />
                       <span>-</span>
                       <input
@@ -765,7 +809,8 @@ export default function MultiStageSetup() {
                             ),
                           });
                         }}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        aria-label={isEnglish ? 'Advancement ending rank' : '晋级结束名次'}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                       />
                       <span>{isEnglish ? 'wins' : '胜场'}</span>
                       <input
@@ -784,7 +829,8 @@ export default function MultiStageSetup() {
                             ),
                           });
                         }}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        aria-label={isEnglish ? 'Minimum wins' : '最低胜场'}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                       />
                       <span>-</span>
                       <input
@@ -803,18 +849,20 @@ export default function MultiStageSetup() {
                             ),
                           });
                         }}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40"
+                        aria-label={isEnglish ? 'Maximum wins' : '最高胜场'}
+                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
                       />
                       <span className="text-slate-500">→</span>
                       <select
                         value={rule.targetStageId || defaultTargetStageId}
                         onChange={event => updateRuleTarget(stage.id, rule.id, event.target.value)}
-                        className={`max-w-[10rem] rounded border bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40 ${
+                        className={`max-w-[10rem] rounded border bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50 ${
                           rule.targetStageId || defaultTargetStageId
                             ? 'border-slate-700/50'
                             : 'border-amber-500/60'
                         }`}
                         title={isEnglish ? 'Where these players advance to' : '这些选手晋级到哪个赛段'}
+                        aria-label={isEnglish ? 'Target stage' : '目标赛段'}
                       >
                         <option value="">{isEnglish ? 'Choose target stage' : '选择目标赛段'}</option>
                         {laterStages.map(target => (
@@ -828,7 +876,7 @@ export default function MultiStageSetup() {
                         onClick={() => updateStage(stage.id, {
                           advancementRules: (stage.advancementRules ?? []).filter(item => item.id !== rule.id),
                         })}
-                        className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20"
+                        className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                       >
                         {isEnglish ? 'Remove' : '删除'}
                       </button>
@@ -837,7 +885,7 @@ export default function MultiStageSetup() {
                   <button
                     type="button"
                     onClick={() => addRule(stage.id, laterStages[0]?.id ?? '')}
-                    className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400"
+                    className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
                   >
                     {isEnglish ? 'Add rule' : '添加晋级条件'}
                   </button>
@@ -855,7 +903,7 @@ export default function MultiStageSetup() {
           <button
             type="button"
             onClick={addStage}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 py-3 text-xs text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-600/60 bg-slate-800/30 py-3 text-xs text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
           >
             <Plus className="h-3.5 w-3.5" />
             {isEnglish ? 'Add stage' : '添加赛段'}
@@ -946,7 +994,7 @@ export default function MultiStageSetup() {
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700/50"
+              className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
             >
               {isEnglish ? 'Cancel' : '取消'}
             </button>
@@ -954,7 +1002,7 @@ export default function MultiStageSetup() {
               type="button"
               onClick={startEvent}
               disabled={!canStartEvent}
-              className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 px-4 py-2 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 px-4 py-2 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trophy className="h-4 w-4" />
               {isEnglish ? 'Continue to setup' : '进入赛事设置'}
@@ -962,6 +1010,19 @@ export default function MultiStageSetup() {
           </div>
         </div>
       </footer>
+
+      <ConfirmDialog
+        isOpen={showReplaceConfirm}
+        onClose={() => setShowReplaceConfirm(false)}
+        title={isEnglish ? 'Replace current event?' : '替换当前赛事？'}
+        message={
+          isEnglish
+            ? `Continuing replaces "${competition.name}" and its match history. This cannot be undone.`
+            : `进入赛事设置会替换当前赛事「${competition.name}」及其比赛记录，且无法撤销。`
+        }
+        confirmText={isEnglish ? 'Replace and continue' : '替换并继续'}
+        onConfirm={doStartEvent}
+      />
     </div>
   );
 }

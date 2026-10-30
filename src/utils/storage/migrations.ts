@@ -105,9 +105,38 @@ export function migrateCompetitionData(
 
   let migrated = competition;
   for (let version = fromVersion; version < CURRENT_STORAGE_VERSION; version++) {
-    migrated = migrations[version]?.(migrated) ?? migrated;
+    const migration = getMigration(version);
+    if (migration) {
+      migrated = migration(migrated);
+    }
   }
   return migrated;
+}
+
+/**
+ * 显式列出可用的迁移步骤，避免用 `migrations[userControlledVersion](...)` 的动态派发写法
+ * （fromVersion 来自存档元数据，虽然上面已校验范围，动态下标调用仍会被 CodeQL 标记为
+ * "unvalidated dynamic method call"，而且可读性差）。
+ */
+function getMigration(version: number): Migration | undefined {
+  switch (version) {
+    case 1:
+      return migrations[1];
+    case 2:
+      return migrations[2];
+    case 3:
+      return migrations[3];
+    case 4:
+      return migrations[4];
+    case 5:
+      return migrations[5];
+    case 6:
+      return migrations[6];
+    case 7:
+      return migrations[7];
+    default:
+      return undefined;
+  }
 }
 
 function migrateGroup(group: TournamentGroup): TournamentGroup {

@@ -8,6 +8,22 @@ export interface PairingResult {
   updatedPlayers: Player[];
 }
 
+/**
+ * 无法生成合法配对（必然出现重复对阵、重复轮空或人数不足）时抛出。
+ * 调用方应捕获并向用户展示明确原因，而不是静默生成错误赛程。
+ */
+export class PairingBlockedError extends Error {
+  readonly zh: string;
+  readonly en: string;
+
+  constructor(zh: string, en: string) {
+    super(zh);
+    this.name = 'PairingBlockedError';
+    this.zh = zh;
+    this.en = en;
+  }
+}
+
 /** 获取某一轮的赛制，优先使用 roundGameTypes，否则回退到 gameType */
 export function getRoundGameType(group: TournamentGroup, round: number): GameType {
   return group.roundGameTypes?.[round - 1] ?? group.gameType;
@@ -373,13 +389,117 @@ function getByeWins(gameType: GameType): number {
   return gameType === 'bo7' ? 4 : gameType === 'bo5' ? 3 : gameType === 'bo3' ? 2 : 1;
 }
 
+// ===== 轮空上限与修复（P1-2） =====
+// 规则：同一轮最多 1 个轮空（仅当在场人数为奇数时），同一人本赛事最多轮空一次。
+
+interface ByeRepairContext {
+  matches: Match[];
+  stateMap: Map<string, PlayerState>;
+  round: number;
+  byeHistory: Set<string>;
+  byeWins: number;
+}
+
+/** 轮空历史只从已录入对局统计，不依赖 playedAgainst 里的标记。 */
+function collectByeHistory(allMatches: Match[]): Set<string> {
+  const history = new Set<string>();
+  for (const match of allMatches) {
+    if (match.isBye && match.player1Id) history.add(match.player1Id);
+  }
+  return history;
+}
+
+function createByeMatch(player: PlayerState, round: number, byeWins: number): Match {
+  return {
+    id: generateId(),
+    round,
+    player1Id: player.player.id,
+    player2Id: 'bye',
+    result: 'player1',
+    isBye: true,
+    player1Games: byeWins,
+    player2Games: 0,
+  };
+}
+
+function canFace(first: PlayerState, second: PlayerState): boolean {
+  if (first.player.id === second.player.id) return false;
+  return !first.playedAgainst.has(second.player.id)
+    && !second.playedAgainst.has(first.player.id);
+}
+
+/**
+ * 把已配对的一场拆开，分别与两名剩余者配对，从而消除两个剩余者。
+ * 无法修复时返回 false。
+ */
+function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boolean {
+  for (let matchIndex = 0; matchIndex < context.matches.length; matchIndex += 1) {
+    const match = context.matches[matchIndex];
+    if (match.isBye) continue;
+    const first = context.stateMap.get(match.player1Id);
+    const second = context.stateMap.get(match.player2Id);
+    if (!first || !second) continue;
+
+    for (let a = 0; a < remaining.length; a += 1) {
+      if (!canFace(remaining[a], first)) continue;
+      for (let b = 0; b < remaining.length; b += 1) {
+        if (a === b) continue;
+        if (!canFace(remaining[b], second)) continue;
+        context.matches.splice(
+          matchIndex,
+          1,
+          createMatch(remaining[a], first, context.round),
+          createMatch(remaining[b], second, context.round)
+        );
+        [a, b].sort((x, y) => y - x).forEach(index => remaining.splice(index, 1));
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * 唯一剩余者本赛事已经轮空过：拆一对已配对选手，
+ * 让剩余者与其一配对，另一人改为本轮轮空（该人此前未轮空）。
+ */
+function trySwapBye(
+  remaining: PlayerState[],
+  context: ByeRepairContext
+): boolean {
+  if (remaining.length !== 1) return false;
+  const candidate = remaining[0];
+  for (let matchIndex = 0; matchIndex < context.matches.length; matchIndex += 1) {
+    const match = context.matches[matchIndex];
+    if (match.isBye) continue;
+    const first = context.stateMap.get(match.player1Id);
+    const second = context.stateMap.get(match.player2Id);
+    if (!first || !second) continue;
+
+    const options: Array<[PlayerState, PlayerState]> = [[first, second], [second, first]];
+    for (const [partner, spare] of options) {
+      if (!canFace(candidate, partner)) continue;
+      if (context.byeHistory.has(spare.player.id)) continue;
+      context.matches.splice(
+        matchIndex,
+        1,
+        createMatch(candidate, partner, context.round),
+        createByeMatch(spare, context.round, context.byeWins)
+      );
+      return true;
+    }
+  }
+  return false;
+}
+
 // ===== 瑞士轮主配对函数 =====
 
 export function generateSwissPairings(
   players: Player[],
   round: number,
   gameType: GameType = 'bo1',
-  tiebreakRules?: TiebreakRule[]
+  tiebreakRules?: TiebreakRule[],
+  allMatches: Match[] = []
 ): PairingResult {
   const byeWins = getByeWins(gameType);
   const matches: Match[] = [];
@@ -513,7 +633,7 @@ export function generateSwissPairings(
     downPool.push(...groupResult.toDown);
   }
 
-  // ===== 步骤C：所有组处理完，对最终下移组优先做内部互相匹配（规则10a），剩余的轮空（规则7） =====
+  // ===== 步骤C：处理最终下移组 =====
   {
     const finalInternal = matchDownPoolInternal(downPool);
     for (const [p1, p2] of finalInternal.pairs) {
@@ -521,17 +641,37 @@ export function generateSwissPairings(
     }
     downPool = finalInternal.remaining;
   }
-  for (const p of downPool) {
-    matches.push({
-      id: generateId(),
-      round,
-      player1Id: p.player.id,
-      player2Id: 'bye',
-      result: 'player1',
-      isBye: true,
-      player1Games: byeWins,
-      player2Games: 0,
-    });
+
+  // 轮空规则（P1-2）：同一轮最多 1 个轮空（仅在场人数为奇数时），
+  // 同一人本赛事最多轮空一次；轮空只给本赛事还没轮空过的人。
+  const byeHistory = collectByeHistory(allMatches);
+  const byeAllowed = activePool.length % 2 === 1 ? 1 : 0;
+  const repairContext: ByeRepairContext = { matches, stateMap, round, byeHistory, byeWins };
+  let remaining = [...downPool];
+  while (remaining.length > byeAllowed && tryPairSwap(remaining, repairContext)) {
+    // 继续尝试把剩余者换进已有对局，直到剩余人数降到允许的轮空数或无法再修复。
+  }
+  if (remaining.length === 1 && byeAllowed === 1) {
+    const candidate = remaining[0];
+    if (byeHistory.has(candidate.player.id)) {
+      if (trySwapBye(remaining, repairContext)) remaining = [];
+    } else {
+      matches.push(createByeMatch(candidate, round, byeWins));
+      remaining = [];
+    }
+  }
+  if (remaining.length > 0) {
+    const names = remaining.map(state => state.player.name).join('、');
+    if (remaining.length === 1) {
+      throw new PairingBlockedError(
+        `本轮无法完成配对：${names} 本赛事已经轮空过，且无法调整对阵避免重复轮空。请减少轮次或调整参赛名单。`,
+        `Cannot generate this round: ${names} already received a bye in this competition and the schedule cannot avoid a second bye. Reduce the number of rounds or adjust the roster.`
+      );
+    }
+    throw new PairingBlockedError(
+      `本轮无法完成配对：${names} 之间排不出合法对阵（会重复交手或需要额外轮空）。请减少轮次或调整参赛名单。`,
+      `Cannot generate this round: no valid pairing exists for ${names} without repeating an earlier match or adding extra byes. Reduce the number of rounds or adjust the roster.`
+    );
   }
 
   // 构建更新后的选手列表（带回更新后的标记/次数）
@@ -563,7 +703,7 @@ export function generatePairings(
     const matches = generateSingleEliminationPairings(players, round, gameType, allMatches);
     return { matches, updatedPlayers: players };
   }
-  return generateSwissPairings(players, round, gameType, tiebreakRules);
+  return generateSwissPairings(players, round, gameType, tiebreakRules, allMatches);
 }
 
 // ===== 胜率计算 =====

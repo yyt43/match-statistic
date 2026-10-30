@@ -1,13 +1,21 @@
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
-import type { Match } from '../../types';
+import type { Match, TournamentGroup } from '../../types';
 import { useLanguagePreference } from '../../i18n/context';
 import { formatText } from '../../i18n/data';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
 import { getDoubleLossGames } from '../../utils/matchResult';
 
-export function MatchImageView() {
-  const currentGroup = useCurrentGroup();
-  const { viewRound } = useTournamentStore();
+interface MatchImageViewProps {
+  /** 导出弹窗预览/批量截图时传入目标小组与轮次，不传则沿用全局当前组与 viewRound。 */
+  group?: TournamentGroup;
+  viewRound?: number;
+}
+
+export function MatchImageView({ group, viewRound: viewRoundProp }: MatchImageViewProps = {}) {
+  const storeGroup = useCurrentGroup();
+  const storeViewRound = useTournamentStore(state => state.viewRound);
+  const currentGroup = group ?? storeGroup;
+  const viewRound = viewRoundProp ?? storeViewRound;
   const { t } = useLanguagePreference();
 
   const matches = currentGroup.matches.filter(m => m.round === viewRound);
