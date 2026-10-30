@@ -8,6 +8,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('app-language', language);
     document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
+    document.title = translations[language].appName;
   }, [language]);
 
   return (

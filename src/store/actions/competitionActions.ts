@@ -1,6 +1,6 @@
 import type { TournamentCompetition } from '../../types';
 import type { CompetitionState } from '../useTournamentStore';
-import type { StoreSet } from './actionTypes';
+import type { StoreGet, StoreSet } from './actionTypes';
 import { createNewCompetition } from '../tournamentFactory';
 import { loadCompetitionResult } from '../../utils/storage/storage';
 import { loadCompetitionHistory } from '../../utils/storage/historyStore';
@@ -8,7 +8,8 @@ import { normalizeCompetitionGroups, resolveViewRound } from '../competitionStat
 import { logAudit } from '../../utils/auditLog';
 
 export function createCompetitionActions(
-  set: StoreSet
+  set: StoreSet,
+  get: StoreGet
 ): Pick<
   CompetitionState,
   'initCompetition' | 'initMultiStageCompetition' | 'loadSavedCompetition' | 'importCompetition' | 'resetCompetition'
@@ -58,6 +59,8 @@ export function createCompetitionActions(
         },
         { history: 'replace', allowReadOnly: true, persist: false }
       );
+      // 已用持久层版本重建状态，本页此前未保存的改动随之作废。
+      get().discardUnsavedChanges();
       const history = await loadCompetitionHistory(saved.id);
       if (history) {
         set({

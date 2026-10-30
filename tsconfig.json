@@ -21,7 +21,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": false,
-    "forceConsistentCasingInFileNames": false,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -29,7 +29,6 @@
     }
   },
   "include": [
-    "src",
-    "api"
+    "src"
   ]
 }

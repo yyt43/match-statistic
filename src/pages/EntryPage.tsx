@@ -8,6 +8,12 @@ import { createPoetryCupS3Competition } from '../store/multiStageFactory';
 import { getCompetitionKind } from '../utils/multiStage';
 import { importCompetitionFromFile } from '../utils/export/fileStorage';
 import { downloadBlob } from '../utils/export/download';
+import { isAbortError } from '../utils/async';
+import {
+  BackupImportError,
+  IMPORT_TIMEOUT_MS,
+  MAX_IMPORT_FILE_BYTES,
+} from '../utils/import/competitionBackup';
 import { collectStoredRawRecords, loadCompetitionResult } from '../utils/storage/storage';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
@@ -22,6 +28,57 @@ interface EntryOption {
   description: string;
   highlights: string[];
   badge?: string;
+}
+
+const IMPORT_LIMIT_MB = Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024));
+const IMPORT_TIMEOUT_SECONDS = Math.round(IMPORT_TIMEOUT_MS / 1000);
+
+/** 把导入层错误码转成可读提示；版本号、校验细节等放在括号里便于排查。 */
+function describeImportError(error: unknown, isEnglish: boolean): string {
+  if (!(error instanceof BackupImportError)) {
+    return error instanceof Error ? error.message : (isEnglish ? 'Import failed' : '导入失败');
+  }
+
+  switch (error.code) {
+    case 'too-large':
+      return isEnglish
+        ? `The backup file is larger than ${IMPORT_LIMIT_MB} MB and was not imported.`
+        : `备份文件超过 ${IMPORT_LIMIT_MB} MB 上限，已拒绝导入。`;
+    case 'invalid-json':
+      return isEnglish
+        ? 'The file is not valid JSON and may be corrupted.'
+        : '文件不是有效的 JSON，可能已损坏。';
+    case 'invalid-format':
+      return isEnglish
+        ? 'Unrecognized backup format. Choose a JSON file exported by this app.'
+        : '无法识别的备份格式，请选择本应用导出的 JSON 文件。';
+    case 'unsupported-version':
+      return isEnglish
+        ? `This backup comes from a newer app version (${error.detail ?? 'unknown'}) and cannot be read.`
+        : `备份数据来自更新版本的应用（${error.detail ?? '未知版本'}），当前版本无法读取。`;
+    case 'invalid-data':
+      return isEnglish
+        ? `Tournament data failed validation: ${error.detail ?? error.message}`
+        : `赛事数据校验失败：${error.detail ?? error.message}`;
+    case 'timeout':
+      return isEnglish
+        ? `Parsing did not finish within ${IMPORT_TIMEOUT_SECONDS} seconds, import cancelled.`
+        : `解析超过 ${IMPORT_TIMEOUT_SECONDS} 秒仍未完成，已取消导入。`;
+    case 'worker-unavailable':
+      return isEnglish
+        ? 'The background parser could not start in this browser, import failed.'
+        : '当前浏览器无法启动后台解析，导入失败。';
+    case 'read-failed':
+      return isEnglish
+        ? 'Failed to read the file. Choose it again.'
+        : '读取文件失败，请重新选择。';
+    case 'aborted':
+      return isEnglish ? 'Import cancelled.' : '已取消导入。';
+    case 'internal':
+      return isEnglish ? `Import failed: ${error.message}` : `导入失败：${error.message}`;
+    default:
+      return error.message;
+  }
 }
 
 export default function EntryPage() {
@@ -40,7 +97,9 @@ export default function EntryPage() {
   const [pendingKind, setPendingKind] = useState<EntryKind | null>(null);
   const [pendingImport, setPendingImport] = useState<TournamentCompetition | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -94,6 +153,11 @@ export default function EntryPage() {
     await downloadRecoveredData();
   };
 
+  /** 离开页面时终止仍在解析的后台任务。 */
+  useEffect(() => () => {
+    importAbortRef.current?.abort();
+  }, []);
+
   const openKind = async (kind: EntryKind) => {
     // 覆盖/离开前先备份损坏数据，包括进入多阶段设置页（那里也可能重新保存赛事）。
     await backupCorruptDataBeforeOverwrite();
@@ -135,9 +199,13 @@ export default function EntryPage() {
   };
 
   const handleImportFile = async (file: File) => {
+    importAbortRef.current?.abort();
+    const controller = new AbortController();
+    importAbortRef.current = controller;
+    setIsImporting(true);
+    setImportError(null);
     try {
-      const data = await importCompetitionFromFile(file);
-      setImportError(null);
+      const data = await importCompetitionFromFile(file, { signal: controller.signal });
       // 导入会覆盖当前存储，损坏状态下先自动下载原始数据。
       await backupCorruptDataBeforeOverwrite();
       if (hasSavedEvent) {
@@ -146,7 +214,13 @@ export default function EntryPage() {
       }
       applyImported(data);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : (isEnglish ? 'Import failed' : '导入失败'));
+      if (isAbortError(error)) return;
+      setImportError(describeImportError(error, isEnglish));
+    } finally {
+      if (importAbortRef.current === controller) {
+        importAbortRef.current = null;
+        setIsImporting(false);
+      }
     }
   };
 
@@ -280,11 +354,29 @@ export default function EntryPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
+              disabled={isImporting}
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FileUp className="h-3.5 w-3.5" />
               {isEnglish ? 'Choose JSON' : '选择 JSON 文件'}
             </button>
+            {isImporting && (
+              <div className="flex w-full items-center gap-2 rounded bg-slate-700/30 px-2 py-1.5 text-[11px] text-slate-300">
+                <span
+                  className="h-3 w-3 shrink-0 animate-spin rounded-full border border-slate-400 border-t-transparent"
+                  aria-hidden="true"
+                />
+                <span className="flex-1">
+                  {isEnglish ? 'Parsing backup file…' : '正在解析备份文件…'}
+                </span>
+                <button
+                  onClick={() => importAbortRef.current?.abort()}
+                  className="shrink-0 rounded border border-slate-600/70 px-2 py-0.5 text-[11px] text-slate-200 transition-colors hover:bg-slate-600/50 hover:text-white"
+                >
+                  {isEnglish ? 'Cancel import' : '取消导入'}
+                </button>
+              </div>
+            )}
             {importError && (
               <p className="w-full rounded bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
                 {importError}

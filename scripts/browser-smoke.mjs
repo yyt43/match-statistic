@@ -209,7 +209,9 @@ try {
   await page.keyboard.press('3');
   await waitForText(page, '1 pending');
   await waitForText(page, 'Left win 2-1');
-  await quickScoreDialog.getByRole('button', { name: 'Close' }).click();
+  // 精确匹配底部的 Close 按钮：图标按钮另有独立 aria-label（Dismiss quick score entry），
+  // 这里用 exact 防止再出现同名可访问名时触发 strict mode violation。
+  await quickScoreDialog.getByRole('button', { name: 'Close', exact: true }).click();
 
   await page.getByRole('button', { name: 'Clear round 1 results' }).click();
   const undoDialog = page.getByRole('dialog').filter({ hasText: 'Confirm undo' });

@@ -9,7 +9,9 @@ export default defineConfig(({ command }) => ({
   // 若部署到自定义域名或用户名.github.io 根路径，则改为 './'
   base: './',
   build: {
-    sourcemap: 'hidden',
+    // 本项目发布到公共的 GitHub Pages，sourcemap 会把完整源码暴露给任何访问者，
+    // 因此生产构建默认不生成；需要排查线上问题时用 VITE_SOURCEMAP=1 临时开启。
+    sourcemap: process.env.VITE_SOURCEMAP === '1',
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {

@@ -47,6 +47,8 @@ import { createPlayerActions } from './actions/playerActions';
 import { createImportActions } from './actions/importActions';
 import { createAdvancementActions } from './actions/advancementActions';
 import { logAudit } from '../utils/auditLog';
+import { subscribeLocalPersistSuccess } from '../utils/storage/storageSync';
+import type { StoreSet } from './actions/actionTypes';
 import {
   cloneCompetition,
   createHistoryEntry,
@@ -185,6 +187,19 @@ export interface CompetitionState {
   historyPast: CompetitionHistoryEntry[];
   historyFuture: CompetitionHistoryEntry[];
   isReadOnly: boolean;
+  /**
+   * 是否有尚未成功写入持久层的赛事改动。
+   * 多标签页收到对方保存时据此判断：有脏改动必须弹冲突让用户选择，绝不静默重载丢编辑。
+   */
+  dirtySinceLastPersist: boolean;
+  /** 丢弃本页未保存改动（例如加载了其他标签页的版本）后同步重置脏标记。 */
+  discardUnsavedChanges: () => void;
+  /**
+   * 把当前状态重新标记为未保存。
+   * 用于"保留本页并覆盖对方"这类直接写入：在持久化完成前保持脏标记，
+   * 避免竞态下被其他标签页的更新当作无改动而自动重载。
+   */
+  markUnsavedChanges: () => void;
   /** 最近一次被拒绝的操作原因（中英双语）；界面展示后由 clearActionError 清除。 */
   actionError: StageLockMessage | null;
   clearActionError: () => void;
@@ -372,8 +387,46 @@ function getPairingErrorMessage(error: unknown): StageLockMessage | null {
   return null;
 }
 
+/**
+ * 判断一次 competition 变化是否会被 createStoreSet 真正持久化。
+ * 仅切换 currentGroupIndex 的导航操作不会落库，也不应算作未保存改动。
+ */
+function hasPersistedCompetitionChange(
+  previous: TournamentCompetition,
+  next: TournamentCompetition
+): boolean {
+  return previous.id !== next.id
+    || previous.name !== next.name
+    || previous.createdAt !== next.createdAt
+    || previous.groups !== next.groups
+    || previous.currentGroupIndex === next.currentGroupIndex;
+}
+
 export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
-  const set = createStoreSet(rawSet, get);
+  const baseSet = createStoreSet(rawSet, get);
+  // 尚未落库的改动计数：每产生一次会落库的改动 +1，每收到一次本页持久化成功 -1。
+  // 用计数而非布尔值，避免"较旧的保存成功"把之后新产生的改动误判为已保存。
+  let pendingPersistWrites = 0;
+
+  const set: StoreSet = (partial, options) => {
+    const previousCompetition = get().competition;
+    baseSet(partial, options);
+    const nextCompetition = get().competition;
+    if (nextCompetition === previousCompetition) return;
+    if (options?.persist === false) return;
+    if (!hasPersistedCompetitionChange(previousCompetition, nextCompetition)) return;
+
+    pendingPersistWrites += 1;
+    if (!get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: true });
+  };
+
+  // 只有 saveCompetition 确认落库后才会发出该事件，因此可以安全地清掉脏标记。
+  subscribeLocalPersistSuccess(() => {
+    if (pendingPersistWrites > 0) pendingPersistWrites -= 1;
+    if (pendingPersistWrites === 0 && get().dirtySinceLastPersist) {
+      rawSet({ dirtySinceLastPersist: false });
+    }
+  });
 
   return {
   competition: initialCompetition,
@@ -383,9 +436,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   historyPast: [],
   historyFuture: [],
   isReadOnly: false,
+  dirtySinceLastPersist: false,
   actionError: null,
   clearActionError: () => set({ actionError: null }),
-  ...createCompetitionActions(set),
+  ...createCompetitionActions(set, get),
   ...createSnapshotActions(set, get),
   ...createGroupActions(set, get),
   ...createPlayerActions(set, get),
@@ -457,6 +511,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
   setReadOnly: (readOnly: boolean) => {
     set({ isReadOnly: readOnly });
+  },
+
+  discardUnsavedChanges: () => {
+    pendingPersistWrites = 0;
+    if (get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: false });
+  },
+
+  markUnsavedChanges: () => {
+    pendingPersistWrites += 1;
+    if (!get().dirtySinceLastPersist) rawSet({ dirtySinceLastPersist: true });
   },
 
   updateCompetitionName: (name: string) => {
