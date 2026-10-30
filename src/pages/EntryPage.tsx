@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
+import { Download, FileUp, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
 import type { TournamentCompetition } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createPoetryCupS3Competition } from '../store/multiStageFactory';
 import { getCompetitionKind } from '../utils/multiStage';
 import { importCompetitionFromFile } from '../utils/export/fileStorage';
+import { downloadBlob } from '../utils/export/download';
+import { collectStoredRawRecords, loadCompetitionResult } from '../utils/storage/storage';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
@@ -33,6 +35,8 @@ export default function EntryPage() {
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
 
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ok' | 'empty' | 'corrupt'>('loading');
+  const [corruptReason, setCorruptReason] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<EntryKind | null>(null);
   const [pendingImport, setPendingImport] = useState<TournamentCompetition | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -40,15 +44,59 @@ export default function EntryPage() {
 
   useEffect(() => {
     let active = true;
-    void loadSavedCompetition().then(loaded => {
-      if (active) setHasSavedEvent(loaded);
-    });
+    void loadCompetitionResult()
+      .then(async result => {
+        if (!active) return;
+        if (result.status !== 'ok') {
+          // 数据损坏：不写入 store、不覆盖任何记录，提示用户导出原始数据。
+          setLoadStatus(result.status);
+          setCorruptReason(result.error ?? null);
+          return;
+        }
+        const loaded = await loadSavedCompetition();
+        if (!active) return;
+        setHasSavedEvent(loaded);
+        setLoadStatus(loaded ? 'ok' : 'empty');
+      })
+      .catch(error => {
+        console.error('[entry] Failed to inspect saved competition:', error);
+        if (active) setLoadStatus('empty');
+      });
     return () => {
       active = false;
     };
   }, [loadSavedCompetition]);
 
-  const openKind = (kind: EntryKind) => {
+  /** 把主/备镜像里的原始记录打包下载，避免损坏数据被新建赛事覆盖后彻底丢失。 */
+  const downloadRecoveredData = async (): Promise<boolean> => {
+    try {
+      const records = await collectStoredRawRecords();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        reason: 'stored-competition-data-corrupt',
+        records,
+      };
+      downloadBlob(
+        new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+        `recovered-${stamp}.json`
+      );
+      return true;
+    } catch (error) {
+      console.error('[entry] Failed to export recovered data:', error);
+      return false;
+    }
+  };
+
+  /** 覆盖损坏数据前自动留一份原始记录。 */
+  const backupCorruptDataBeforeOverwrite = async () => {
+    if (loadStatus !== 'corrupt') return;
+    await downloadRecoveredData();
+  };
+
+  const openKind = async (kind: EntryKind) => {
+    // 覆盖/离开前先备份损坏数据，包括进入多阶段设置页（那里也可能重新保存赛事）。
+    await backupCorruptDataBeforeOverwrite();
     if (kind === 'multi_stage') {
       navigate('/multi-stage');
       return;
@@ -63,11 +111,15 @@ export default function EntryPage() {
   };
 
   const chooseKind = (kind: EntryKind) => {
+    if (loadStatus === 'corrupt') {
+      void openKind(kind);
+      return;
+    }
     if (hasSavedEvent) {
       setPendingKind(kind);
       return;
     }
-    openKind(kind);
+    void openKind(kind);
   };
 
   const importedKindLabel = (competition: TournamentCompetition) => {
@@ -86,6 +138,8 @@ export default function EntryPage() {
     try {
       const data = await importCompetitionFromFile(file);
       setImportError(null);
+      // 导入会覆盖当前存储，损坏状态下先自动下载原始数据。
+      await backupCorruptDataBeforeOverwrite();
       if (hasSavedEvent) {
         setPendingImport(data);
         return;
@@ -176,6 +230,32 @@ export default function EntryPage() {
 
       <main className="flex-1 px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-7xl space-y-4">
+          {loadStatus === 'corrupt' && (
+            <section className="space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
+              <div className="text-xs font-semibold text-rose-200">
+                {isEnglish ? 'Saved event data is corrupted' : '已保存的赛事数据损坏'}
+              </div>
+              <p className="text-[11px] leading-relaxed text-rose-200/80">
+                {isEnglish
+                  ? 'A stored record exists but cannot be read. Creating a new event or importing a file will overwrite it, so the original records are downloaded as recovered-*.json first. You can also export them now.'
+                  : '检测到本地存在赛事记录，但内容无法读取。新建赛事或导入文件会覆盖原有记录，继续前会自动把原始数据下载为 recovered-*.json；也可以现在手动导出。'}
+              </p>
+              {corruptReason && (
+                <p className="break-all text-[10px] text-rose-300/70">
+                  {isEnglish ? 'Detected in: ' : '损坏位置：'}
+                  {corruptReason}
+                </p>
+              )}
+              <button
+                onClick={() => void downloadRecoveredData()}
+                className="flex items-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-xs text-rose-200 transition-colors hover:bg-rose-500/25 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {isEnglish ? 'Export raw records' : '导出原始数据'}
+              </button>
+            </section>
+          )}
+
           <section className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/50 p-3">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-slate-300">
@@ -308,7 +388,7 @@ export default function EntryPage() {
           }
           const kind = pendingKind;
           setPendingKind(null);
-          if (kind) openKind(kind);
+          if (kind) void openKind(kind);
         }}
       />
     </div>

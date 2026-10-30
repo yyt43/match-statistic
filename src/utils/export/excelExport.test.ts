@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Match, TournamentGroup } from '../../types';
 import { createPlayersFromNames } from '../swissPairing';
-import { getMatchTableData, getRankingTableData } from './excelExport';
+import { getMatchTableData, getRankingTableData, sanitizeSheetName, finalizeSheetNames } from './excelExport';
 
 function createGroup(languagePlayers = ['Alice', 'Bob']): TournamentGroup {
   const players = createPlayersFromNames(languagePlayers);
@@ -106,5 +106,35 @@ describe('excel export data', () => {
     }, 1, 'zh');
     expect(legacy.rows[0][4]).toBe('2-2');
     expect(legacy.rows[0][8]).toBe('双负（旧口径2-2）');
+  });
+});
+
+describe('excel sheet names', () => {
+  it('shortens long labels and keeps room for the suffix', () => {
+    const longLabel = 'x'.repeat(40);
+    expect(sanitizeSheetName(longLabel)).toBe('x'.repeat(31));
+
+    const withSuffix = sanitizeSheetName(longLabel, '第5轮');
+    expect(withSuffix.length).toBeLessThanOrEqual(31);
+    expect(withSuffix.endsWith('-第5轮')).toBe(true);
+  });
+
+  it('replaces characters Excel rejects', () => {
+    expect(sanitizeSheetName('A/B:C*D?E[F]G\\H')).toBe('A_B_C_D_E_F_G_H');
+    expect(sanitizeSheetName('普通组 / 决赛')).toBe('普通组 _ 决赛');
+  });
+
+  it('deduplicates colliding sheet names after sanitizing', () => {
+    const longLabel = 'x'.repeat(40);
+    const sheets = finalizeSheetNames([
+      { name: longLabel, rows: [] },
+      { name: longLabel, rows: [] },
+      { name: longLabel, rows: [] },
+    ]);
+
+    expect(sheets[0].name).toBe('x'.repeat(31));
+    expect(sheets[1].name).toBe(`${'x'.repeat(28)}(2)`);
+    expect(sheets[2].name).toBe(`${'x'.repeat(28)}(3)`);
+    expect(new Set(sheets.map(sheet => sheet.name.toLowerCase())).size).toBe(3);
   });
 });

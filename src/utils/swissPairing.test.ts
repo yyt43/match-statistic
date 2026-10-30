@@ -9,6 +9,7 @@ import {
   getRoundGameType,
   detectTieGroups,
   generatePlayoffPairings,
+  PairingBlockedError,
 } from './swissPairing';
 import { parsePlayerNamesFromText, summarizePlayerNameInput, summarizeWorkbookImport } from './import/playerImport';
 import type { Player, Match, TournamentGroup } from '../types';
@@ -861,6 +862,86 @@ describe('加赛功能 detectTieGroups & generatePlayoffPairings', () => {
     const { matches } = generatePlayoffPairings(players, 'bo1');
     expect(matches.some(m => m.isBye)).toBe(false);
     expect(matches).toHaveLength(1);
+  });
+});
+
+/** 按本轮结果更新选手状态（模拟 store 的 applyMatchResultFast），用于跨轮配对测试。 */
+function simulateRound(players: Player[], matches: Match[]): Player[] {
+  const updates = new Map(players.map(p => [p.id, { ...p, playedAgainst: [...p.playedAgainst] }]));
+  for (const match of matches) {
+    if (match.isBye) {
+      const winner = updates.get(match.player1Id);
+      if (winner) {
+        winner.wins += 1;
+        winner.points += 1;
+        winner.playedAgainst.push('bye');
+        winner.totalGames += (match.player1Games ?? 0) + (match.player2Games ?? 0);
+        winner.wonGames += match.player1Games ?? 0;
+      }
+      continue;
+    }
+    const player1 = updates.get(match.player1Id);
+    const player2 = updates.get(match.player2Id);
+    if (!player1 || !player2) continue;
+    player1.wins += 1;
+    player1.points += 1;
+    player2.losses += 1;
+    player1.playedAgainst.push(match.player2Id);
+    player2.playedAgainst.push(match.player1Id);
+  }
+  return [...updates.values()];
+}
+
+describe('轮空上限与不可配对保护（P1-2）', () => {
+  it('4 人打满 4 轮：第 4 轮无法再配对时抛错，而不是给全组轮空', () => {
+    let players = createPlayersFromNames(['p1', 'p2', 'p3', 'p4']);
+    const allMatches: Match[] = [];
+    for (let round = 1; round <= 3; round += 1) {
+      const { matches } = generateSwissPairings(players, round, 'bo1', undefined, allMatches);
+      allMatches.push(...matches);
+      players = simulateRound(players, matches);
+    }
+    expect(() => generateSwissPairings(players, 4, 'bo1', undefined, allMatches))
+      .toThrow(PairingBlockedError);
+  });
+
+  it('6 人打满 6 轮：每轮最多 1 个轮空，同一人最多轮空一次', () => {
+    let players = createPlayersFromNames(['p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+    const allMatches: Match[] = [];
+    let blocked = false;
+    for (let round = 1; round <= 6; round += 1) {
+      let matches: Match[];
+      try {
+        ({ matches } = generateSwissPairings(players, round, 'bo1', undefined, allMatches));
+      } catch (error) {
+        expect(error).toBeInstanceOf(PairingBlockedError);
+        blocked = true;
+        break;
+      }
+      expect(matches.filter(match => match.isBye).length).toBeLessThanOrEqual(1);
+      allMatches.push(...matches);
+      players = simulateRound(players, matches);
+    }
+    const byeReceivers = allMatches.filter(match => match.isBye).map(match => match.player1Id);
+    expect(new Set(byeReceivers).size).toBe(byeReceivers.length);
+    // 6 人 6 轮必然重复交手，必须报错而不是继续生成重复对阵。
+    expect(blocked).toBe(true);
+  });
+
+  it('33 人打 6 轮：每轮最多 1 个轮空，同一人最多轮空一次', () => {
+    let players = createPlayersFromNames(Array.from({ length: 33 }, (_, index) => `p${index + 1}`));
+    const allMatches: Match[] = [];
+    for (let round = 1; round <= 6; round += 1) {
+      const { matches } = generateSwissPairings(players, round, 'bo1', undefined, allMatches);
+      const byeMatches = matches.filter(match => match.isBye);
+      // 33 人是奇数，每轮应当恰好 1 个轮空。
+      expect(byeMatches).toHaveLength(1);
+      allMatches.push(...matches);
+      players = simulateRound(players, matches);
+    }
+    const byeReceivers = allMatches.filter(match => match.isBye).map(match => match.player1Id);
+    expect(new Set(byeReceivers).size).toBe(byeReceivers.length);
+    expect(allMatches.filter(match => match.round === 6)).not.toHaveLength(0);
   });
 });
 

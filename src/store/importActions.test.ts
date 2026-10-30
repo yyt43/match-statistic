@@ -249,4 +249,43 @@ describe('import store actions', () => {
         .find(match => match.id === group.matches[0].id)?.result
     ).toBe('pending');
   });
+
+  it('clears playoff data when an imported result changes a regular result', () => {
+    const competition = competitionWithPendingMatch();
+    const group = competition.groups[0];
+    const [first, second] = group.players;
+    group.playoffBrackets = [{
+      id: 'tie-1',
+      playerIds: [first.id, second.id],
+      startRank: 1,
+      format: 'two',
+    }];
+    group.matches.push({
+      id: 'po-1',
+      round: 0,
+      player1Id: first.id,
+      player2Id: second.id,
+      result: 'player1',
+      isPlayoff: true,
+      playoffBracketId: 'tie-1',
+      playoffStage: 1,
+      playoffRole: 'opening',
+    });
+    useTournamentStore.setState({ competition });
+
+    useTournamentStore.getState().applyImportedMatchResults([{
+      matchId: 'm1',
+      groupIndex: 0,
+      result: 'player1',
+      player1Games: 2,
+      player2Games: 1,
+      evidenceVerificationStatus: 'not_required',
+    }]);
+
+    const updated = useTournamentStore.getState().competition.groups[0];
+    expect(updated.matches.find(match => match.id === 'm1')?.result).toBe('player1');
+    // 常规赛果变化后，依赖它的加赛（playoff）数据必须清空，避免排名基于旧赛果。
+    expect(updated.matches.some(match => match.isPlayoff)).toBe(false);
+    expect(updated.playoffBrackets).toBeUndefined();
+  });
 });

@@ -36,4 +36,30 @@ describe('snapshots', () => {
     const snapshots = await listSnapshots();
     expect(snapshots).toHaveLength(2);
   });
+
+  it('reports whether the snapshot was persisted', async () => {
+    const competition = createNewCompetition('Snapshot test');
+    expect(await saveSnapshot(competition, '正常备份')).toBe(true);
+
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+      removeItem: () => undefined,
+    });
+    expect(await saveSnapshot(competition, '失败备份')).toBe(false);
+  });
+
+  it('serializes concurrent snapshot saves instead of overwriting each other', async () => {
+    const competition = createNewCompetition('Snapshot test');
+    const results = await Promise.all([
+      saveSnapshot(competition, '并发备份 1'),
+      saveSnapshot(competition, '并发备份 2'),
+    ]);
+
+    expect(results).toEqual([true, true]);
+    const snapshots = await listSnapshots();
+    expect(snapshots).toHaveLength(2);
+  });
 });

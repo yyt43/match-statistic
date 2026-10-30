@@ -39,6 +39,7 @@ export function StageAdvancementPanel() {
   const [excludedSeats, setExcludedSeats] = useState<Set<string>>(new Set());
   const [adjustReason, setAdjustReason] = useState('');
   const [extraSeats, setExtraSeats] = useState<StageAdvancementSeat[]>([]);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const seatKey = (seat: StageAdvancementSeat, index: number) =>
     `${seat.targetStageId ?? ''}:${seat.participantCode ?? seat.playerId}:${index}`;
 
@@ -115,8 +116,14 @@ export function StageAdvancementPanel() {
 
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={() => setPreview(previewStageAdvancement(currentStage.id))}
-          disabled={!stageComplete}
+          onClick={() => {
+            setConfirmError(null);
+            setExcludedSeats(new Set());
+            setExtraSeats([]);
+            setAdjustReason('');
+            setPreview(previewStageAdvancement(currentStage.id, language));
+          }}
+          disabled={!stageComplete || resultsLocked}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-gold-500/40 bg-gold-500/15 py-2 text-[11px] font-medium text-gold-400 transition-colors hover:bg-gold-500/25 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ArrowRight className="h-3.5 w-3.5" />
@@ -150,6 +157,11 @@ export function StageAdvancementPanel() {
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {confirmError && (
+                <p className="rounded bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
+                  {confirmError}
+                </p>
+              )}
               {preview.errors.map(error => (
                 <p key={error} className="rounded bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-300">
                   {error}
@@ -314,22 +326,36 @@ export function StageAdvancementPanel() {
               </button>
               <button
                 onClick={() => {
-                  confirmStageAdvancement({
-                    ...preview,
-                    seats: [
-                      ...preview.seats.filter(
-                        (seat, index) => !excludedSeats.has(seatKey(seat, index))
-                      ),
-                      ...extraSeats,
-                    ],
-                    reason: adjustReason.trim() || undefined,
-                  });
+                  const confirmed = confirmStageAdvancement(
+                    {
+                      ...preview,
+                      seats: [
+                        ...preview.seats.filter(
+                          (seat, index) => !excludedSeats.has(seatKey(seat, index))
+                        ),
+                        ...extraSeats,
+                      ],
+                      reason: adjustReason.trim() || undefined,
+                    },
+                    language
+                  );
+                  if (!confirmed) {
+                    setConfirmError(
+                      isEnglish
+                        ? 'This advancement can no longer be confirmed: the downstream stage may already have results or the roster cannot be overwritten. Review the errors below.'
+                        : '该赛段已无法确认晋级：下游赛段可能已有赛果或已开赛，或名单无法安全覆盖。请查看下方错误提示。'
+                    );
+                    // 重新计算一次，把锁定 / 席位冲突等错误即时显示出来。
+                    setPreview(previewStageAdvancement(currentStage.id, language));
+                    return;
+                  }
+                  setConfirmError(null);
                   setPreview(null);
                   setExcludedSeats(new Set());
                   setExtraSeats([]);
                   setAdjustReason('');
                 }}
-                disabled={preview.errors.length > 0 || preview.seats.length === 0}
+                disabled={preview.errors.length > 0 || preview.seats.length === 0 || resultsLocked}
                 className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Check className="h-3.5 w-3.5" />

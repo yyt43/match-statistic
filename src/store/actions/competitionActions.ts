@@ -2,7 +2,7 @@ import type { TournamentCompetition } from '../../types';
 import type { CompetitionState } from '../useTournamentStore';
 import type { StoreSet } from './actionTypes';
 import { createNewCompetition } from '../tournamentFactory';
-import { loadCompetition } from '../../utils/storage/storage';
+import { loadCompetitionResult } from '../../utils/storage/storage';
 import { loadCompetitionHistory } from '../../utils/storage/historyStore';
 import { normalizeCompetitionGroups, resolveViewRound } from '../competitionState';
 import { logAudit } from '../../utils/auditLog';
@@ -44,9 +44,10 @@ export function createCompetitionActions(
     },
 
     loadSavedCompetition: async () => {
-      const rawSaved = await loadCompetition();
-      const saved = rawSaved ? normalizeCompetitionGroups(rawSaved) : null;
-      if (!saved) return false;
+      // 数据损坏时不进入工作区，也不覆盖原有记录；由入口页提示并导出原始数据。
+      const result = await loadCompetitionResult();
+      if (result.status !== 'ok' || !result.competition) return false;
+      const saved = normalizeCompetitionGroups(result.competition);
 
       set(
         {
@@ -76,7 +77,7 @@ export function createCompetitionActions(
           isRandomGenerating: false,
           randomGenerateProgress: { total: 0, current: 0 },
         },
-        { label: '导入赛事' }
+        { history: 'replace' }
       );
       void logAudit('tournament-import', `Imported ${normalized.name}`, { name: normalized.name });
     },
@@ -85,7 +86,7 @@ export function createCompetitionActions(
       const competition = createNewCompetition('新建赛事');
       set(
         { competition, viewRound: 0, isRandomGenerating: false, randomGenerateProgress: { total: 0, current: 0 } },
-        { label: '重置赛事' }
+        { history: 'replace' }
       );
       void logAudit('tournament-reset', 'Tournament reset');
     },

@@ -150,6 +150,7 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
     } catch (error) {
       if (!isAbortError(error)) {
         console.error('Image export failed:', error);
+        alert(t.exportFailedAlert);
       }
     } finally {
       if (exportAbortRef.current === controller) {

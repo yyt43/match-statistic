@@ -14,10 +14,57 @@ export interface ExcelExportExtras {
   extraSheets?: Array<{ name: string; rows: (string | number)[][] }>;
 }
 
+/** Excel 工作表名上限 31 个字符，且不允许 : \ / ? * [ ] 这些字符。 */
+const MAX_SHEET_NAME_LENGTH = 31;
+const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;
+
+/**
+ * 生成合法的 Excel 工作表名。
+ * suffix（如 "第5轮" / "排行榜"）会加在截断后的主名后面，保证总长度不超过 31。
+ */
+export function sanitizeSheetName(label: string, suffix = ''): string {
+  const cleanLabel = label.replace(INVALID_SHEET_CHARS, '_');
+  const cleanSuffix = suffix.replace(INVALID_SHEET_CHARS, '_');
+  const maxLabelLength = Math.max(
+    1,
+    MAX_SHEET_NAME_LENGTH - (cleanSuffix ? cleanSuffix.length + 1 : 0)
+  );
+  const labelPart = (cleanLabel.trim() || 'Sheet').slice(0, maxLabelLength);
+  const name = cleanSuffix ? `${labelPart}-${cleanSuffix}` : labelPart;
+  return name.slice(0, MAX_SHEET_NAME_LENGTH);
+}
+
+/** 同名（Excel 不区分大小写）工作表追加 (2)、(3)，并保持长度上限。 */
+export function finalizeSheetNames(
+  sheets: Array<{ name: string; rows: (string | number)[][] }>
+): Array<{ name: string; rows: (string | number)[][] }> {
+  const used = new Set<string>();
+  return sheets.map(sheet => {
+    const base = sanitizeSheetName(sheet.name);
+    let candidate = base;
+    let index = 2;
+    while (used.has(candidate.toLowerCase())) {
+      const tag = `(${index})`;
+      candidate = `${base.slice(0, Math.max(1, MAX_SHEET_NAME_LENGTH - tag.length))}${tag}`;
+      index += 1;
+    }
+    used.add(candidate.toLowerCase());
+    return { ...sheet, name: candidate };
+  });
+}
+
+/** 所有导出统一走这里：先清洗/去重工作表名，再交给 worker 写文件。 */
+async function writeFinalExcelWorkbook(
+  sheets: Array<{ name: string; rows: (string | number)[][] }>,
+  fileName: string,
+  options?: ExcelExportOptions
+): Promise<void> {
+  await writeExcelWorkbook(finalizeSheetNames(sheets), fileName, options);
+}
+
 function getSheetLabel(group: TournamentGroup, extras?: ExcelExportExtras): string {
-  const label = extras?.groupLabel?.(group) ?? group.name;
-  // Excel 工作表名上限 31 个字符
-  return label.length > 24 ? label.slice(0, 24) : label;
+  // 这里不再截断长度，交给 sanitizeSheetName 按最终表名（含后缀）统一处理。
+  return extras?.groupLabel?.(group) ?? group.name;
 }
 
 function withExtras(
@@ -267,7 +314,7 @@ export async function exportEliminationBracketToExcel(
 ): Promise<void> {
   const { headers, rows } = getEliminationBracketTableData(group, language);
   const sheetName = language === 'en' ? 'Bracket' : '淘汰签表';
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     [{ name: sheetName, rows: [headers, ...rows] }],
     `${competitionName}-${group.name}-${sheetName}.xlsx`,
     options
@@ -291,7 +338,7 @@ export async function exportAllGroupsBracketsToExcel(
         rows: [headers, ...rows],
       };
     });
-  await writeExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${sheetName}.xlsx`, options);
+  await writeFinalExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${sheetName}.xlsx`, options);
 }
 
 export async function exportRankingToExcel(
@@ -313,7 +360,7 @@ export async function exportRankingToExcel(
   const { headers, rows } = getRankingTableData(group, language);
   const t = translations[language];
   const data: (string | number)[][] = [headers, ...rows];
-  await writeExcelWorkbook([{ name: t.ranking, rows: data }], `${competitionName}-${groupName}-${t.ranking}.xlsx`, options);
+  await writeFinalExcelWorkbook([{ name: t.ranking, rows: data }], `${competitionName}-${groupName}-${t.ranking}.xlsx`, options);
 }
 
 export async function exportMatchesToExcel(
@@ -332,7 +379,7 @@ export async function exportMatchesToExcel(
   const { headers, rows } = getMatchTableData(group, round, language);
   const t = translations[language];
   const data: (string | number)[][] = [headers, ...rows];
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     [{ name: formatText(t.roundN, { round }), rows: data }],
     `${competitionName}-${groupName}-${formatText(t.roundN, { round })} ${t.matchTable}.xlsx`,
     options
@@ -360,7 +407,7 @@ export async function exportAllRoundsToExcel(
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({ name: formatText(t.roundN, { round }), rows: data });
   }
-  await writeExcelWorkbook(sheets, `${competitionName}-${groupName}-${t.matchTable}.xlsx`, options);
+  await writeFinalExcelWorkbook(sheets, `${competitionName}-${groupName}-${t.matchTable}.xlsx`, options);
 }
 
 /** 导出单小组总表（排行榜+全部对阵） */
@@ -391,7 +438,7 @@ export async function exportGroupSummaryToExcel(
     const mData: (string | number)[][] = [mHeaders, ...mRows];
     sheets.push({ name: formatText(t.roundN, { round }), rows: mData });
   }
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     withExtras(sheets, extras),
     `${competitionName}-${getSheetLabel(group, extras)}-${t.summary}.xlsx`,
     options
@@ -427,7 +474,7 @@ export async function exportAllGroupsToExcel(
       sheets.push({ name: `${label}-${formatText(t.roundN, { round })}`, rows: mData });
     }
   });
-  await writeExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${t.summary}.xlsx`, options);
+  await writeFinalExcelWorkbook(withExtras(sheets, extras), `${competitionName}-${t.summary}.xlsx`, options);
 }
 
 export async function exportAllGroupsRankingToExcel(
@@ -445,7 +492,7 @@ export async function exportAllGroupsRankingToExcel(
     const data: (string | number)[][] = [headers, ...rows];
     sheets.push({ name: `${getSheetLabel(group, extras)}-${t.ranking}`, rows: data });
   });
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     withExtras(sheets, extras),
     `${competitionName}-${t.allGroups} ${t.ranking}.xlsx`,
     options
@@ -472,7 +519,7 @@ export async function exportAllGroupsCurrentRoundMatchesToExcel(
       rows: data,
     });
   });
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     withExtras(sheets, extras),
     `${competitionName}-${t.allGroups} ${t.matchTable}.xlsx`,
     options
@@ -486,7 +533,7 @@ export async function exportSingleSheetToExcel(
   options?: ExcelExportOptions,
   extras?: ExcelExportExtras
 ): Promise<void> {
-  await writeExcelWorkbook(withExtras([{ name: sheetName, rows }], extras), fileName, options);
+  await writeFinalExcelWorkbook(withExtras([{ name: sheetName, rows }], extras), fileName, options);
 }
 
 /** 多阶段赛事汇总工作表：最终名次 + 晋级记录。 */
@@ -547,7 +594,7 @@ export async function exportMultiStageSummaryToExcel(
 ): Promise<void> {
   const sheets = buildMultiStageSummarySheets(standings, records, stageNames, language);
   if (sheets.length === 0) return;
-  await writeExcelWorkbook(
+  await writeFinalExcelWorkbook(
     sheets,
     `${competitionName}-${language === 'en' ? 'summary' : '汇总'}.xlsx`,
     options

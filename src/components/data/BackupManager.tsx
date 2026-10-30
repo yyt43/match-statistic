@@ -37,9 +37,9 @@ export function BackupManager({ isOpen, onClose }: BackupManagerProps) {
   };
 
   const handleCreate = async () => {
-    await createSnapshot();
+    const saved = await createSnapshot();
     setSnapshots(await listSnapshots());
-    showToast(t.snapshotCreated);
+    showToast(saved ? t.snapshotCreated : t.snapshotCreateFailed);
   };
 
   const handleRestore = (snapshot: Snapshot) => {

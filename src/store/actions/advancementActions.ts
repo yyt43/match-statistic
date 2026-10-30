@@ -1,4 +1,5 @@
 import type { StageAdvancementPreview } from '../../types';
+import type { AppLanguage } from '../../i18n/data';
 import type { CompetitionState } from '../useTournamentStore';
 import type { StoreGet, StoreSet } from './actionTypes';
 import {
@@ -18,17 +19,23 @@ export function createAdvancementActions(
   'previewStageAdvancement' | 'confirmStageAdvancement' | 'revertStageAdvancement'
 > {
   return {
-    previewStageAdvancement: (stageId?: string): StageAdvancementPreview => {
+    previewStageAdvancement: (
+      stageId?: string,
+      language: AppLanguage = 'zh'
+    ): StageAdvancementPreview => {
       const { competition } = get();
       const stages = getOrderedStages(competition);
       const fallbackStageId = competition.groups[competition.currentGroupIndex]?.stageId;
       const sourceStageId = stageId ?? fallbackStageId ?? stages[0]?.id ?? '';
-      return computeStageAdvancement(competition, sourceStageId);
+      return computeStageAdvancement(competition, sourceStageId, language);
     },
 
-    confirmStageAdvancement: (preview: StageAdvancementPreview) => {
+    confirmStageAdvancement: (
+      preview: StageAdvancementPreview,
+      language: AppLanguage = 'zh'
+    ) => {
       const { competition } = get();
-      const updated = confirmStageAdvancement(competition, preview);
+      const updated = confirmStageAdvancement(competition, preview, language);
       if (updated === competition) return false;
       // 确认后直接跳到下一赛段的第一个小组，裁判不必再手动切换。
       const nextStage = (updated.stages ?? [])

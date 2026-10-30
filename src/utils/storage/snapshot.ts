@@ -53,14 +53,15 @@ export async function listSnapshots(): Promise<Snapshot[]> {
  * 保存一份快照。超过 MAX_SNAPSHOTS 时自动淘汰最旧的。
  * 快照内容仅保留必要字段（复用 storage.ts 的压缩思路：去重 playedAgainst），
  * 以控制 localStorage 占用。
+ * @returns 是否至少写入到一处存储（IndexedDB 或 localStorage）
  */
-async function persistSnapshots(snapshots: Snapshot[]): Promise<void> {
+async function persistSnapshots(snapshots: Snapshot[]): Promise<boolean> {
   const serialized = JSON.stringify(snapshots);
-  let indexedDbSaved = false;
+  let saved = false;
   if (isIndexedDbAvailable()) {
     try {
       await idbSet(SNAPSHOT_KEY, snapshots);
-      indexedDbSaved = true;
+      saved = true;
     } catch (error) {
       console.warn('[snapshot] IndexedDB write failed:', error);
     }
@@ -69,8 +70,9 @@ async function persistSnapshots(snapshots: Snapshot[]): Promise<void> {
   if (serialized.length <= LOCAL_SNAPSHOT_LIMIT) {
     try {
       localStorage.setItem(SNAPSHOT_KEY, serialized);
+      saved = true;
     } catch (error) {
-      if (!indexedDbSaved) console.warn('[snapshot] localStorage write failed:', error);
+      if (!saved) console.warn('[snapshot] localStorage write failed:', error);
     }
   } else {
     try {
@@ -79,35 +81,46 @@ async function persistSnapshots(snapshots: Snapshot[]): Promise<void> {
       // Ignore fallback cleanup errors.
     }
   }
+  return saved;
 }
 
-export async function saveSnapshot(
+// 串行队列：并发保存时避免「读列表 → 改列表 → 写回」互相覆盖。
+let snapshotWriteQueue: Promise<void> = Promise.resolve();
+
+export function saveSnapshot(
   competition: TournamentCompetition,
   label: string,
   options: SaveSnapshotOptions = {}
-): Promise<void> {
-  try {
-    const snapshot: Snapshot = {
-      id: generateId(),
-      savedAt: new Date().toISOString(),
-      label,
-      data: compressForSnapshot(competition),
-    };
+): Promise<boolean> {
+  const result = snapshotWriteQueue
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        const snapshot: Snapshot = {
+          id: generateId(),
+          savedAt: new Date().toISOString(),
+          label,
+          data: compressForSnapshot(competition),
+        };
 
-    const existing = await listSnapshots();
-    if (options.replaceSameLabel) {
-      const previousIndex = existing.findIndex(
-        item => item.data.id === competition.id && item.label === label
-      );
-      if (previousIndex >= 0) existing.splice(previousIndex, 1);
-    }
-    existing.unshift(snapshot);
-    // 保留最新的 MAX_SNAPSHOTS 份
-    const trimmed = existing.slice(0, MAX_SNAPSHOTS);
-    await persistSnapshots(trimmed);
-  } catch (e) {
-    console.warn('[snapshot] 保存快照失败:', e);
-  }
+        const existing = await listSnapshots();
+        if (options.replaceSameLabel) {
+          const previousIndex = existing.findIndex(
+            item => item.data.id === competition.id && item.label === label
+          );
+          if (previousIndex >= 0) existing.splice(previousIndex, 1);
+        }
+        existing.unshift(snapshot);
+        // 保留最新的 MAX_SNAPSHOTS 份
+        const trimmed = existing.slice(0, MAX_SNAPSHOTS);
+        return await persistSnapshots(trimmed);
+      } catch (e) {
+        console.warn('[snapshot] 保存快照失败:', e);
+        return false;
+      }
+    });
+  snapshotWriteQueue = result.then(() => undefined);
+  return result;
 }
 
 /** 按 ID 获取单条快照 */

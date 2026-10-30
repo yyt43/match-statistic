@@ -15,7 +15,7 @@ export function createSnapshotActions(
       const defaultLabel = currentGroup
         ? `${currentGroup.name}·第${currentGroup.currentRound}轮`
         : '手动备份';
-      await saveSnapshot(competition, label || defaultLabel);
+      return saveSnapshot(competition, label || defaultLabel);
     },
 
     restoreFromSnapshot: async (snapshotId: string) => {

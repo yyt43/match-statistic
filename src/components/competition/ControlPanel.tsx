@@ -87,6 +87,8 @@ export function ControlPanel({
     resetCompetition,
     updateCompetitionName,
     applyGroupConfiguration,
+    actionError,
+    clearActionError,
   } = useTournamentStore();
 
   const competitionKind = getCompetitionKind(competition);
@@ -464,6 +466,24 @@ export function ControlPanel({
         ? 'overflow-visible xl:h-full xl:min-h-0 xl:overflow-hidden'
         : 'h-full overflow-hidden'
     }`}>
+      {actionError && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 border-b border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs text-rose-200"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
+          <span className="flex-1 leading-relaxed">
+            {isEnglish ? actionError.en : actionError.zh}
+          </span>
+          <button
+            type="button"
+            onClick={clearActionError}
+            className="shrink-0 rounded px-1.5 py-0.5 text-rose-200 hover:bg-rose-500/20"
+          >
+            {isEnglish ? 'Dismiss' : '知道了'}
+          </button>
+        </div>
+      )}
       {/* 赛事名称 */}
       {!setupLayout && (
       <div className="p-4 border-b border-slate-700/50">

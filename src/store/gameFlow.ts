@@ -12,7 +12,10 @@ export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return group;
 
-  const bracketMatches: Match[] | null = group.eliminationBracket
+  // 与 roundActions / generateNextRound 一致：只有单败淘汰赛 + 已有签表才按签表生成，
+  // 历史数据里瑞士轮残留的 eliminationBracket 不能把赛程带偏。
+  const isEliminationGroup = group.pairingType === 'single_elimination' && !!group.eliminationBracket;
+  const bracketMatches: Match[] | null = isEliminationGroup && group.eliminationBracket
     ? (nextRound === 1
       ? createEliminationFirstRoundMatches(group, group.eliminationBracket)
       : createEliminationNextRoundMatches(group, nextRound))
@@ -30,7 +33,7 @@ export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   const matches = generated.matches;
   const pairedPlayers = generated.updatedPlayers;
 
-  if (group.eliminationBracket && matches.length === 0) return group;
+  if (isEliminationGroup && matches.length === 0) return group;
 
   const playerMap = new Map(pairedPlayers.map(p => [p.id, { ...p }]));
   for (const match of matches) {

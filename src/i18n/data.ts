@@ -408,6 +408,7 @@ export const translations = {
     errorBoundaryReload: '刷新页面重试',
     errorBoundaryExport: '导出当前数据（防止丢失）',
     errorBoundaryExportFailed: '导出数据失败，请手动复制 localStorage 中的 swiss_tournament_data 键。',
+    snapshotCreateFailed: '快照创建失败，请重试',
   },
   en: {
     // Basic/common
@@ -816,6 +817,7 @@ export const translations = {
     errorBoundaryReload: 'Reload and retry',
     errorBoundaryExport: 'Export current data (recommended)',
     errorBoundaryExportFailed: 'Failed to export data. Copy the swiss_tournament_data key from localStorage manually.',
+    snapshotCreateFailed: 'Snapshot creation failed, please retry',
   },
 } as const;
 

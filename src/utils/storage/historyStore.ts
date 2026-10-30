@@ -48,11 +48,13 @@ function parseEnvelope(value: unknown, competitionId: string): CompetitionHistor
     return null;
   }
 
-  const past = envelope.past.filter(isHistoryEntry);
-  const future = envelope.future.filter(isHistoryEntry);
-  if (past.length !== envelope.past.length || future.length !== envelope.future.length) {
-    return null;
-  }
+  const isValidEntry = (entry: unknown): entry is CompetitionHistoryEntry =>
+    isHistoryEntry(entry) && entry.competition.id === competitionId;
+
+  const past = envelope.past.filter(isValidEntry);
+  const future = envelope.future.filter(isValidEntry);
+  // 逐条丢弃非法（或属于其他赛事）的条目，但不因此整个信封作废：
+  // 撤销栈里混入一条坏数据不应让整段历史都丢失。
   return { past, future };
 }
 

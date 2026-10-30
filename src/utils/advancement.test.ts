@@ -627,4 +627,163 @@ describe('stage advancement', () => {
     expect(swapped.slots[0]).toBe(bracket.slots[1]);
     expect(swapped.slots[1]).toBe(bracket.slots[0]);
   });
+
+  it('refuses to confirm the same advancement again once the downstream stage has results', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+
+    // 模拟淘汰赛已经开打并录了一轮结果。
+    const breakoutIndex = confirmed.groups.findIndex(
+      group => group.stageId === 'stage-breakout'
+    );
+    const started: TournamentCompetition = {
+      ...confirmed,
+      groups: confirmed.groups.map((group, index) =>
+        index === breakoutIndex
+          ? {
+              ...group,
+              status: 'in_progress' as const,
+              currentRound: 1,
+              matches: [
+                {
+                  id: 'breakout-1',
+                  round: 1,
+                  player1Id: group.players[0].id,
+                  player2Id: group.players[1].id,
+                  result: 'player1' as const,
+                },
+              ],
+            }
+          : group
+      ),
+    };
+
+    const preview = computeStageAdvancement(started, 'stage-group');
+    expect(preview.errors.some(error => error.includes('锁定'))).toBe(true);
+    expect(preview.seats).toHaveLength(0);
+
+    const again = confirmStageAdvancement(started, preview);
+    expect(again).toBe(started);
+    const breakout = again.groups.find(group => group.stageId === 'stage-breakout')!;
+    expect(breakout.status).toBe('in_progress');
+    expect(breakout.matches).toHaveLength(1);
+    expect(again.groups.filter(group => group.stageId === 'stage-playoff')[0].players.length).toBeGreaterThan(0);
+  });
+
+  it('rejects writing advancers into a group that already has matches', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+
+    // 下游只有未录结果的编排（currentRound 仍为 0、status 仍为 setup）：
+    // 这种状态不算"已开赛"，但同样不能被晋级名单静默清空。
+    const breakoutIndex = confirmed.groups.findIndex(
+      group => group.stageId === 'stage-breakout'
+    );
+    const scheduled: TournamentCompetition = {
+      ...confirmed,
+      groups: confirmed.groups.map((group, index) =>
+        index === breakoutIndex
+          ? {
+              ...group,
+              matches: [
+                {
+                  id: 'breakout-pending',
+                  round: 1,
+                  player1Id: group.players[0].id,
+                  player2Id: group.players[1].id,
+                  result: 'pending' as const,
+                },
+              ],
+            }
+          : group
+      ),
+    };
+
+    const preview = computeStageAdvancement(scheduled, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    const blocked = confirmStageAdvancement(scheduled, preview);
+    expect(blocked).toBe(scheduled);
+    const breakout = blocked.groups.find(group => group.stageId === 'stage-breakout')!;
+    expect(breakout.matches).toHaveLength(1);
+  });
+
+  it('advances players who share a name when neither has a QQ', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const groupA = competition.groups.find(group => group.name === 'A组')!;
+    const topTwoCodes = rankingNames(groupA).slice(0, 2);
+
+    // 同组前两名同名、都没有 QQ（旧实现按 name#qq 去重会丢掉第二个人）。
+    const renamed = structuredClone(competition);
+    const renamedA = renamed.groups.find(group => group.name === 'A组')!;
+    for (const player of renamedA.players) {
+      player.name = '张三';
+      player.profile = {};
+    }
+
+    const preview = computeStageAdvancement(renamed, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    const updated = confirmStageAdvancement(renamed, preview);
+    const playoff = updated.groups.find(group => group.stageId === 'stage-playoff')!;
+    const codes = playoff.players.map(player => player.participantCode);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const code of topTwoCodes) expect(codes).toContain(code);
+  });
+
+  it('blocks advancement into a downstream stage that has several groups', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const playoffGroup = competition.groups.find(group => group.stageId === 'stage-playoff')!;
+    const multi: TournamentCompetition = {
+      ...competition,
+      groups: [
+        ...competition.groups,
+        { ...structuredClone(playoffGroup), id: 'stage-playoff-b', name: '淘汰赛B组' },
+      ],
+      stages: (competition.stages ?? []).map(stage =>
+        stage.id === 'stage-playoff'
+          ? { ...stage, groupIds: [...stage.groupIds, 'stage-playoff-b'] }
+          : stage
+      ),
+    };
+
+    const preview = computeStageAdvancement(multi, 'stage-group');
+    expect(preview.errors.some(error => error.includes('多个小组'))).toBe(true);
+  });
+
+  it('only writes a bracket into single-elimination target groups', () => {
+    const competition = finishGroupStage(buildCompetition([
+      { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+      { id: 'breakout', fromRank: 3, toRank: 6, targetStageId: 'stage-breakout' },
+    ]));
+    const swiss = structuredClone(competition);
+    const playoffGroup = swiss.groups.find(group => group.stageId === 'stage-playoff')!;
+    playoffGroup.pairingType = 'swiss';
+    const playoffStage = (swiss.stages ?? []).find(stage => stage.id === 'stage-playoff')!;
+    playoffStage.kind = 'swiss';
+
+    const preview = computeStageAdvancement(swiss, 'stage-group');
+    expect(preview.warnings.some(warning => warning.includes('不是单败淘汰赛'))).toBe(true);
+
+    const updated = confirmStageAdvancement(swiss, preview);
+    const target = updated.groups.find(group => group.stageId === 'stage-playoff')!;
+    expect(target.players.length).toBeGreaterThan(0);
+    expect(target.eliminationBracket).toBeUndefined();
+  });
 });
