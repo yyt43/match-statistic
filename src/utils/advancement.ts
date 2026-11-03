@@ -660,12 +660,20 @@ function collectPlanSeats(
       continue;
     }
     for (const selector of slot.selectors) {
+      const winsMode = selector.mode === 'wins';
       const from = Math.max(1, Math.floor(selector.fromRank));
       const to = Math.max(from, Math.floor(selector.toRank));
       const candidates: CandidateSeat[] = [];
       for (const group of groups) {
         const ranking = getRankedPlayers(group);
-        for (let rank = from; rank <= to; rank += 1) {
+        const rankSpan: number[] = [];
+        if (winsMode) {
+          // 按胜场选人：覆盖全组，名次区间只作为占位被忽略。
+          for (let rank = 1; rank <= ranking.length; rank += 1) rankSpan.push(rank);
+        } else {
+          for (let rank = from; rank <= to; rank += 1) rankSpan.push(rank);
+        }
+        for (const rank of rankSpan) {
           const player = ranking[rank - 1];
           if (!player || claimed.has(player.id)) continue;
           if (selector.minWins !== undefined && player.wins < selector.minWins) continue;
@@ -673,6 +681,8 @@ function collectPlanSeats(
           candidates.push({ player, group, rank });
         }
       }
+      // 按胜场选人时，候选顺序也要按胜场排（名次在单败淘汰里可能并列）。
+      if (winsMode) candidates.sort(compareCandidates);
       const take = selector.take === undefined ? undefined : Math.max(0, Math.floor(selector.take));
       const chosen = take === undefined
         ? candidates

@@ -207,4 +207,70 @@ describe('general advancement plan', () => {
       [rankedCodes[0][0], rankedCodes[0][1], rankedCodes[1][0], rankedCodes[1][1]].sort()
     );
   });
+
+  it('selects single-elimination advancers by wins instead of tied ranks', () => {
+    const source: MultiStageDraftStage = {
+      id: 'stage-elim',
+      name: '淘汰赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 8,
+      rounds: 3,
+      fixedRounds: 3,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5', 'bo5'],
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-final',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins', minWins: 2 }],
+          },
+        ],
+      },
+    };
+    const final: MultiStageDraftStage = {
+      id: 'stage-final',
+      name: '决赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 8,
+      rounds: 3,
+      fixedRounds: 3,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5', 'bo5'],
+      sourceStageIds: ['stage-elim'],
+    };
+    const base = createMultiStageCompetition('胜场晋级测试', [source, final]);
+    // 单败淘汰里同轮出局名次并列：3 胜、3 个 2 胜、2 个 1 胜、2 个 0 胜。
+    const targetWins = [3, 2, 2, 2, 1, 1, 0, 0];
+    const competition: TournamentCompetition = {
+      ...base,
+      groups: base.groups.map(group =>
+        group.stageId === 'stage-elim'
+          ? {
+              ...group,
+              status: 'completed',
+              currentRound: group.totalRounds,
+              players: group.players.map((player, index) => ({
+                ...player,
+                wins: targetWins[index] ?? 0,
+                losses: Math.max(0, (targetWins[index] ?? 0) - 1),
+                points: targetWins[index] ?? 0,
+              })),
+            }
+          : group
+      ),
+    };
+    const preview = computeStageAdvancement(competition, 'stage-elim');
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(4);
+    const winsById = new Map<string, number>();
+    base.groups
+      .filter(group => group.stageId === 'stage-elim')
+      .forEach(group => group.players.forEach((player, index) => winsById.set(player.id, targetWins[index] ?? 0)));
+    preview.seats.forEach(seat => expect(winsById.get(seat.playerId)).toBeGreaterThanOrEqual(2));
+    // 胜场最高的先排，不依赖名次并列时的任意顺序。
+    expect(winsById.get(preview.seats[0].playerId)).toBe(3);
+  });
 });

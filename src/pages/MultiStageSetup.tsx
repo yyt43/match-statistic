@@ -11,12 +11,26 @@ import {
   Trash2,
   Trophy,
 } from 'lucide-react';
-import type { GameType, PairingType, SeatingMode, StageSeedRule } from '../types';
+import type {
+  AdvanceSelector,
+  GameType,
+  PairingType,
+  SeatingMode,
+  StageAdvancementPlan,
+  StageSeedRule,
+} from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createDefaultStageDraft, createMultiStageCompetition } from '../store/multiStageFactory';
 import { getDraftGroupNames, type MultiStageDraftStage } from '../utils/multiStage';
-import { DEFAULT_RANK_PAIRS, normalizeSeatingPlan } from '../utils/advancementPlan';
+import {
+  DEFAULT_RANK_PAIRS,
+  createAdvanceSlot,
+  createSelector,
+  createWinsSelector,
+  normalizeAdvancementPlan,
+  normalizeSeatingPlan,
+} from '../utils/advancementPlan';
 import { validateStageDrafts } from '../utils/stageDraftValidation';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -41,6 +55,84 @@ function effectiveRounds(stage: MultiStageDraftStage): number {
   return stage.kind === 'single_elimination'
     ? getSingleEliminationRounds(stage.playerCountPerGroup)
     : stage.rounds;
+}
+
+interface NumberFieldProps {
+  value: number | undefined;
+  onCommit: (next: number | undefined) => void;
+  min?: number;
+  max?: number;
+  allowEmpty?: boolean;
+  ariaLabel: string;
+  placeholder?: string;
+  className?: string;
+}
+
+/**
+ * 数字输入框：编辑时保留用户输入（可以整段清空），
+ * 失焦或回车时才把合法值写回，避免「删空立刻跳回 1」。
+ */
+function NumberField({
+  value,
+  onCommit,
+  min = 1,
+  max = 64,
+  allowEmpty = false,
+  ariaLabel,
+  placeholder,
+  className = 'w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50',
+}: NumberFieldProps) {
+  const [draft, setDraft] = useState(value === undefined ? '' : String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(value === undefined ? '' : String(value));
+  }, [value, focused]);
+
+  const commitDraft = () => {
+    const raw = draft.trim();
+    if (raw === '') {
+      if (!allowEmpty) setDraft(value === undefined ? '' : String(value));
+      return;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+      setDraft(value === undefined ? '' : String(value));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, Math.floor(parsed)));
+    setDraft(String(clamped));
+    onCommit(clamped);
+  };
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={draft}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={event => {
+        const raw = event.target.value;
+        setDraft(raw);
+        if (raw === '' && allowEmpty) onCommit(undefined);
+      }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        commitDraft();
+      }}
+      onKeyDown={event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          (event.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      className={className}
+    />
+  );
 }
 
 /** 选手从 sourceStageId 晋级到 targetStageId 后，目标赛段的名单就来自这个上游。 */
@@ -154,45 +246,86 @@ export default function MultiStageSetup() {
     }));
   };
 
-  /** 选择晋级去向：目标赛段由用户自己命名，选好后自动补上「名单来自上游」的依赖。 */
-  const updateRuleTarget = (stageId: string, ruleId: string, targetStageId: string) => {
-    setStages(current =>
-      linkTargetSource(
-        current.map(stage =>
-          stage.id === stageId
-            ? {
-                ...stage,
-                advancementRules: (stage.advancementRules ?? []).map(rule =>
-                  rule.id === ruleId ? { ...rule, targetStageId } : rule
-                ),
-              }
-            : stage
-        ),
-        stageId,
-        targetStageId
-      )
-    );
+  /** 修改晋级计划；目标赛段变化时自动补上「名单来自上游」的依赖。 */
+  const updateAdvancementPlan = (
+    stageId: string,
+    updater: (plan: StageAdvancementPlan) => StageAdvancementPlan
+  ) => {
+    setStages(current => current.map(stage => {
+      if (stage.id !== stageId) return stage;
+      const plan = normalizeAdvancementPlan(stage) ?? { slots: [] };
+      return { ...stage, advancementPlan: updater(plan) };
+    }));
   };
 
-  const addRule = (stageId: string, targetStageId: string) => {
-    const ruleId = `rule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    setStages(current =>
-      linkTargetSource(
-        current.map(stage =>
-          stage.id === stageId
-            ? {
-                ...stage,
-                advancementRules: [
-                  ...(stage.advancementRules ?? []),
-                  { id: ruleId, fromRank: 1, toRank: 2, targetStageId },
-                ],
-              }
-            : stage
-        ),
-        stageId,
-        targetStageId
-      )
-    );
+  /** 新增一条去向（默认选中第一个候选下游赛段；单败淘汰来源默认按淘汰轮次选人）。 */
+  const addPlanSlot = (stageId: string, targetStageId: string, sourceKind?: PairingType) => {
+    const slot = createAdvanceSlot(targetStageId);
+    if (sourceKind === 'single_elimination') {
+      slot.selectors = [createWinsSelector()];
+    }
+    updateAdvancementPlan(stageId, plan => ({
+      slots: [...plan.slots, slot],
+    }));
+    if (targetStageId) {
+      setStages(current => linkTargetSource(current, stageId, targetStageId));
+    }
+  };
+
+  const removePlanSlot = (stageId: string, slotId: string) => {
+    updateAdvancementPlan(stageId, plan => ({
+      slots: plan.slots.filter(slot => slot.id !== slotId),
+    }));
+  };
+
+  const setPlanSlotTarget = (stageId: string, slotId: string, targetStageId: string) => {
+    updateAdvancementPlan(stageId, plan => ({
+      slots: plan.slots.map(slot => (slot.id === slotId ? { ...slot, targetStageId } : slot)),
+    }));
+    if (targetStageId) {
+      setStages(current => linkTargetSource(current, stageId, targetStageId));
+    }
+  };
+
+  const addSelector = (stageId: string, slotId: string, stage: MultiStageDraftStage) => {
+    const selector = stage.kind === 'single_elimination'
+      ? createWinsSelector(0)
+      : createSelector();
+    updateAdvancementPlan(stageId, plan => ({
+      slots: plan.slots.map(slot =>
+        slot.id === slotId ? { ...slot, selectors: [...slot.selectors, selector] } : slot
+      ),
+    }));
+  };
+
+  const updateSelector = (
+    stageId: string,
+    slotId: string,
+    selectorIndex: number,
+    patch: Partial<AdvanceSelector>
+  ) => {
+    updateAdvancementPlan(stageId, plan => ({
+      slots: plan.slots.map(slot =>
+        slot.id === slotId
+          ? {
+              ...slot,
+              selectors: slot.selectors.map((selector, index) =>
+                index === selectorIndex ? { ...selector, ...patch } : selector
+              ),
+            }
+          : slot
+      ),
+    }));
+  };
+
+  const removeSelector = (stageId: string, slotId: string, selectorIndex: number) => {
+    updateAdvancementPlan(stageId, plan => ({
+      slots: plan.slots.map(slot =>
+        slot.id === slotId
+          ? { ...slot, selectors: slot.selectors.filter((_, index) => index !== selectorIndex) }
+          : slot
+      ),
+    }));
   };
 
   /** 名单来源可以多选：例如淘汰赛同时接收小组赛直进与突围赛晋级。 */
@@ -401,6 +534,8 @@ export default function MultiStageSetup() {
             const seating = normalizeSeatingPlan(stage);
             const seatingPairs = seating.mode === 'rankPairs' ? seating.pairs ?? [] : [];
             const seatingSlots = seating.mode === 'fixedSlots' ? seating.slots ?? [] : [];
+            const plan = normalizeAdvancementPlan(stage);
+            const planSlots = plan?.slots ?? [];
             const upstreamGroupNames = Array.from(
               new Set(upstreamStages.flatMap(item => getDraftGroupNames(item)))
             );
@@ -409,18 +544,10 @@ export default function MultiStageSetup() {
                 target.id !== stage.id
                 && (
                   (target.sourceStageIds ?? []).includes(stage.id)
-                  || (stage.advancementRules ?? []).some(rule => rule.targetStageId === target.id)
+                  || planSlots.some(slot => slot.targetStageId === target.id)
                 )
               )
               .map(target => target.name || (isEnglish ? 'Untitled stage' : '未命名赛段'));
-            const declaredDownstream = laterStages.filter(target =>
-              (target.sourceStageIds ?? []).includes(stage.id)
-            );
-            const defaultTargetStageId = declaredDownstream.length === 1
-              ? declaredDownstream[0].id
-              : declaredDownstream.length === 0 && laterStages.length === 1
-                ? laterStages[0].id
-                : '';
             return (
             <section
               key={stage.id}
@@ -678,24 +805,20 @@ export default function MultiStageSetup() {
                             className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400"
                           >
                             <span>{isEnglish ? 'rank' : '名次'}</span>
-                            <input
-                              type="number"
+                            <NumberField
+                              value={pair[0]}
                               min={1}
                               max={64}
-                              value={pair[0]}
-                              onChange={event => updateBreakoutPair(stage.id, pairIndex, 0, Number(event.target.value))}
-                              aria-label={isEnglish ? `Pairing ${pairIndex + 1} first rank` : `第${pairIndex + 1}组配对的第一个名次`}
-                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                              onCommit={next => updateBreakoutPair(stage.id, pairIndex, 0, next ?? 1)}
+                              ariaLabel={isEnglish ? `Pairing ${pairIndex + 1} first rank` : `第${pairIndex + 1}组配对的第一个名次`}
                             />
                             <span>vs</span>
-                            <input
-                              type="number"
+                            <NumberField
+                              value={pair[1]}
                               min={1}
                               max={64}
-                              value={pair[1]}
-                              onChange={event => updateBreakoutPair(stage.id, pairIndex, 1, Number(event.target.value))}
-                              aria-label={isEnglish ? `Pairing ${pairIndex + 1} second rank` : `第${pairIndex + 1}组配对的第二个名次`}
-                              className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                              onCommit={next => updateBreakoutPair(stage.id, pairIndex, 1, next ?? 1)}
+                              ariaLabel={isEnglish ? `Pairing ${pairIndex + 1} second rank` : `第${pairIndex + 1}组配对的第二个名次`}
                             />
                             <button
                               type="button"
@@ -722,16 +845,22 @@ export default function MultiStageSetup() {
                       </div>
                     )}
 
-                    <p className="text-[10px] leading-relaxed text-slate-500">
+                    <p className="rounded border border-slate-700/40 bg-slate-900/40 px-2 py-1.5 text-[10px] leading-relaxed text-slate-400">
                       {seating.mode === 'ordered'
                         ? (isEnglish
-                          ? 'Arrivals fill the roster in source-group order, then by rank.'
-                          : '按来源小组顺序、再按名次依次补进名单。')
+                          ? 'In order: fills the roster or bracket by source-group order, then by rank — A1, A2, B1, B2… No extra matches.'
+                          : '顺序补位：按「来源小组顺序 → 组内名次」依次填进名单或签表，例如 A组第1、A组第2、B组第1、B组第2……不额外打附加赛。')
                         : seating.mode === 'snake'
                           ? (isEnglish
-                            ? 'Seeds are spread across the bracket in standard snake order.'
-                            : '按标准签表的蛇形顺序把种子铺开到各签位。')
-                          : ''}
+                            ? 'Snake: standard bracket spread so the top seeds meet as late as possible. For 8 players the slot order is 1, 8, 5, 4, 3, 6, 7, 2.'
+                            : '蛇形排位：按标准签表分布铺开，让高名次选手尽量晚相遇。8 人签表的落位顺序是 1、8、5、4、3、6、7、2。')
+                          : seating.mode === 'rankPairs'
+                            ? (isEnglish
+                              ? 'Rank pairs: a play-in inside the same source group, e.g. 3rd vs 6th and 4th vs 5th; the winners take that group\'s 3rd and 4th places. A lone side advances directly.'
+                              : '同组名次配对：在同一个来源小组内先打附加赛，例如 3 名 vs 6 名、4 名 vs 5 名，胜者取得该组第 3、4 名再进签表；只有一边有人时该选手直接晋级。')
+                            : (isEnglish
+                              ? 'Fixed slots: pin a source-group rank to a bracket slot (1-based). Advancers not listed fill the remaining slots in order.'
+                              : '固定签位：把「某组第几名」钉到指定签位（签位从 1 开始），没有列出的晋级选手按顺序补入空位。')}
                     </p>
                   </div>
                 )}
@@ -778,34 +907,26 @@ export default function MultiStageSetup() {
                           )}
                         </select>
                         <span>{isEnglish ? 'rank' : '第'}</span>
-                        <input
-                          type="number"
+                        <NumberField
+                          value={rule.rank}
                           min={1}
                           max={64}
-                          value={rule.rank}
-                          onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
-                            index === seedIndex
-                              ? { ...item, rank: Math.max(1, Number(event.target.value) || 1) }
-                              : item
+                          onCommit={next => updateSeedRules(stage.id, rules => rules.map((item, index) =>
+                            index === seedIndex ? { ...item, rank: next ?? 1 } : item
                           ))}
-                          aria-label={isEnglish ? `Bracket slot ${seedIndex + 1} source rank` : `签表第${seedIndex + 1}位的来源名次`}
-                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                          ariaLabel={isEnglish ? `Bracket slot ${seedIndex + 1} source rank` : `签表第${seedIndex + 1}位的来源名次`}
                         />
                         <span>{isEnglish ? '' : '名'}</span>
                         <span className="text-slate-500">→</span>
                         <span>{isEnglish ? 'slot' : '签表第'}</span>
-                        <input
-                          type="number"
+                        <NumberField
+                          value={rule.slot + 1}
                           min={1}
                           max={64}
-                          value={rule.slot + 1}
-                          onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
-                            index === seedIndex
-                              ? { ...item, targetSlot: Math.max(0, (Number(event.target.value) || 1) - 1) }
-                              : item
+                          onCommit={next => updateSeedRules(stage.id, rules => rules.map((item, index) =>
+                            index === seedIndex ? { ...item, targetSlot: (next ?? 1) - 1 } : item
                           ))}
-                          aria-label={isEnglish ? `Bracket slot ${seedIndex + 1} target slot` : `签表第${seedIndex + 1}位的目标签位`}
-                          className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                          ariaLabel={isEnglish ? `Bracket slot ${seedIndex + 1} target slot` : `签表第${seedIndex + 1}位的目标签位`}
                         />
                         <span>{isEnglish ? '' : '位'}</span>
                         <button
@@ -829,100 +950,40 @@ export default function MultiStageSetup() {
                 )}
               </div>
 
+              {laterStages.length > 0 && (
               <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
-                <span className="text-xs font-medium text-slate-400">
-                  {isEnglish ? 'Advancement rules' : '晋级规则'}
-                </span>
-                <div className="space-y-1.5">
-                  {(stage.advancementRules ?? []).map(rule => (
-                    <div key={rule.id} className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-                      <span>{isEnglish ? 'Rank' : '名次'}</span>
-                      <input
-                        type="number"
-                        value={rule.fromRank}
-                        min={1}
-                        max={64}
-                        onChange={event => {
-                          const next = Math.max(1, Number(event.target.value) || 1);
-                          updateStage(stage.id, {
-                            advancementRules: (stage.advancementRules ?? []).map(item =>
-                              item.id === rule.id ? { ...item, fromRank: next } : item
-                            ),
-                          });
-                        }}
-                        aria-label={isEnglish ? 'Advancement starting rank' : '晋级起始名次'}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
-                      />
-                      <span>-</span>
-                      <input
-                        type="number"
-                        value={rule.toRank}
-                        min={1}
-                        max={64}
-                        onChange={event => {
-                          const next = Math.max(1, Number(event.target.value) || 1);
-                          updateStage(stage.id, {
-                            advancementRules: (stage.advancementRules ?? []).map(item =>
-                              item.id === rule.id ? { ...item, toRank: next } : item
-                            ),
-                          });
-                        }}
-                        aria-label={isEnglish ? 'Advancement ending rank' : '晋级结束名次'}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
-                      />
-                      <span>{isEnglish ? 'wins' : '胜场'}</span>
-                      <input
-                        type="number"
-                        value={rule.minWins ?? ''}
-                        min={0}
-                        max={20}
-                        placeholder={isEnglish ? 'any' : '不限'}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          updateStage(stage.id, {
-                            advancementRules: (stage.advancementRules ?? []).map(item =>
-                              item.id === rule.id
-                                ? { ...item, minWins: raw === '' ? undefined : Math.max(0, Number(raw) || 0) }
-                                : item
-                            ),
-                          });
-                        }}
-                        aria-label={isEnglish ? 'Minimum wins' : '最低胜场'}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
-                      />
-                      <span>-</span>
-                      <input
-                        type="number"
-                        value={rule.maxWins ?? ''}
-                        min={0}
-                        max={20}
-                        placeholder={isEnglish ? 'any' : '不限'}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          updateStage(stage.id, {
-                            advancementRules: (stage.advancementRules ?? []).map(item =>
-                              item.id === rule.id
-                                ? { ...item, maxWins: raw === '' ? undefined : Math.max(0, Number(raw) || 0) }
-                                : item
-                            ),
-                          });
-                        }}
-                        aria-label={isEnglish ? 'Maximum wins' : '最高胜场'}
-                        className="w-14 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-1 text-center text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
-                      />
-                      <span className="text-slate-500">→</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-slate-400">
+                    {isEnglish ? 'Advancement destinations' : '晋级去向'}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {isEnglish ? 'Who moves on, and where.' : '先决定谁能晋级，再决定晋级到哪。'}
+                  </span>
+                </div>
+
+                {planSlots.length === 0 && (
+                  <p className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                    {isEnglish
+                      ? 'No destination configured yet — the downstream stage will receive nobody.'
+                      : '还没有配置去向，下游赛段将收不到任何选手。'}
+                  </p>
+                )}
+
+                {planSlots.map(slot => (
+                  <div key={slot.id} className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-800/40 p-2.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="shrink-0 text-[11px] text-slate-400">
+                        {isEnglish ? 'Goes to' : '晋级到'}
+                      </span>
                       <select
-                        value={rule.targetStageId || defaultTargetStageId}
-                        onChange={event => updateRuleTarget(stage.id, rule.id, event.target.value)}
-                        className={`max-w-[10rem] rounded border bg-slate-800/60 px-1.5 py-1 text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50 ${
-                          rule.targetStageId || defaultTargetStageId
-                            ? 'border-slate-700/50'
-                            : 'border-amber-500/60'
+                        value={slot.targetStageId}
+                        onChange={event => setPlanSlotTarget(stage.id, slot.id, event.target.value)}
+                        aria-label={isEnglish ? 'Destination stage' : '晋级目标赛段'}
+                        className={`min-w-0 flex-1 rounded border bg-slate-800/60 px-1.5 py-1 text-[11px] text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50 ${
+                          slot.targetStageId ? 'border-slate-700/50' : 'border-amber-500/60'
                         }`}
-                        title={isEnglish ? 'Where these players advance to' : '这些选手晋级到哪个赛段'}
-                        aria-label={isEnglish ? 'Target stage' : '目标赛段'}
                       >
-                        <option value="">{isEnglish ? 'Choose target stage' : '选择目标赛段'}</option>
+                        <option value="">{isEnglish ? 'Choose stage' : '选择赛段'}</option>
                         {laterStages.map(target => (
                           <option key={target.id} value={target.id}>
                             {target.name || (isEnglish ? 'Untitled stage' : '未命名赛段')}
@@ -931,29 +992,152 @@ export default function MultiStageSetup() {
                       </select>
                       <button
                         type="button"
-                        onClick={() => updateStage(stage.id, {
-                          advancementRules: (stage.advancementRules ?? []).filter(item => item.id !== rule.id),
-                        })}
-                        className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
+                        onClick={() => removePlanSlot(stage.id, slot.id)}
+                        aria-label={isEnglish ? 'Remove destination' : '删除这条去向'}
+                        className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-[11px] text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                       >
                         {isEnglish ? 'Remove' : '删除'}
                       </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addRule(stage.id, laterStages[0]?.id ?? '')}
-                    className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
-                  >
-                    {isEnglish ? 'Add rule' : '添加晋级条件'}
-                  </button>
-                  <p className="text-[10px] leading-relaxed text-slate-500">
-                    {isEnglish
-                      ? 'Checked per source group: ranks in range (and wins in range when set) advance to the chosen stage. One stage can point to several stages.'
-                      : '按来源小组逐个判定：名次在区间内（若填写胜场则同时满足）的选手晋级到所选赛段；同一赛段可以指向多个赛段。'}
-                  </p>
-                </div>
+
+                    {slot.selectors.map((selector, selectorIndex) => {
+                      const winsMode = selector.mode === 'wins';
+                      return (
+                        <div
+                          key={`${slot.id}-selector-${selectorIndex}`}
+                          className="rounded border border-slate-700/40 bg-slate-900/40 p-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                            <span>{isEnglish ? 'Pick' : '选人'}</span>
+                            <div className="flex overflow-hidden rounded border border-slate-700/50">
+                              <button
+                                type="button"
+                                onClick={() => updateSelector(stage.id, slot.id, selectorIndex, { mode: 'rank' })}
+                                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                                  winsMode ? 'bg-slate-800/60 text-slate-400' : 'bg-gold-500/20 text-gold-400'
+                                }`}
+                              >
+                                {isEnglish ? 'by rank' : '按名次'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateSelector(stage.id, slot.id, selectorIndex, {
+                                    mode: 'wins',
+                                    ...(selector.minWins === undefined && selector.maxWins === undefined
+                                      ? { minWins: 1 }
+                                      : {}),
+                                  })
+                                }
+                                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                                  winsMode ? 'bg-gold-500/20 text-gold-400' : 'bg-slate-800/60 text-slate-400'
+                                }`}
+                              >
+                                {isEnglish ? 'by round' : '按淘汰轮次'}
+                              </button>
+                            </div>
+
+                            {winsMode ? (
+                              <>
+                                <span>{isEnglish ? 'wins' : '胜场'}</span>
+                                <NumberField
+                                  value={selector.minWins}
+                                  allowEmpty
+                                  min={0}
+                                  max={20}
+                                  placeholder={isEnglish ? 'any' : '不限'}
+                                  onCommit={next => updateSelector(stage.id, slot.id, selectorIndex, { minWins: next })}
+                                  ariaLabel={isEnglish ? 'Minimum wins' : '最低胜场'}
+                                />
+                                <span>-</span>
+                                <NumberField
+                                  value={selector.maxWins}
+                                  allowEmpty
+                                  min={0}
+                                  max={20}
+                                  placeholder={isEnglish ? 'any' : '不限'}
+                                  onCommit={next => updateSelector(stage.id, slot.id, selectorIndex, { maxWins: next })}
+                                  ariaLabel={isEnglish ? 'Maximum wins' : '最高胜场'}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <span>{isEnglish ? 'rank' : '名次'}</span>
+                                <NumberField
+                                  value={selector.fromRank}
+                                  min={1}
+                                  max={64}
+                                  onCommit={next => updateSelector(stage.id, slot.id, selectorIndex, { fromRank: next ?? 1 })}
+                                  ariaLabel={isEnglish ? 'Starting rank' : '起始名次'}
+                                />
+                                <span>-</span>
+                                <NumberField
+                                  value={selector.toRank}
+                                  min={1}
+                                  max={64}
+                                  onCommit={next => updateSelector(stage.id, slot.id, selectorIndex, { toRank: next ?? 1 })}
+                                  ariaLabel={isEnglish ? 'Ending rank' : '结束名次'}
+                                />
+                              </>
+                            )}
+
+                            <span>{isEnglish ? 'best' : '跨组取'}</span>
+                            <NumberField
+                              value={selector.take}
+                              allowEmpty
+                              min={1}
+                              max={64}
+                              placeholder={isEnglish ? 'all' : '全部'}
+                              onCommit={next => updateSelector(stage.id, slot.id, selectorIndex, { take: next })}
+                              ariaLabel={isEnglish ? 'Take best N across groups' : '跨组取前几名'}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeSelector(stage.id, slot.id, selectorIndex)}
+                              aria-label={isEnglish ? 'Remove condition' : '删除这个条件'}
+                              className="ml-auto rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-1 text-rose-300 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
+                            >
+                              {isEnglish ? 'Remove' : '删除'}
+                            </button>
+                          </div>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                            {winsMode
+                              ? (isEnglish
+                                ? 'Counts match wins only: in single elimination, same-round losers tie on rank but differ on wins (0 = out in round 1).'
+                                : '只按赢下的场数选人：单败淘汰里同一轮出局的选手名次并列，但胜场不同（0 胜 = 首轮出局），按轮次选不会有并列歧义。')
+                              : (isEnglish
+                                ? 'Ranks come from the group standings of this stage. In single elimination, same-round losers tie on rank — prefer the round mode there.'
+                                : '按本赛段的小组排名选人。单败淘汰里同一轮出局的选手名次并列，这种情况建议改用「按淘汰轮次」。')}
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => addSelector(stage.id, slot.id, stage)}
+                      className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+                    >
+                      {isEnglish ? 'Add condition' : '添加选人条件'}
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => addPlanSlot(stage.id, laterStages[0]?.id ?? '', stage.kind)}
+                  className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+                >
+                  {isEnglish ? 'Add destination' : '添加去向'}
+                </button>
+
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  {isEnglish
+                    ? 'Each condition is checked inside every source group. "Best N across groups" then keeps only the top N candidates (e.g. the best four 3rd places). A stage may point to several destinations.'
+                    : '每个条件都会在来源赛段的每个小组里分别判定；「跨组取 N」再把所有小组的候选人按积分、胜场、胜率排一遍，只留前 N 名（例如 4 个小组只收最好的 4 个第三名）。同一赛段可以有多条去向。'}
+                </p>
               </div>
+              )}
             </section>
             );
           })}

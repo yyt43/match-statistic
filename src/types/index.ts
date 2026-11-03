@@ -241,8 +241,13 @@ export interface StageBreakoutConfig {
 /**
  * 选人条件：从上游赛段每个小组取第 fromRank-toRank 名，可叠加胜场条件，
  * 也可以跨组按成绩取前 N（例如「最好的 4 个第三名」）。
+ *
+ * `mode === 'wins'` 时按胜场区间选人、忽略名次区间：单败淘汰赛段同轮出局的
+ * 选手名次并列，用「胜场 = 淘汰轮次」判定更严谨（例如胜场 2 = 半决赛负者）。
  */
 export interface AdvanceSelector {
+  /** 选人依据：rank 按小组名次（默认），wins 按胜场区间（单败淘汰更严谨）。 */
+  mode?: 'rank' | 'wins';
   fromRank: number;
   toRank: number;
   minWins?: number;

@@ -32,6 +32,17 @@ export function createSelector(overrides: Partial<AdvanceSelector> = {}): Advanc
   return { ...DEFAULT_SELECTOR, ...overrides };
 }
 
+/**
+ * 生成一条按胜场选人的条件（单败淘汰赛段更严谨）：
+ * 名次区间只是占位、计算时会被忽略；不填胜场表示全部晋级。
+ */
+export function createWinsSelector(minWins?: number, maxWins?: number): AdvanceSelector {
+  const selector: AdvanceSelector = { mode: 'wins', fromRank: 1, toRank: 64 };
+  if (minWins !== undefined) selector.minWins = Math.max(0, Math.floor(minWins));
+  if (maxWins !== undefined) selector.maxWins = Math.max(0, Math.floor(maxWins));
+  return selector;
+}
+
 /** 只读取晋级计划时需要的字段子集（赛事赛段与设置页草稿都满足）。 */
 export type AdvancementPlanSource = Pick<TournamentStage, 'advancementPlan' | 'advancementRules'>;
 

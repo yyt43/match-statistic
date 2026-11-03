@@ -93,17 +93,45 @@ export function validateStageDrafts(
     const groupSize = knownGroupSize(stage);
     const claimedRanks = new Map<number, string[]>();
     rules.forEach(rule => {
+      const winsMode = rule.mode === 'wins';
       const from = Math.max(1, Math.floor(rule.fromRank) || 1);
       const to = Math.max(1, Math.floor(rule.toRank) || 1);
       const resolvedTargetId = rule.targetStageId
         || (downstream.length === 1 ? downstream[0] : '');
-      if (from > to) {
-        push(
-          'error',
-          isEnglish
-            ? `Rank range ${from}-${to} is reversed.`
-            : `名次区间 ${from}-${to} 起点大于终点。`
-        );
+      if (winsMode) {
+        if (rule.minWins === undefined && rule.maxWins === undefined) {
+          push(
+            'warning',
+            isEnglish
+              ? 'No wins limit means every player advances from this source group.'
+              : '没有填写胜场等于全部晋级；如果只想取部分选手，请填写胜场区间。'
+          );
+        }
+      } else {
+        if (from > to) {
+          push(
+            'error',
+            isEnglish
+              ? `Rank range ${from}-${to} is reversed.`
+              : `名次区间 ${from}-${to} 起点大于终点。`
+          );
+        }
+        if (groupSize !== undefined && to > groupSize) {
+          push(
+            'error',
+            isEnglish
+              ? `Asks for rank ${to} but each group only has ${groupSize} players.`
+              : `要求取到第 ${to} 名，但每组只有 ${groupSize} 人。`
+          );
+        }
+        if (downstream.length > 0 && stage.kind === 'single_elimination') {
+          push(
+            'warning',
+            isEnglish
+              ? 'Single-elimination ranks tie players knocked out in the same round, so a rank range may pick an arbitrary subset. Prefer a wins (round) condition.'
+              : '单败淘汰赛段里同一轮出局的选手名次并列，按名次区间取人可能只取到并列者的一部分；建议改用「淘汰轮次 / 胜场」条件。'
+          );
+        }
       }
       if (rule.minWins !== undefined && rule.maxWins !== undefined && rule.minWins > rule.maxWins) {
         push(
@@ -111,14 +139,6 @@ export function validateStageDrafts(
           isEnglish
             ? `Wins range ${rule.minWins}-${rule.maxWins} is reversed.`
             : `胜场区间 ${rule.minWins}-${rule.maxWins} 下限大于上限。`
-        );
-      }
-      if (groupSize !== undefined && to > groupSize) {
-        push(
-          'error',
-          isEnglish
-            ? `Asks for rank ${to} but each group only has ${groupSize} players.`
-            : `要求取到第 ${to} 名，但每组只有 ${groupSize} 人。`
         );
       }
       if (!resolvedTargetId && downstream.length > 1) {
@@ -133,7 +153,7 @@ export function validateStageDrafts(
         push(
           'error',
           isEnglish
-            ? `Target stage for rank ${from}-${to} no longer exists.`
+            ? `The target stage of rank ${from}-${to} no longer exists.`
             : `名次 ${from}-${to} 的目标赛段已不存在，请重新选择。`
         );
       }
@@ -146,6 +166,7 @@ export function validateStageDrafts(
             : `${stageLabel(targetStage, isEnglish)}的名单来源还没有包含本赛段，确认晋级后会按结果覆盖它的名单。`
         );
       }
+      if (winsMode) return;
       for (let rank = from; rank <= to; rank += 1) {
         const owners = claimedRanks.get(rank) ?? [];
         owners.push(resolvedTargetId);

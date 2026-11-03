@@ -122,4 +122,45 @@ describe('stage draft validation', () => {
     };
     expect(errorsOf([first, second]).join(' ')).toContain('成环');
   });
+
+  it('does not warn about tied ranks when the stage has no downstream yet', () => {
+    const stage = createDefaultStageDraft(1);
+    stage.kind = 'single_elimination';
+    expect(warningsOf([stage]).join(' ')).not.toContain('名次并列');
+  });
+
+  it('warns about tied ranks when a single-elimination stage advances by rank', () => {
+    const elimination = {
+      ...finalStage(),
+      id: 'stage-semi',
+      name: '半决赛',
+      advancementRules: [{ id: 'r1', fromRank: 3, toRank: 4, targetStageId: 'stage-final' }],
+    };
+    expect(warningsOf([elimination, finalStage()]).join(' ')).toContain('名次并列');
+  });
+
+  it('accepts a wins-based selector and warns when the wins range is open', () => {
+    const elimination = {
+      ...finalStage(),
+      id: 'stage-semi',
+      name: '半决赛',
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-1',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const, minWins: 1 }],
+          },
+          {
+            id: 'slot-2',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const }],
+          },
+        ],
+      },
+    };
+    const messages = warningsOf([elimination, finalStage()]).join(' ');
+    expect(messages).not.toContain('名次并列');
+    expect(messages).toContain('没有填写胜场');
+  });
 });
