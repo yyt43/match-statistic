@@ -124,6 +124,18 @@ export function validateStageDrafts(
               : `胜场上限 ${rule.maxWins} 超过本赛段轮数 ${maxRoundWins}，这个上限不会筛掉任何人。`
           );
         }
+        const resolvedTargetStage = stages.find(item => item.id === resolvedTargetId);
+        if (
+          rule.take === undefined
+          && (stage.kind !== 'single_elimination' || resolvedTargetStage?.kind === 'single_elimination')
+        ) {
+          push(
+            'warning',
+            isEnglish
+              ? 'Advancing by wins is result-dependent: the number of qualifiers is not fixed. The downstream stage sizes itself to the actual count; use a rank rule or a "best N across groups" cap if you need a fixed number.'
+              : '按胜场晋级的人数取决于赛果、不固定：下游赛段会按实际晋级人数生成名单与签表。需要固定人数时，可改用名次条件，或填写「跨组取」作为人数上限。'
+          );
+        }
       } else {
         if (from > to) {
           push(
@@ -183,7 +195,18 @@ export function validateStageDrafts(
             : `${stageLabel(targetStage, isEnglish)}的名单来源还没有包含本赛段，确认晋级后会按结果覆盖它的名单。`
         );
       }
-      if (winsMode) return;
+      if (winsMode) {
+        const seTarget = stages.find(target => target.id === resolvedTargetId);
+        if (rule.take === undefined && seTarget?.kind === 'single_elimination') {
+          push(
+            'warning',
+            isEnglish
+              ? 'Advancing by wins is result-dependent, so the bracket size of the single-elimination target changes with the results. Fill "best N" if you need a fixed count.'
+              : '按胜场晋级的人数不固定，下游单败淘汰的签表大小会随赛果变化；需要固定人数时请填写「跨组取」上限。'
+          );
+        }
+        return;
+      }
       for (let rank = from; rank <= to; rank += 1) {
         const owners = claimedRanks.get(rank) ?? [];
         owners.push(resolvedTargetId);

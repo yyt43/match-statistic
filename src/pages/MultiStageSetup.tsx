@@ -81,13 +81,45 @@ function minIncomingPlayers(stage: MultiStageDraftStage, stages: MultiStageDraft
 }
 
 /**
+ * 一个赛段最多可能到达多少人：按胜场取人时人数不固定，这里按「整个来源小组都可能晋级」估算上限，
+ * 让下游单败赛段的自动轮数足够覆盖最坏情况。
+ */
+function maxIncomingPlayers(stage: MultiStageDraftStage, stages: MultiStageDraftStage[]): number {
+  if (!stage.sourceStageIds?.length) {
+    return Math.max(2, stage.groupCount * stage.playerCountPerGroup);
+  }
+  const incoming = stage.sourceStageIds.reduce((total, sourceId) => {
+    const source = stages.find(item => item.id === sourceId);
+    if (!source) return total;
+    const plan = normalizeAdvancementPlan(source);
+    const sourceGroupSize = Math.max(
+      2,
+      Math.ceil(maxIncomingPlayers(source, stages) / Math.max(1, source.groupCount))
+    );
+    const perGroup = plan?.slots.reduce((sum, slot) => {
+      const selectorTotal = slot.selectors.reduce((acc, selector) => {
+        if (selector.mode === 'wins') return acc + sourceGroupSize;
+        return acc + Math.max(1, selector.toRank - selector.fromRank + 1);
+      }, 0);
+      return sum + Math.max(1, selectorTotal);
+    }, 0) ?? sourceGroupSize;
+    const takeCaps = (plan?.slots ?? []).flatMap(slot =>
+      slot.selectors.map(selector => selector.take).filter((take): take is number => typeof take === 'number')
+    );
+    const possible = Math.max(1, source.groupCount * Math.max(1, perGroup));
+    return total + (takeCaps.length > 0 ? Math.min(possible, Math.min(...takeCaps)) : possible);
+  }, 0);
+  return Math.max(2, incoming);
+}
+
+/**
  * 轮数由赛制自动推导，不再单独设置：
- * 瑞士轮按每组人数取 ceil(log2 n)，单败淘汰按实际到达人数取 ceil(log2 n)。
+ * 瑞士轮按每组人数取 ceil(log2 n)，单败淘汰按最多可能到达人数取 ceil(log2 n)，保证签表放得下。
  */
 function autoRounds(stage: MultiStageDraftStage, stages: MultiStageDraftStage[]): number {
   const players = stage.kind === 'swiss'
     ? Math.max(2, stage.playerCountPerGroup)
-    : minIncomingPlayers(stage, stages);
+    : maxIncomingPlayers(stage, stages);
   const max = stage.kind === 'swiss' ? 20 : 8;
   return Math.min(max, Math.max(1, Math.ceil(Math.log2(players))));
 }
@@ -841,7 +873,16 @@ export default function MultiStageSetup() {
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] text-slate-500">{isEnglish ? 'Players / group' : '每组人数'}</span>
                     {stage.sourceStageIds?.length ? (
-                      <span className="flex h-8 items-center rounded-md bg-slate-800/30 px-2 text-[10px] text-slate-400">
+                      <span
+                        className="flex h-8 items-center rounded-md bg-slate-800/30 px-2 text-[10px] text-slate-400"
+                        title={(() => {
+                          const min = minIncomingPlayers(stage, stages);
+                          const max = maxIncomingPlayers(stage, stages);
+                          return isEnglish
+                            ? `Estimated ${min}–${max} players arrive. The bracket sizes itself to the actual count.`
+                            : `预计 ${min}–${max} 人到达，签表按实际人数生成。`;
+                        })()}
+                      >
                         {isEnglish ? 'By advancement' : '由晋级决定'}
                       </span>
                     ) : (
@@ -1141,7 +1182,13 @@ export default function MultiStageSetup() {
                               </>
                             )}
 
-                            <span>{isEnglish ? 'best' : '跨组取'}</span>
+                            <span
+                              title={isEnglish
+                                ? 'Leave empty to take everyone who matches. Fill a number to cap the qualifiers at N, ordered by points and opponent win rate.'
+                                : '留空表示符合条件的人全要；填数字则最多取 N 人（按积分与对手胜率排序），可用于固定晋级人数。'}
+                            >
+                              {isEnglish ? 'best' : '跨组取'}
+                            </span>
                             <NumberField
                               value={selector.take}
                               allowEmpty
@@ -1167,8 +1214,8 @@ export default function MultiStageSetup() {
                                   ? 'Counts match wins only: in single elimination, same-round losers tie on rank but differ on wins (0 = out in round 1).'
                                   : '只按赢下的场数选人：单败淘汰里同一轮出局的选手名次并列，但胜场不同（0 胜 = 首轮出局），按轮次选不会有并列歧义。')
                                 : (isEnglish
-                                  ? 'Counts match wins in this stage (e.g. 4-1 and above). Ties are ordered by points and opponent win rate.'
-                                  : '按本赛段的比赛胜场筛选（例如胜场 ≥ 4）；胜场相同的按积分与对手胜率排队。'))
+                                  ? 'Counts match wins in this stage (e.g. 4-1 and above). Ties are ordered by points and opponent win rate. The number of qualifiers depends on results — use "best N" if you need a fixed count.'
+                                  : '按本赛段的比赛胜场筛选（例如胜场 ≥ 4）；胜场相同的按积分与对手胜率排队。符合几人就晋级几人、人数不固定——需要固定人数时在「跨组取」填上限。'))
                               : (isEnglish
                                 ? 'Ranks come from the group standings of this stage. In single elimination, same-round losers tie on rank — prefer the round mode there.'
                                 : '按本赛段的小组排名选人。单败淘汰里同一轮出局的选手名次并列，这种情况建议改用「按淘汰轮次」。')}

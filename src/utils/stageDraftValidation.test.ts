@@ -193,5 +193,50 @@ describe('stage draft validation', () => {
       },
     };
     expect(warningsOf([capped, finalStage()]).join(' ')).toContain('超过本赛段轮数');
+    // 瑞士轮按胜场晋级人数不固定，需要提示下游会按实际人数生成。
+    expect(warningsOf([stage, finalStage()]).join(' ')).toContain('人数取决于赛果');
+  });
+
+  it('warns when an elimination source fills an elimination target without a cap', () => {
+    const elimination: MultiStageDraftStage = {
+      id: 'stage-elim-1',
+      name: '淘汰赛1',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 16,
+      rounds: 4,
+      gameType: 'bo3',
+      roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'],
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-wins',
+            targetStageId: 'stage-elim-2',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const, minWins: 2 }],
+          },
+        ],
+      },
+    };
+    const next: MultiStageDraftStage = {
+      ...finalStage(),
+      id: 'stage-elim-2',
+      name: '淘汰赛2',
+      sourceStageIds: ['stage-elim-1'],
+      advancementRules: [],
+    };
+    expect(warningsOf([elimination, next]).join(' ')).toContain('人数取决于赛果');
+    const capped: MultiStageDraftStage = {
+      ...elimination,
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-wins',
+            targetStageId: 'stage-elim-2',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const, minWins: 2, take: 8 }],
+          },
+        ],
+      },
+    };
+    expect(warningsOf([capped, next]).join(' ')).not.toContain('人数取决于赛果');
   });
 });
