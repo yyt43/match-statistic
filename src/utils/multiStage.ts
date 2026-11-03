@@ -1,6 +1,8 @@
 import type {
   GameType,
   PairingType,
+  SeatingPlan,
+  StageAdvancementPlan,
   StageAdvancementRule,
   StageBreakoutConfig,
   StageSeedRule,
@@ -26,11 +28,15 @@ export interface MultiStageDraftStage {
   roundGameTypes: GameType[];
   /** 名单来自哪些上游赛段；缺省表示手动导入。 */
   sourceStageIds?: string[];
-  /** 该赛段的晋级规则，用于生成下游名单。 */
+  /** 该赛段的晋级计划：谁晋级、去哪个赛段（优先于旧 advancementRules）。 */
+  advancementPlan?: StageAdvancementPlan;
+  /** 本赛段接收晋级者时的落位方式（优先于旧 breakout/seedRules）。 */
+  seating?: SeatingPlan;
+  /** @deprecated 旧版晋级规则，仅用于兼容旧草稿。 */
   advancementRules?: StageAdvancementRule[];
-  /** 本赛段为突围赛时的配对规则。 */
+  /** @deprecated 旧版突围配对，仅用于兼容旧草稿。 */
   breakout?: StageBreakoutConfig;
-  /** 淘汰赛固定签位。 */
+  /** @deprecated 旧版固定签位，仅用于兼容旧草稿。 */
   seedRules?: StageSeedRule[];
 }
 

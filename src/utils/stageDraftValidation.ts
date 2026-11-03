@@ -1,4 +1,5 @@
 import { getDraftGroupNames, type MultiStageDraftStage } from './multiStage';
+import { normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
 
 export type StageDraftIssueSeverity = 'error' | 'warning';
 
@@ -22,8 +23,8 @@ function downstreamIds(
   index: number
 ): string[] {
   const ids = new Set<string>();
-  (stage.advancementRules ?? []).forEach(rule => {
-    if (rule.targetStageId) ids.add(rule.targetStageId);
+  (normalizeAdvancementPlan(stage)?.slots ?? []).forEach(slot => {
+    if (slot.targetStageId) ids.add(slot.targetStageId);
   });
   stages.forEach(target => {
     if (target.id !== stage.id && (target.sourceStageIds ?? []).includes(stage.id)) {
@@ -76,8 +77,11 @@ export function validateStageDrafts(
     }
 
     const downstream = downstreamIds(stages, stage, index);
-    const rules = stage.advancementRules ?? [];
-    if (downstream.length > 0 && rules.length === 0 && !stage.breakout) {
+    // 新模型按「去向 → 选人条件」展开，旧规则已经归一化成同样结构。
+    const rules = (normalizeAdvancementPlan(stage)?.slots ?? []).flatMap(slot =>
+      slot.selectors.map(selector => ({ ...selector, targetStageId: slot.targetStageId }))
+    );
+    if (downstream.length > 0 && rules.length === 0 && !stage.breakout && !stage.seating) {
       push(
         'error',
         isEnglish
@@ -164,12 +168,14 @@ export function validateStageDrafts(
       );
     }
 
-    const seeds = stage.seedRules ?? [];
-    if (seeds.length > 0) {
+    // 接收方的落位设置：固定签位 / 名次配对两类需要校验来源与名次。
+    const seating = normalizeSeatingPlan(stage);
+    if (seating.mode === 'fixedSlots') {
+      const configuredSlots = seating.slots ?? [];
       const upstreamStages = (stage.sourceStageIds ?? [])
         .map(id => stages.find(item => item.id === id))
         .filter((item): item is MultiStageDraftStage => Boolean(item));
-      if (upstreamStages.length === 0) {
+      if (configuredSlots.length > 0 && upstreamStages.length === 0) {
         push(
           'warning',
           isEnglish
@@ -182,16 +188,16 @@ export function validateStageDrafts(
         getDraftGroupNames(upstream).forEach(name => groupOwner.set(name, upstream));
       });
       const slots = new Map<number, number>();
-      seeds.forEach(seed => {
+      configuredSlots.forEach(seed => {
         const owner = groupOwner.get(seed.sourceGroupName);
-        if (!owner) {
+        if (configuredSlots.length > 0 && !owner) {
           push(
             'error',
             isEnglish
               ? `Bracket slot refers to unknown group "${seed.sourceGroupName}".`
               : `签表对位引用了不存在的来源小组「${seed.sourceGroupName}」。`
           );
-        } else {
+        } else if (owner) {
           const size = knownGroupSize(owner);
           if (seed.rank < 1) {
             push('error', isEnglish ? 'Bracket slot rank must be at least 1.' : '签表对位的名次至少为 1。');
@@ -204,18 +210,53 @@ export function validateStageDrafts(
             );
           }
         }
-        if (seed.targetSlot < 0) {
+        if (seed.slot < 0) {
           push('error', isEnglish ? 'Bracket slot index must start at 1.' : '签表位置从第 1 位开始。');
-        } else if (slots.has(seed.targetSlot)) {
+        } else if (slots.has(seed.slot)) {
           push(
             'warning',
             isEnglish
-              ? `Bracket slot ${seed.targetSlot + 1} is set twice; only the first entry is used.`
-              : `签表第 ${seed.targetSlot + 1} 位被设置了两遍，只有第一条生效。`
+              ? `Bracket slot ${seed.slot + 1} is set twice; only the first entry is used.`
+              : `签表第 ${seed.slot + 1} 位被设置了两遍，只有第一条生效。`
           );
         } else {
-          slots.set(seed.targetSlot, 1);
+          slots.set(seed.slot, 1);
         }
+      });
+    } else if (seating.mode === 'rankPairs') {
+      const pairs = seating.pairs ?? [];
+      if (pairs.length === 0) {
+        push(
+          'warning',
+          isEnglish
+            ? 'Rank-pair seating is enabled but no pair is configured; nothing will be paired.'
+            : '已选择名次配对落位，但还没有配置任何对阵组合。'
+        );
+      }
+      const seen = new Set<string>();
+      pairs.forEach(([first, second]) => {
+        if (first < 1 || second < 1) {
+          push('error', isEnglish ? 'Rank pairs must start at rank 1.' : '名次配对的名次至少为 1。');
+          return;
+        }
+        if (first === second) {
+          push(
+            'error',
+            isEnglish
+              ? `Rank ${first} is paired with itself.`
+              : `第 ${first} 名和自己配对，请调整名次组合。`
+          );
+        }
+        const key = [first, second].sort((a, b) => a - b).join('-');
+        if (seen.has(key)) {
+          push(
+            'warning',
+            isEnglish
+              ? `Rank pair ${first} vs ${second} is configured twice.`
+              : `名次配对 ${first} 对 ${second} 配置了两遍。`
+          );
+        }
+        seen.add(key);
       });
     }
   });

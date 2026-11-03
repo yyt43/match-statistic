@@ -13,6 +13,7 @@ import {
   getDraftGroupNames,
   type MultiStageDraftStage,
 } from '../utils/multiStage';
+import { normalizeAdvancementPlan, normalizeSeatingPlan } from '../utils/advancementPlan';
 
 export type { MultiStageDraftStage };
 
@@ -93,6 +94,22 @@ export function createMultiStageCompetition(
       playerIndex += playerCount;
     }
 
+    // 新模型字段优先；草稿仍用旧字段时先归一化，保证引擎只走一条路径。
+    const normalizedPlan = normalizeAdvancementPlan({
+      advancementPlan: stage.advancementPlan,
+      advancementRules: stage.advancementRules,
+    });
+    const hasLegacySeating = Boolean(stage.seating)
+      || Boolean(stage.breakout)
+      || Boolean(stage.seedRules?.length);
+    const normalizedSeating = hasLegacySeating
+      ? normalizeSeatingPlan({
+          seating: stage.seating,
+          seedRules: stage.seedRules,
+          breakout: stage.breakout,
+        })
+      : undefined;
+
     stageRecords.push({
       id: stageId,
       name: stage.name.trim() || `赛段${stageIndex + 1}`,
@@ -101,6 +118,22 @@ export function createMultiStageCompetition(
       groupIds,
       sourceStageIds: stage.sourceStageIds?.length ? [...stage.sourceStageIds] : undefined,
       locked: options.locked,
+      advancementPlan: normalizedPlan && normalizedPlan.slots.length > 0
+        ? {
+            slots: normalizedPlan.slots.map(slot => ({
+              id: slot.id,
+              targetStageId: slot.targetStageId,
+              selectors: slot.selectors.map(selector => ({ ...selector })),
+            })),
+          }
+        : undefined,
+      seating: normalizedSeating
+        ? {
+            mode: normalizedSeating.mode,
+            pairs: normalizedSeating.pairs?.map(pair => [...pair] as [number, number]),
+            slots: normalizedSeating.slots?.map(slot => ({ ...slot })),
+          }
+        : undefined,
       advancementRules: stage.advancementRules?.map(rule => ({ ...rule })),
       breakout: stage.breakout
         ? { pairings: stage.breakout.pairings.map(pair => [...pair] as [number, number]) }
