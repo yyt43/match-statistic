@@ -104,12 +104,10 @@ function parseInWorker(
       }
       resolve(event.data.data);
     };
-    worker.onerror = (event: ErrorEvent) => {
+    worker.onerror = () => {
+      // Worker 启动失败（某些开发环境或浏览器策略）时退回主线程，导入本身保持可用。
       if (!finish()) return;
-      reject(new BackupImportError(
-        'worker-unavailable',
-        event.message || 'The JSON import worker failed to start.'
-      ));
+      void parseInMainThread(file, options.signal).then(resolve, reject);
     };
 
     const request: JsonImportWorkerRequest = { id, type: 'parse-backup', file };
