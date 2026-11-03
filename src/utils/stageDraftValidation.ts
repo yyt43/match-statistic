@@ -1,5 +1,5 @@
 import { getDraftGroupNames, type MultiStageDraftStage } from './multiStage';
-import { normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
+import { getSameGroupMode, normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
 
 export type StageDraftIssueSeverity = 'error' | 'warning';
 
@@ -244,7 +244,7 @@ export function validateStageDrafts(
           slots.set(seed.slot, 1);
         }
       });
-    } else if (seating.mode === 'rankPairs') {
+    } else if (getSameGroupMode(seating) === 'rankPairs') {
       const pairs = seating.pairs ?? [];
       if (pairs.length === 0) {
         push(
@@ -279,6 +279,13 @@ export function validateStageDrafts(
         }
         seen.add(key);
       });
+    } else if (getSameGroupMode(seating) === 'avoid' && stage.kind !== 'single_elimination') {
+      push(
+        'warning',
+        isEnglish
+          ? 'First-round same-group avoidance only applies to single-elimination stages; this stage ignores it.'
+          : '「首轮回避同组」只对单败淘汰赛段有意义，当前赛段不是单败淘汰，这项设置不会生效。'
+      );
     }
   });
 

@@ -1,6 +1,7 @@
 import type {
   AdvanceSelector,
   AdvanceSlot,
+  SameGroupMode,
   SeatingPlan,
   StageAdvancementPlan,
   TournamentStage,
@@ -89,22 +90,36 @@ function normalizePairs(pairs: Array<[number, number]> | undefined): Array<[numb
 /**
  * 读取赛段的落位方式：优先用新字段 `seating`，
  * 否则把旧的 `seedRules` / `breakout` 映射成等价落位设置（旧存档兼容）。
+ *
+ * 统一成两个问题：`mode` 是排成什么顺序，`sameGroup` 是同组的人怎么处理。
  */
 export function normalizeSeatingPlan(stage: SeatingPlanSource): SeatingPlan {
   const seating = stage.seating;
   if (seating) {
-    if (seating.mode === 'rankPairs') {
-      return { mode: 'rankPairs', pairs: normalizePairs(seating.pairs) };
-    }
     if (seating.mode === 'fixedSlots') {
-      return { mode: 'fixedSlots', slots: (seating.slots ?? []).map(slot => ({ ...slot })) };
+      return {
+        mode: 'fixedSlots',
+        sameGroup: 'none',
+        slots: (seating.slots ?? []).map(slot => ({ ...slot })),
+      };
     }
-    return { mode: seating.mode };
+    const sameGroup: SameGroupMode = seating.sameGroup
+      ?? (seating.mode === 'rankPairs'
+        ? 'rankPairs'
+        // 兼容早期版本只写了 pairs、没写 sameGroup 的数据。
+        : (seating.pairs?.length ?? 0) > 0
+          ? 'rankPairs'
+          : 'none');
+    if (seating.mode === 'rankPairs' || sameGroup === 'rankPairs') {
+      return { mode: 'ordered', sameGroup: 'rankPairs', pairs: normalizePairs(seating.pairs) };
+    }
+    return { mode: seating.mode, sameGroup };
   }
   const seedRules = stage.seedRules ?? [];
   if (seedRules.length > 0) {
     return {
       mode: 'fixedSlots',
+      sameGroup: 'none',
       slots: seedRules.map(rule => ({
         sourceGroupName: rule.sourceGroupName,
         rank: rule.rank,
@@ -113,14 +128,19 @@ export function normalizeSeatingPlan(stage: SeatingPlanSource): SeatingPlan {
     };
   }
   if (stage.breakout) {
-    return { mode: 'rankPairs', pairs: normalizePairs(stage.breakout.pairings) };
+    return { mode: 'ordered', sameGroup: 'rankPairs', pairs: normalizePairs(stage.breakout.pairings) };
   }
-  return { mode: 'ordered' };
+  return { mode: 'ordered', sameGroup: 'none' };
 }
 
-/** 该赛段是否使用「同组名次配对」（旧称突围配对）落位。 */
+/** 读取「同组处理」选项（兼容只写了 mode='rankPairs' 的旧数据）。 */
+export function getSameGroupMode(seating: SeatingPlan): SameGroupMode {
+  return seating.sameGroup ?? (seating.mode === 'rankPairs' ? 'rankPairs' : 'none');
+}
+
+/** 该赛段是否使用「组内按名次配对」的同组处理。 */
 export function usesRankPairsSeating(stage: TournamentStage): boolean {
-  return normalizeSeatingPlan(stage).mode === 'rankPairs';
+  return getSameGroupMode(normalizeSeatingPlan(stage)) === 'rankPairs';
 }
 
 /** 该赛段是否使用「固定签位」落位。 */

@@ -119,7 +119,7 @@ describe('general advancement plan', () => {
     expect(preview.seats.map(seat => seat.targetSlot)).toEqual([0, 2, 3, 1]);
   });
 
-  it('supports custom rank pairs when seating is rankPairs', () => {
+  it('pairs same-group ranks when sameGroup is rankPairs', () => {
     const plan: StageAdvancementPlan = {
       slots: [
         {
@@ -129,7 +129,7 @@ describe('general advancement plan', () => {
         },
       ],
     };
-    const competition = build(plan, { mode: 'rankPairs', pairs: [[1, 2]] });
+    const competition = build(plan, { mode: 'ordered', sameGroup: 'rankPairs', pairs: [[1, 2]] });
     const preview = computeStageAdvancement(competition, 'stage-group');
     expect(preview.errors).toEqual([]);
     expect(preview.breakoutPairings).toHaveLength(2);
@@ -140,6 +140,22 @@ describe('general advancement plan', () => {
       'breakout',
     ]);
     expect(preview.seats.map(seat => seat.targetSlot)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('still reads legacy mode rankPairs from old data', () => {
+    const competition = build(topTwoPlan, { mode: 'rankPairs', pairs: [[1, 2]] });
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    expect(preview.breakoutPairings).toHaveLength(2);
+  });
+
+  it('swaps slots so round 1 avoids same-group meetings when sameGroup is avoid', () => {
+    const competition = build(topTwoPlan, { mode: 'ordered', sameGroup: 'avoid' });
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    const bySlot = [...preview.seats].sort((a, b) => (a.targetSlot ?? 0) - (b.targetSlot ?? 0));
+    const roundOneGroups = [bySlot[0]?.sourceGroupId, bySlot[1]?.sourceGroupId];
+    expect(roundOneGroups[0]).not.toBe(roundOneGroups[1]);
   });
 
   it('honours fixed slot rules and reports unresolved slots as a warning', () => {

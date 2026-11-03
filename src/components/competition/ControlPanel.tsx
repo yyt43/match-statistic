@@ -11,9 +11,7 @@ import {
 import { useTournamentStore, useCurrentGroup, useIsCurrentRoundComplete } from '../../store/useTournamentStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { GameType, PairingType, TiebreakRule, TiebreakTemplate, TournamentGroup } from '../../types';
-import { exportCompetitionToFile, importCompetitionFromFile } from '../../utils/export/fileStorage';
-import { describeImportError } from '../../utils/export/importErrorText';
-import { isAbortError } from '../../utils/async';
+import { exportCompetitionToFile } from '../../utils/export/fileStorage';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { validateRoster } from '../../utils/playerProfiles';
 import {
@@ -157,7 +155,6 @@ export function ControlPanel({
     resetCompetition,
     updateCompetitionName,
     applyGroupConfiguration,
-    importCompetition,
     actionError,
     clearActionError,
   } = useTournamentStore(useShallow(state => ({
@@ -172,7 +169,6 @@ export function ControlPanel({
     resetCompetition: state.resetCompetition,
     updateCompetitionName: state.updateCompetitionName,
     applyGroupConfiguration: state.applyGroupConfiguration,
-    importCompetition: state.importCompetition,
     actionError: state.actionError,
     clearActionError: state.clearActionError,
   })));
@@ -199,11 +195,6 @@ export function ControlPanel({
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
-  const importAbortRef = useRef<AbortController | null>(null);
   const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
   const [draftGameType, setDraftGameType] = useState<GameType>(currentGroup.gameType);
   const [draftRoundGameTypes, setDraftRoundGameTypes] = useState<GameType[]>(() =>
@@ -340,32 +331,6 @@ export function ControlPanel({
       target
     );
   };
-
-  /** 选择文件后先确认再导入：导入会整体替换当前赛事。 */
-  const runImport = async (file: File) => {
-    importAbortRef.current?.abort();
-    const controller = new AbortController();
-    importAbortRef.current = controller;
-    setIsImporting(true);
-    setImportError(null);
-    try {
-      const data = await importCompetitionFromFile(file, { signal: controller.signal });
-      importCompetition(data);
-    } catch (error) {
-      if (!isAbortError(error)) {
-        setImportError(describeImportError(error, isEnglish));
-      }
-    } finally {
-      if (importAbortRef.current === controller) {
-        importAbortRef.current = null;
-        setIsImporting(false);
-      }
-    }
-  };
-
-  useEffect(() => () => {
-    importAbortRef.current?.abort();
-  }, []);
 
   const systemTools = useMemo(() => (
     <div className="grid grid-cols-2 gap-1.5 border-t border-slate-700/40 pt-2">
@@ -559,49 +524,6 @@ export function ControlPanel({
             <span className="truncate">{competition.name}</span>
             <Edit2 className="h-3.5 w-3.5 shrink-0 text-slate-500" />
           </button>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            aria-label={isEnglish ? 'Import tournament data' : '导入比赛数据'}
-            className="hidden"
-            onChange={event => {
-              const file = event.target.files?.[0] ?? null;
-              event.target.value = '';
-              if (!file) return;
-              setImportError(null);
-              if (currentGroup.players.length > 0 || currentGroup.status !== 'setup') {
-                setPendingImportFile(file);
-                return;
-              }
-              void runImport(file);
-            }}
-          />
-          <button
-            onClick={() => importInputRef.current?.click()}
-            disabled={isImporting}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FileUp className="h-3.5 w-3.5" />
-            {isImporting
-              ? (isEnglish ? 'Importing…' : '导入中…')
-              : (isEnglish ? 'Import data' : '导入比赛数据')}
-          </button>
-          <button
-            onClick={() => exportCompetitionToFile(competition)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {isEnglish ? 'Export data' : '导出比赛数据'}
-          </button>
-        </div>
-        {importError && (
-          <p role="alert" className="rounded-md border border-rose-500/25 bg-rose-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-rose-300">
-            {importError}
-          </p>
         )}
       </section>
 
@@ -1169,22 +1091,6 @@ export function ControlPanel({
           if (roundUndoMode === 'return-previous') returnToPreviousRound();
           else if (roundUndoMode === 'return-setup') returnToSetup();
           else undoLastRound();
-        }}
-      />
-
-      {/* 导入比赛数据确认：导入会整体替换当前赛事 */}
-      <ConfirmDialog
-        isOpen={pendingImportFile !== null}
-        onClose={() => setPendingImportFile(null)}
-        title={isEnglish ? 'Import tournament data' : '导入比赛数据'}
-        message={isEnglish
-          ? 'Importing a backup replaces the current tournament (roster, rounds and results). Export the current data first if you want to keep it.'
-          : '导入备份会整体替换当前赛事（名单、轮次与赛果）。如需保留当前数据，请先导出。'}
-        confirmText={isEnglish ? 'Import and replace' : '导入并替换'}
-        onConfirm={() => {
-          const file = pendingImportFile;
-          setPendingImportFile(null);
-          if (file) void runImport(file);
         }}
       />
 

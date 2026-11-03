@@ -268,13 +268,21 @@ export interface StageAdvancementPlan {
   slots: AdvanceSlot[];
 }
 
-/** 落位方式：接收方赛段把进来的席位排成名单或签表的方式。 */
+/**
+ * 落位方式：接收方赛段把进来的席位排成名单或签表的方式。
+ * `rankPairs` 是旧数据写法，读取时会归一化成 `ordered` + `sameGroup: 'rankPairs'`。
+ */
 export type SeatingMode = 'ordered' | 'snake' | 'rankPairs' | 'fixedSlots';
 
-/** 接收方赛段的落位设置。 */
+/** 同组处理：进来的选手里有同一个来源小组的人时怎么安排。 */
+export type SameGroupMode = 'none' | 'avoid' | 'rankPairs';
+
+/** 接收方赛段的落位设置：先决定「排成什么顺序」，再决定「同组的人怎么处理」。 */
 export interface SeatingPlan {
   mode: SeatingMode;
-  /** mode=rankPairs：同一来源小组内按名次两两对阵，默认 [[3,6],[4,5]]。 */
+  /** 同组处理：none 不特殊处理（默认）；avoid 首轮回避同组；rankPairs 组内按名次配对。 */
+  sameGroup?: SameGroupMode;
+  /** sameGroup=rankPairs：同一来源小组内按名次两两对阵，默认 [[3,6],[4,5]]。 */
   pairs?: Array<[number, number]>;
   /** mode=fixedSlots：来源小组名次 → 签位下标。 */
   slots?: Array<{ sourceGroupName: string; rank: number; slot: number }>;

@@ -13,7 +13,7 @@ import type { AppLanguage } from '../i18n/data';
 import { buildRankedGroup } from '../store/competitionState';
 import { generateId } from '../store/tournamentFactory';
 import { getOrderedStages, getStageGroups } from './multiStage';
-import { normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
+import { getSameGroupMode, normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
 
 function getRankedPlayers(group: TournamentGroup): Player[] {
   return buildRankedGroup(group).players;
@@ -718,7 +718,7 @@ function collectRankPairsSurvivors(
   language: AppLanguage
 ): { seats: StageAdvancementSeat[]; warnings: string[]; errors: string[] } {
   const seating = normalizeSeatingPlan(stage);
-  const pairs: Array<[number, number]> = seating.mode === 'rankPairs' && seating.pairs
+  const pairs: Array<[number, number]> = getSameGroupMode(seating) === 'rankPairs' && seating.pairs
     ? seating.pairs
     : [[3, 6], [4, 5]];
   const base = Math.min(...pairs.flat());
@@ -821,7 +821,47 @@ function buildSeedSlotOrder(size: number): number[] {
   return order;
 }
 
-/** 把一个目标赛段收到的席位按它的落位方式排好（顺序 / 蛇形 / 名次配对 / 固定签位）。 */
+/**
+ * 首轮回避同组：整体分布不变，只交换少量席位，
+ * 让首轮对阵里尽量避免「同一个来源小组」的两个人相遇。
+ */
+function reduceSameGroupFirstRound(seats: StageAdvancementSeat[]): void {
+  if (seats.length < 2) return;
+  const groupOf = (seat: StageAdvancementSeat) => seat.sourceGroupId;
+  const conflictCount = (order: StageAdvancementSeat[]) => {
+    let count = 0;
+    for (let index = 0; index + 1 < order.length; index += 2) {
+      if (groupOf(order[index]) === groupOf(order[index + 1])) count += 1;
+    }
+    return count;
+  };
+  const order = [...seats].sort((a, b) => (a.targetSlot ?? 0) - (b.targetSlot ?? 0));
+  let current = conflictCount(order);
+  for (let attempt = 0; attempt < order.length && current > 0; attempt += 1) {
+    let improved = false;
+    for (let first = 0; first + 1 < order.length; first += 2) {
+      if (groupOf(order[first]) !== groupOf(order[first + 1])) continue;
+      for (let other = 0; other < order.length; other += 1) {
+        if (other === first || other === first + 1) continue;
+        [order[first + 1], order[other]] = [order[other], order[first + 1]];
+        const next = conflictCount(order);
+        if (next < current) {
+          current = next;
+          improved = true;
+          break;
+        }
+        [order[first + 1], order[other]] = [order[other], order[first + 1]];
+      }
+      if (improved) break;
+    }
+    if (!improved) break;
+  }
+  order.forEach((seat, index) => {
+    seat.targetSlot = index;
+  });
+}
+
+/** 把一个目标赛段收到的席位按它的落位方式排好（顺序 / 种子分散 / 组内配对 / 固定签位）。 */
 function applySeatingForTarget(
   targetStage: TournamentStage,
   pending: PendingSeat[]
@@ -831,6 +871,7 @@ function applySeatingForTarget(
   unresolvedSlots: number;
 } {
   const seating = normalizeSeatingPlan(targetStage);
+  const sameGroup = getSameGroupMode(seating);
   const seats: StageAdvancementSeat[] = [];
   const pairings: StageAdvancementPairing[] = [];
   let unresolvedSlots = 0;
@@ -879,7 +920,7 @@ function applySeatingForTarget(
     return { seats, pairings, unresolvedSlots };
   }
 
-  if (seating.mode === 'rankPairs') {
+  if (sameGroup === 'rankPairs') {
     const pairs: Array<[number, number]> = seating.pairs && seating.pairs.length > 0
       ? seating.pairs
       : [[3, 6], [4, 5]];
@@ -956,12 +997,14 @@ function applySeatingForTarget(
       const slot = slotOrder.indexOf(index + 1);
       seats.push({ ...seat, targetStageId: targetStage.id, targetSlot: slot, route: 'direct' });
     });
+    if (sameGroup === 'avoid') reduceSameGroupFirstRound(seats);
     return { seats, pairings, unresolvedSlots };
   }
 
   ordered.forEach((seat, index) => {
     seats.push({ ...seat, targetStageId: targetStage.id, targetSlot: index, route: 'direct' });
   });
+  if (sameGroup === 'avoid') reduceSameGroupFirstRound(seats);
   return { seats, pairings, unresolvedSlots };
 }
 
@@ -978,7 +1021,7 @@ function computePlanBasedAdvancement(
   const errors: string[] = [];
   let pending: PendingSeat[] = [];
 
-  if (seating.mode === 'rankPairs') {
+  if (getSameGroupMode(seating) === 'rankPairs') {
     const survivors = collectRankPairsSurvivors(competition, sourceStage, language);
     errors.push(...survivors.errors);
     warnings.push(...survivors.warnings);

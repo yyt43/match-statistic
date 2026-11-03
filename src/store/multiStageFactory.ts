@@ -130,6 +130,7 @@ export function createMultiStageCompetition(
       seating: normalizedSeating
         ? {
             mode: normalizedSeating.mode,
+            sameGroup: normalizedSeating.sameGroup,
             pairs: normalizedSeating.pairs?.map(pair => [...pair] as [number, number]),
             slots: normalizedSeating.slots?.map(slot => ({ ...slot })),
           }

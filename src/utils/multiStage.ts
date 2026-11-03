@@ -240,7 +240,7 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo3',
       roundGameTypes: ['bo3'],
       sourceStageIds: ['s3-group'],
-      seating: { mode: 'rankPairs', pairs: [[3, 6], [4, 5]] },
+      seating: { mode: 'ordered', sameGroup: 'rankPairs', pairs: [[3, 6], [4, 5]] },
       breakout: { pairings: [[3, 6], [4, 5]] },
     },
     {
