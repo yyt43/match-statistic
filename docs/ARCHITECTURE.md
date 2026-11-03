@@ -127,6 +127,16 @@ TournamentCompetition
 - 提供字段路径错误，最多返回前 8 条。
 - 用于 JSON 导入和 IndexedDB/localStorage 加载。
 
+### 4.3 多阶段晋级模型
+
+赛段上的晋级规则统一为「选人 → 去向赛段 → 落位方式」三层：
+
+- `StageAdvancementPlan`：`slots[]`，每个 slot 指向一个目标赛段，内含若干 `AdvanceSelector`（名次区间 `fromRank`/`toRank`、可选胜场区间 `minWins`/`maxWins`、可选跨组取前 N 的 `take`）。
+- `StageSeatingPlan`：目标赛段接收名单的落位方式，`mode` 为 `ordered`（按来源组与名次顺序补位）、`snake`（蛇形）、`rankPairs`（同组名次配对，晋级者新名次取配对中较小名次）、`fixedSlots`（固定签位）。
+- 归一化在 `src/utils/advancementPlan.ts`：新字段优先，缺失时从旧 `advancementRules` / `breakout` / `seedRules` 映射；读取端只认归一化结果，写入端同时保留旧字段供旧版本降级读取。
+- 计算入口 `src/utils/advancement.ts::computeStageAdvancement`：存在新模型字段时走 `computePlanBasedAdvancement` 统一管线，否则继续走旧实现。
+- 设置页 `MultiStageSetup` 编辑新字段，工厂 `multiStageFactory` 归一化后落库，校验 `stageDraftValidation` 与展示组件（流程图、规则摘要）都读归一化结果。
+
 ## 5. 存储架构
 
 ### 5.1 IndexedDB 主存储
@@ -255,6 +265,7 @@ src/
 │   ├── import/
 │   ├── storage/
 │   ├── advancement.ts
+│   ├── advancementPlan.ts
 │   ├── elimination.ts
 │   ├── multiStage.ts
 │   ├── matchResult.ts
