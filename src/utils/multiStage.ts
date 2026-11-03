@@ -203,6 +203,20 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       rounds: 5,
       gameType: 'bo3',
       roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
+      advancementPlan: {
+        slots: [
+          {
+            id: 's3-top-two',
+            targetStageId: 's3-playoff',
+            selectors: [{ fromRank: 1, toRank: 2 }],
+          },
+          {
+            id: 's3-breakout-4-1',
+            targetStageId: 's3-breakout',
+            selectors: [{ fromRank: 3, toRank: 6, minWins: 4, maxWins: 4 }],
+          },
+        ],
+      },
       advancementRules: [
         { id: 's3-top-two', fromRank: 1, toRank: 2, targetStageId: 's3-playoff' },
         {
@@ -226,6 +240,7 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo3',
       roundGameTypes: ['bo3'],
       sourceStageIds: ['s3-group'],
+      seating: { mode: 'rankPairs', pairs: [[3, 6], [4, 5]] },
       breakout: { pairings: [[3, 6], [4, 5]] },
     },
     {
@@ -238,6 +253,14 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo5',
       roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'],
       sourceStageIds: ['s3-group', 's3-breakout'],
+      seating: {
+        mode: 'fixedSlots',
+        slots: S3_SEED_RULES.map(rule => ({
+          sourceGroupName: rule.sourceGroupName,
+          rank: rule.rank,
+          slot: rule.targetSlot,
+        })),
+      },
       seedRules: S3_SEED_RULES,
     },
   ];

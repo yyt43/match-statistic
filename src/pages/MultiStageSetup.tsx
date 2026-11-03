@@ -11,11 +11,12 @@ import {
   Trash2,
   Trophy,
 } from 'lucide-react';
-import type { GameType, PairingType, StageSeedRule } from '../types';
+import type { GameType, PairingType, SeatingMode, StageSeedRule } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createDefaultStageDraft, createMultiStageCompetition } from '../store/multiStageFactory';
 import { getDraftGroupNames, type MultiStageDraftStage } from '../utils/multiStage';
+import { DEFAULT_RANK_PAIRS, normalizeSeatingPlan } from '../utils/advancementPlan';
 import { validateStageDrafts } from '../utils/stageDraftValidation';
 import { getSingleEliminationRounds } from '../utils/swissPairing';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -206,41 +207,64 @@ export default function MultiStageSetup() {
     }));
   };
 
-  /** 跨组配对：编辑「哪两个名次对阵」，默认 3 对 6、4 对 5。 */
+  /** 落位方式：接收方赛段把进来的席位排成名单/签表的方式。 */
+  const updateSeating = (stageId: string, updater: (stage: MultiStageDraftStage) => MultiStageDraftStage['seating']) => {
+    setStages(current => current.map(stage => (
+      stage.id === stageId ? { ...stage, seating: updater(stage) } : stage
+    )));
+  };
+
+  const changeSeatingMode = (stageId: string, mode: SeatingMode) => {
+    updateSeating(stageId, stage => {
+      if (mode === 'rankPairs') {
+        const current = normalizeSeatingPlan(stage);
+        return { mode, pairs: current.mode === 'rankPairs' && current.pairs ? current.pairs : DEFAULT_RANK_PAIRS.map(pair => [...pair] as [number, number]) };
+      }
+      if (mode === 'fixedSlots') {
+        const current = normalizeSeatingPlan(stage);
+        return { mode, slots: current.mode === 'fixedSlots' ? current.slots ?? [] : [] };
+      }
+      return { mode };
+    });
+  };
+
+  /** 同组名次配对：编辑「哪两个名次对阵」，默认 3 对 6、4 对 5。 */
   const updateBreakoutPair = (
     stageId: string,
     pairIndex: number,
     side: 0 | 1,
     value: number
   ) => {
-    setStages(current => current.map(stage => {
-      if (stage.id !== stageId) return stage;
-      const pairs = (stage.breakout?.pairings ?? [[3, 6], [4, 5]])
+    updateSeating(stageId, stage => {
+      const current = normalizeSeatingPlan(stage);
+      const pairs = (current.mode === 'rankPairs' ? current.pairs ?? DEFAULT_RANK_PAIRS : DEFAULT_RANK_PAIRS)
         .map(pair => [...pair] as [number, number]);
       const pair = pairs[pairIndex];
-      if (!pair) return stage;
+      if (!pair) return stage.seating;
       pair[side] = Math.max(1, Math.floor(value) || 1);
-      return { ...stage, breakout: { pairings: pairs } };
-    }));
+      return { mode: 'rankPairs', pairs };
+    });
   };
 
   const addBreakoutPair = (stageId: string) => {
-    setStages(current => current.map(stage => {
-      if (stage.id !== stageId) return stage;
-      const pairs = (stage.breakout?.pairings ?? [[3, 6], [4, 5]])
+    updateSeating(stageId, stage => {
+      const current = normalizeSeatingPlan(stage);
+      const pairs = (current.mode === 'rankPairs' ? current.pairs ?? DEFAULT_RANK_PAIRS : DEFAULT_RANK_PAIRS)
         .map(pair => [...pair] as [number, number]);
-      if (pairs.length >= 4) return stage;
+      if (pairs.length >= 4) return stage.seating;
       const first = 3 + pairs.length * 2;
-      return { ...stage, breakout: { pairings: [...pairs, [first, first + 1]] } };
-    }));
+      return { mode: 'rankPairs', pairs: [...pairs, [first, first + 1]] };
+    });
   };
 
   const removeBreakoutPair = (stageId: string, pairIndex: number) => {
-    setStages(current => current.map(stage => {
-      if (stage.id !== stageId) return stage;
-      const pairs = (stage.breakout?.pairings ?? []).filter((_, index) => index !== pairIndex);
-      return { ...stage, breakout: pairs.length > 0 ? { pairings: pairs } : undefined };
-    }));
+    updateSeating(stageId, stage => {
+      const current = normalizeSeatingPlan(stage);
+      const pairs = (current.mode === 'rankPairs' ? current.pairs ?? [] : [])
+        .filter((_, index) => index !== pairIndex)
+        .map(pair => [...pair] as [number, number]);
+      return pairs.length > 0 ? { mode: 'rankPairs', pairs } : { mode: 'ordered' };
+    });
   };
 
   /** 签表对位：来源小组的第几名站到签表第几位。 */
@@ -248,12 +272,23 @@ export default function MultiStageSetup() {
     stageId: string,
     updater: (rules: StageSeedRule[]) => StageSeedRule[]
   ) => {
-    setStages(current => current.map(stage => {
-      if (stage.id !== stageId) return stage;
-      const next = updater((stage.seedRules ?? []).map(rule => ({ ...rule })))
-        .sort((a, b) => a.targetSlot - b.targetSlot);
-      return { ...stage, seedRules: next.length > 0 ? next : undefined };
-    }));
+    updateSeating(stageId, stage => {
+      const current = normalizeSeatingPlan(stage);
+      const rules = current.mode === 'fixedSlots' ? current.slots ?? [] : [];
+      const next = updater(rules.map(rule => ({
+        sourceGroupName: rule.sourceGroupName,
+        rank: rule.rank,
+        targetSlot: rule.slot,
+      }))).sort((a, b) => a.targetSlot - b.targetSlot);
+      return {
+        mode: 'fixedSlots',
+        slots: next.map(rule => ({
+          sourceGroupName: rule.sourceGroupName,
+          rank: rule.rank,
+          slot: rule.targetSlot,
+        })),
+      };
+    });
   };
 
   const moveStage = (index: number, delta: number) => {
@@ -363,6 +398,9 @@ export default function MultiStageSetup() {
               .map(id => stages.find(item => item.id === id))
               .filter((item): item is MultiStageDraftStage => Boolean(item));
             const upstreamNames = upstreamStages.map(item => item.name);
+            const seating = normalizeSeatingPlan(stage);
+            const seatingPairs = seating.mode === 'rankPairs' ? seating.pairs ?? [] : [];
+            const seatingSlots = seating.mode === 'fixedSlots' ? seating.slots ?? [] : [];
             const upstreamGroupNames = Array.from(
               new Set(upstreamStages.flatMap(item => getDraftGroupNames(item)))
             );
@@ -605,28 +643,36 @@ export default function MultiStageSetup() {
                   ))}
                 </div>
 
-                {stage.kind === 'single_elimination' && (
-                  <div className="space-y-1.5 border-t border-slate-700/40 pt-3">
-                    <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <input
-                        type="checkbox"
-                        checked={!!stage.breakout}
-                        onChange={event => updateStage(stage.id, {
-                          breakout: event.target.checked
-                            ? { pairings: [[3, 6], [4, 5]] }
-                            : undefined,
-                        })}
-                        className="h-3.5 w-3.5 accent-gold-500"
-                      />
-                      <span>
-                        {isEnglish
-                          ? 'Pair advancers across source groups by rank'
-                          : '按来源小组名次跨组配对晋级选手'}
-                      </span>
-                    </label>
-                    {stage.breakout && (
-                      <div className="space-y-1.5 pl-5">
-                        {stage.breakout.pairings.map((pair, pairIndex) => (
+                {stage.kind === 'single_elimination' && upstreamGroupNames.length > 0 && (
+                  <div className="space-y-2 border-t border-slate-700/40 pt-3">
+                    <span className="text-xs text-slate-500">
+                      {isEnglish ? 'How arrivals are seated' : '接收名单落位'}
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([
+                        ['ordered', isEnglish ? 'In order' : '顺序补位'],
+                        ['snake', isEnglish ? 'Snake' : '蛇形排位'],
+                        ['rankPairs', isEnglish ? 'Rank pairs' : '同组名次配对'],
+                        ['fixedSlots', isEnglish ? 'Fixed slots' : '固定签位'],
+                      ] as Array<[SeatingMode, string]>).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => changeSeatingMode(stage.id, mode)}
+                          className={`rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                            seating.mode === mode
+                              ? 'border-gold-500/30 bg-gold-500/20 text-gold-400'
+                              : 'border-slate-700/50 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {seating.mode === 'rankPairs' && (
+                      <div className="space-y-1.5">
+                        {seatingPairs.map((pair, pairIndex) => (
                           <div
                             key={`pair-${pairIndex}`}
                             className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400"
@@ -663,22 +709,34 @@ export default function MultiStageSetup() {
                         <button
                           type="button"
                           onClick={() => addBreakoutPair(stage.id)}
-                          disabled={stage.breakout.pairings.length >= 4}
+                          disabled={seatingPairs.length >= 4}
                           className="rounded border border-dashed border-slate-600/60 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           {isEnglish ? 'Add pairing' : '添加配对'}
                         </button>
                         <p className="text-[10px] leading-relaxed text-slate-500">
                           {isEnglish
-                            ? 'Both ranks present: they play each other. Only one present: that player advances directly.'
-                            : '两个名次都有人：两人对阵；只有一边：该选手直接晋级。'}
+                            ? 'Ranks are paired inside each source group. Both present: they play. Only one: that player advances directly.'
+                            : '在同一个来源小组内按名次配对：两个名次都有人就对阵，只有一边则该选手直接晋级。'}
                         </p>
                       </div>
                     )}
+
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      {seating.mode === 'ordered'
+                        ? (isEnglish
+                          ? 'Arrivals fill the roster in source-group order, then by rank.'
+                          : '按来源小组顺序、再按名次依次补进名单。')
+                        : seating.mode === 'snake'
+                          ? (isEnglish
+                            ? 'Seeds are spread across the bracket in standard snake order.'
+                            : '按标准签表的蛇形顺序把种子铺开到各签位。')
+                          : ''}
+                    </p>
                   </div>
                 )}
 
-                {stage.kind === 'single_elimination' && upstreamGroupNames.length > 0 && (
+                {seating.mode === 'fixedSlots' && upstreamGroupNames.length > 0 && (
                   <div className="space-y-1.5 border-t border-slate-700/40 pt-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-slate-500">
@@ -699,7 +757,7 @@ export default function MultiStageSetup() {
                         {isEnglish ? 'Add slot' : '添加对位'}
                       </button>
                     </div>
-                    {(stage.seedRules ?? []).map((rule, seedIndex) => (
+                    {seatingSlots.map((rule, seedIndex) => (
                       <div
                         key={`seed-${seedIndex}`}
                         className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400"
@@ -740,7 +798,7 @@ export default function MultiStageSetup() {
                           type="number"
                           min={1}
                           max={64}
-                          value={rule.targetSlot + 1}
+                          value={rule.slot + 1}
                           onChange={event => updateSeedRules(stage.id, rules => rules.map((item, index) =>
                             index === seedIndex
                               ? { ...item, targetSlot: Math.max(0, (Number(event.target.value) || 1) - 1) }
@@ -974,6 +1032,7 @@ export default function MultiStageSetup() {
                 kind: stage.kind,
                 sourceStageIds: stage.sourceStageIds,
                 advancementRules: stage.advancementRules,
+                advancementPlan: stage.advancementPlan,
                 note: isEnglish ? `${stage.groupCount} groups` : `${stage.groupCount} 组`,
               }))}
               isEnglish={isEnglish}
