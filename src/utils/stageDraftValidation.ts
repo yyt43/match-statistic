@@ -107,6 +107,23 @@ export function validateStageDrafts(
               : '没有填写胜场等于全部晋级；如果只想取部分选手，请填写胜场区间。'
           );
         }
+        const maxRoundWins = stage.fixedRounds ?? stage.rounds;
+        if (rule.minWins !== undefined && rule.minWins > maxRoundWins) {
+          push(
+            'error',
+            isEnglish
+              ? `Asks for at least ${rule.minWins} wins, but this stage only has ${maxRoundWins} rounds.`
+              : `要求至少 ${rule.minWins} 胜，但本赛段只有 ${maxRoundWins} 轮，没人能达到。`
+          );
+        }
+        if (rule.maxWins !== undefined && rule.maxWins > maxRoundWins) {
+          push(
+            'warning',
+            isEnglish
+              ? `The wins cap ${rule.maxWins} is above the ${maxRoundWins} rounds of this stage; the cap never filters anyone.`
+              : `胜场上限 ${rule.maxWins} 超过本赛段轮数 ${maxRoundWins}，这个上限不会筛掉任何人。`
+          );
+        }
       } else {
         if (from > to) {
           push(

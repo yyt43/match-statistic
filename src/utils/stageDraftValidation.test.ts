@@ -163,4 +163,35 @@ describe('stage draft validation', () => {
     expect(messages).not.toContain('名次并列');
     expect(messages).toContain('没有填写胜场');
   });
+
+  it('checks wins mode against the stage round count', () => {
+    const stage: MultiStageDraftStage = {
+      ...groupStage(),
+      rounds: 3,
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-wins',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const, minWins: 4 }],
+          },
+        ],
+      },
+      advancementRules: undefined,
+    };
+    expect(errorsOf([stage, finalStage()]).join(' ')).toContain('只有 3 轮');
+    const capped: MultiStageDraftStage = {
+      ...stage,
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-wins',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 64, mode: 'wins' as const, maxWins: 9 }],
+          },
+        ],
+      },
+    };
+    expect(warningsOf([capped, finalStage()]).join(' ')).toContain('超过本赛段轮数');
+  });
 });

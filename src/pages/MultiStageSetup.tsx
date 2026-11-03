@@ -1058,6 +1058,8 @@ export default function MultiStageSetup() {
 
                     {slot.selectors.map((selector, selectorIndex) => {
                       const winsMode = selector.mode === 'wins';
+                      // 淘汰赛按「淘汰轮次」，其它赛制（瑞士轮等）就是按胜场数。
+                      const eliminationSource = stage.kind === 'single_elimination';
                       return (
                         <div
                           key={`${slot.id}-selector-${selectorIndex}`}
@@ -1089,7 +1091,9 @@ export default function MultiStageSetup() {
                                   winsMode ? 'bg-gold-500/20 text-gold-400' : 'bg-slate-800/60 text-slate-400'
                                 }`}
                               >
-                                {isEnglish ? 'by round' : '按淘汰轮次'}
+                                {eliminationSource
+                                  ? (isEnglish ? 'by round' : '按淘汰轮次')
+                                  : (isEnglish ? 'by wins' : '按胜场')}
                               </button>
                             </div>
 
@@ -1158,9 +1162,13 @@ export default function MultiStageSetup() {
                           </div>
                           <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
                             {winsMode
-                              ? (isEnglish
-                                ? 'Counts match wins only: in single elimination, same-round losers tie on rank but differ on wins (0 = out in round 1).'
-                                : '只按赢下的场数选人：单败淘汰里同一轮出局的选手名次并列，但胜场不同（0 胜 = 首轮出局），按轮次选不会有并列歧义。')
+                              ? (eliminationSource
+                                ? (isEnglish
+                                  ? 'Counts match wins only: in single elimination, same-round losers tie on rank but differ on wins (0 = out in round 1).'
+                                  : '只按赢下的场数选人：单败淘汰里同一轮出局的选手名次并列，但胜场不同（0 胜 = 首轮出局），按轮次选不会有并列歧义。')
+                                : (isEnglish
+                                  ? 'Counts match wins in this stage (e.g. 4-1 and above). Ties are ordered by points and opponent win rate.'
+                                  : '按本赛段的比赛胜场筛选（例如胜场 ≥ 4）；胜场相同的按积分与对手胜率排队。'))
                               : (isEnglish
                                 ? 'Ranks come from the group standings of this stage. In single elimination, same-round losers tie on rank — prefer the round mode there.'
                                 : '按本赛段的小组排名选人。单败淘汰里同一轮出局的选手名次并列，这种情况建议改用「按淘汰轮次」。')}

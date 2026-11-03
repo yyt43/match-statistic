@@ -289,4 +289,41 @@ describe('general advancement plan', () => {
     // 胜场最高的先排，不依赖名次并列时的任意顺序。
     expect(winsById.get(preview.seats[0].playerId)).toBe(3);
   });
+
+  it('filters swiss players by match wins when the selector uses wins mode', () => {
+    const plan: StageAdvancementPlan = {
+      slots: [
+        {
+          id: 'slot-wins',
+          targetStageId: 'stage-final',
+          selectors: [{ mode: 'wins', fromRank: 1, toRank: 8, minWins: 4 }],
+        },
+      ],
+    };
+    const final: MultiStageDraftStage = {
+      id: 'stage-final',
+      name: '淘汰赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 8,
+      rounds: 3,
+      fixedRounds: 3,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5', 'bo5'],
+      sourceStageIds: ['stage-group'],
+    };
+    const base = createMultiStageCompetition('瑞士轮胜场测试', [groupStageDraft(plan), final]);
+    const competition = finishGroupStage(base);
+    const preview = computeStageAdvancement(competition, 'stage-group');
+
+    expect(preview.errors).toEqual([]);
+    // 战绩 [5,4,4,4,4,3,2,1]：每组 5 人达到 4 胜，两个小组共 10 人。
+    expect(preview.seats).toHaveLength(10);
+    const expectedWins = [5, 4, 4, 4, 4, 3, 2, 1];
+    const winsById = new Map<string, number>();
+    base.groups.forEach(group =>
+      group.players.forEach((player, index) => winsById.set(player.id, expectedWins[index] ?? 0))
+    );
+    preview.seats.forEach(seat => expect(winsById.get(seat.playerId)).toBeGreaterThanOrEqual(4));
+  });
 });
