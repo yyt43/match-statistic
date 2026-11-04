@@ -42,14 +42,6 @@ export type EvidenceVerificationStatus =
   | 'unreadable'
   | 'missing';
 
-/**
- * 赛果导入的截图核验策略（赛事级设置）。
- * - off：截图可选，只拦矛盾或看不清的内容。
- * - required：每行必须有截图引用，未核验的行会以「待核验」写入成绩。
- * - strict：只有标记为「核验通过」的行才允许写入。
- */
-export type EvidencePolicy = 'off' | 'required' | 'strict';
-
 export type PublicResultStatus =
   | 'not_announced'
   | 'announced'
@@ -385,6 +377,4 @@ export interface TournamentCompetition {
   stages?: TournamentStage[];
   /** 晋级确认记录，用于复核、回退。 */
   stageAdvancements?: StageAdvancementRecord[];
-  /** 赛果导入的截图核验策略；缺省视为 off（截图可选）。 */
-  evidencePolicy?: EvidencePolicy;
 }

@@ -12,16 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
 import { useShallow } from 'zustand/react/shallow';
-import type { EvidencePolicy, EvidenceVerificationStatus } from '../../types';
-import {
-  EVIDENCE_POLICY_LABELS,
-  EVIDENCE_POLICY_VALUES,
-  coerceEvidenceStatus,
-  defaultEvidenceStatus,
-  isEvidenceBlocked,
-  normalizeEvidencePolicy,
-  summarizeEvidence,
-} from '../../utils/import/evidencePolicy';
+import type { EvidenceVerificationStatus } from '../../types';
 import {
   generateRoundAnnouncement,
   parseMatchResultsWorkbook,
@@ -34,8 +25,6 @@ interface MatchResultImportModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-type EvidenceFilter = 'all' | 'pending' | 'verified' | 'blocked';
 
 function fileNameFromRef(value: string): string {
   return value.split(/[\\/]/).pop()?.trim().toLowerCase() ?? '';
@@ -60,19 +49,15 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const {
     competition,
     applyImportedMatchResults,
-    setEvidencePolicy,
   } = useTournamentStore(useShallow(state => ({
     competition: state.competition,
     applyImportedMatchResults: state.applyImportedMatchResults,
-    setEvidencePolicy: state.setEvidencePolicy,
   })));
-  const policy = normalizeEvidencePolicy(competition.evidencePolicy);
   const [preview, setPreview] = useState<MatchImportPreview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [verification, setVerification] = useState<Record<number, EvidenceVerificationStatus>>({});
   const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string>>({});
   const [announcement, setAnnouncement] = useState('');
-  const [filter, setFilter] = useState<EvidenceFilter>('all');
   const workbookInputRef = useRef<HTMLInputElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,24 +67,14 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
 
   if (!isOpen) return null;
 
-  const statusOf = (rowNumber: number): EvidenceVerificationStatus =>
-    coerceEvidenceStatus(
-      verification[rowNumber] ?? defaultEvidenceStatus(policy),
-      policy
-    );
-
   const handleWorkbook = async (file?: File) => {
     if (!file) return;
     try {
       const next = await parseMatchResultsWorkbook(file, competition);
       setPreview(next);
-      setFilter('all');
       setVerification(Object.fromEntries(next.ready.map(candidate => [
         candidate.rowNumber,
-        coerceEvidenceStatus(
-          candidate.evidenceVerificationStatus ?? defaultEvidenceStatus(policy),
-          policy
-        ),
+        candidate.evidenceVerificationStatus ?? 'not_required',
       ])));
       setAnnouncement('');
       setMessage(isEnglish
@@ -129,59 +104,10 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
     setVerification(previous => ({ ...previous, [rowNumber]: status }));
   };
 
-  const changePolicy = (nextPolicy: EvidencePolicy) => {
-    if (nextPolicy === policy) return;
-    setEvidencePolicy(nextPolicy);
-    if (!preview) return;
-    setVerification(previous => Object.fromEntries(
-      preview.ready.map(candidate => {
-        const current = previous[candidate.rowNumber]
-          ?? candidate.evidenceVerificationStatus
-          ?? defaultEvidenceStatus(policy);
-        return [
-          candidate.rowNumber,
-          coerceEvidenceStatus(
-            current === 'not_required' && nextPolicy !== 'off'
-              ? defaultEvidenceStatus(nextPolicy)
-              : current,
-            nextPolicy
-          ),
-        ];
-      })
-    ));
-  };
-
-  const readyCandidates = preview?.ready ?? [];
-  const statusList = readyCandidates.map(candidate => statusOf(candidate.rowNumber));
-  const summary = summarizeEvidence(statusList, policy);
-
-  const matchesFilter = (status: EvidenceVerificationStatus): boolean => {
-    if (filter === 'all') return true;
-    const blocked = isEvidenceBlocked(status, policy);
-    if (filter === 'blocked') return blocked;
-    if (blocked) return false;
-    return status === filter;
-  };
-
-  const visibleCandidates = readyCandidates.filter(candidate =>
-    matchesFilter(statusOf(candidate.rowNumber))
-  );
-
-  const appliableCandidates = readyCandidates.filter(
-    candidate => !isEvidenceBlocked(statusOf(candidate.rowNumber), policy)
-  );
-
-  const markAllVerified = () => {
-    setVerification(previous => {
-      const next = { ...previous };
-      visibleCandidates.forEach(candidate => {
-        next[candidate.rowNumber] = 'verified';
-      });
-      return next;
-    });
-  };
-
-  const policyCopy = EVIDENCE_POLICY_LABELS[policy];
+  const appliableCandidates = preview?.ready.filter(candidate => {
+    const status = verification[candidate.rowNumber] ?? 'not_required';
+    return status !== 'mismatch' && status !== 'unreadable';
+  }) ?? [];
 
   const handleApply = () => {
     if (!preview || appliableCandidates.length === 0) return;
@@ -195,7 +121,7 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
         player2Games: candidate.player2Games,
         evidenceRefs: candidate.evidenceRef ? [candidate.evidenceRef] : undefined,
         evidenceHash: candidate.evidenceHash,
-        evidenceVerificationStatus: statusOf(candidate.rowNumber),
+        evidenceVerificationStatus: verification[candidate.rowNumber] ?? 'not_required',
         sourceSubmissionId: candidate.sourceSubmissionId,
         sourceSubmittedAt: candidate.sourceSubmittedAt,
       })),
@@ -248,8 +174,8 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
             </h3>
             <p className="mt-0.5 text-[11px] text-slate-500">
               {isEnglish
-                ? 'Choose the screenshot policy, review each row, then write the results you trust.'
-                : '先选截图核验策略、逐行核验，再写入你确认的结果。'}
+                ? 'Screenshots are optional. Conflicts and missing submissions remain review items.'
+                : '截图核验可选，系统只阻塞矛盾结果和未填写内容。'}
             </p>
           </div>
           <button
@@ -260,31 +186,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
           >
             <X className="h-5 w-5" />
           </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-700/60 px-5 py-2.5">
-          <span className="text-[11px] text-slate-400">
-            {isEnglish ? 'Screenshot policy' : '截图核验策略'}
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {EVIDENCE_POLICY_VALUES.map(value => (
-              <button
-                key={value}
-                onClick={() => changePolicy(value)}
-                aria-pressed={value === policy}
-                className={`rounded border px-2 py-1 text-[10px] ${
-                  value === policy
-                    ? 'border-gold-500/50 bg-gold-500/15 text-gold-300'
-                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {isEnglish ? EVIDENCE_POLICY_LABELS[value].en : EVIDENCE_POLICY_LABELS[value].zh}
-              </button>
-            ))}
-          </div>
-          <span className="text-[10px] text-slate-500">
-            {isEnglish ? policyCopy.description.en : policyCopy.description.zh}
-          </span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/60 px-5 py-3">
@@ -324,58 +225,24 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-center text-[11px] sm:grid-cols-5">
+                <div className="grid grid-cols-4 gap-2 text-center text-[11px]">
                   <div className="rounded bg-emerald-500/10 px-2 py-2 text-emerald-300">
                     {isEnglish ? 'Ready' : '可处理'} {preview.ready.length}
                   </div>
                   <div className="rounded bg-sky-500/10 px-2 py-2 text-sky-300">
-                    {isEnglish ? 'Verified' : '核验通过'} {summary.verified}
-                  </div>
-                  <div className="rounded bg-amber-500/10 px-2 py-2 text-amber-300">
-                    {isEnglish ? 'Pending' : '待核验'} {summary.pending}
-                  </div>
-                  <div className="rounded bg-rose-500/10 px-2 py-2 text-rose-300">
-                    {isEnglish ? 'Held' : '将被拦住'} {summary.blocked}
+                    {isEnglish ? 'Appliable' : '可写入'} {appliableCandidates.length}
                   </div>
                   <div className="rounded bg-slate-800/70 px-2 py-2 text-slate-300">
+                    {isEnglish ? 'Duplicates' : '重复'} {preview.duplicates.length}
+                  </div>
+                  <div className="rounded bg-rose-500/10 px-2 py-2 text-rose-300">
                     {isEnglish ? 'Issues' : '异常'} {preview.issues.length}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-1">
-                    {([
-                      ['all', isEnglish ? 'All' : '全部'],
-                      ['pending', isEnglish ? 'Pending' : '待核验'],
-                      ['verified', isEnglish ? 'Verified' : '核验通过'],
-                      ['blocked', isEnglish ? 'Held' : '被拦住'],
-                    ] as Array<[EvidenceFilter, string]>).map(([value, label]) => (
-                      <button
-                        key={value}
-                        onClick={() => setFilter(value)}
-                        aria-pressed={filter === value}
-                        className={`rounded border px-2 py-1 text-[10px] ${
-                          filter === value
-                            ? 'border-gold-500/50 bg-gold-500/15 text-gold-300'
-                            : 'border-slate-700 bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={markAllVerified}
-                    disabled={visibleCandidates.length === 0}
-                    className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300 disabled:opacity-40"
-                  >
-                    {isEnglish ? 'Mark visible rows as verified' : '把当前筛选项标为核验通过'}
-                  </button>
-                </div>
-
                 <div className="space-y-2">
-                  {visibleCandidates.map(candidate => {
-                    const status = statusOf(candidate.rowNumber);
+                  {preview.ready.map(candidate => {
+                    const status = verification[candidate.rowNumber] ?? 'not_required';
                     const evidenceUrl = getEvidenceUrl(candidate.evidenceRef);
                     const safeEvidenceUrl = sanitizeEvidenceUrl(evidenceUrl);
                     return (
@@ -409,9 +276,7 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                             {candidate.note && <div className="mt-1 text-[11px] text-amber-300">{candidate.note}</div>}
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               {([
-                                policy === 'off'
-                                  ? ['not_required', isEnglish ? 'Optional' : '无需核验']
-                                  : ['pending', isEnglish ? 'Pending' : '待核验'],
+                                ['not_required', isEnglish ? 'Optional' : '无需核验'],
                                 ['verified', isEnglish ? 'Verified' : '核验通过'],
                                 ['mismatch', isEnglish ? 'Mismatch' : '证据不符'],
                                 ['unreadable', isEnglish ? 'Unreadable' : '图片不清'],
@@ -421,7 +286,7 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
                                   onClick={() => setVerificationStatus(candidate.rowNumber, value)}
                                   className={`rounded border px-2 py-1 text-[10px] ${
                                     status === value
-                                      ? value === 'verified' || value === 'not_required' || value === 'pending'
+                                      ? value === 'verified' || value === 'not_required'
                                         ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                                         : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
                                       : 'border-slate-700 bg-slate-800 text-slate-400'
@@ -514,17 +379,9 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
               <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2 text-[10px] text-amber-300">
                 <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {policy === 'off'
-                    ? (isEnglish
-                      ? 'Off: mismatched or unreadable evidence is held; missing screenshots do not block a result.'
-                      : '关闭：证据不符或图片不清的行会被拦住；缺少截图本身不阻止结果写入。')
-                    : policy === 'required'
-                      ? (isEnglish
-                        ? 'Required: rows without an evidence reference are reported as issues; unverified rows are written as pending.'
-                        : '要求提供：缺少截图引用的行会作为异常拦住；未核验的行按「待核验」写入成绩。')
-                      : (isEnglish
-                        ? `Strict: only rows marked verified are written. ${summary.blocked} row(s) would be held right now.`
-                        : `严格：只有标记「核验通过」的行才会写入。当前会被拦住 ${summary.blocked} 行。`)}
+                  {isEnglish
+                    ? 'Mismatched or unreadable evidence is held for review. Missing screenshots do not block a result.'
+                    : '证据不符或图片不清时暂停；缺少截图本身不阻止结果写入。'}
                 </span>
               </div>
 
