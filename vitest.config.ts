@@ -1,5 +1,15 @@
 import { defineConfig } from 'vitest/config';
+import { readFileSync } from 'node:fs';
+
+// 与 vite.config.ts 一致：测试里也注入构建期版本号，避免 __APP_VERSION__ 未定义。
+const appVersion = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version as string;
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   test: {
     // 提供 localStorage 等浏览器存储的最小 stub，避免 node 环境下的回退路径噪声。
     setupFiles: ['./vitest.setup.ts'],
