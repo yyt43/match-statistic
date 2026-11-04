@@ -905,6 +905,8 @@ export default function MultiStageSetup() {
             const upstreamNames = upstreamStages.map(item => item.name);
             const plan = normalizeAdvancementPlan(stage);
             const planSlots = plan?.slots ?? [];
+            const stageSeating = normalizeSeatingPlan(stage);
+            const isRankPairsStage = getSameGroupMode(stageSeating) === 'rankPairs';
             const downstreamNames = stages
               .filter(target =>
                 target.id !== stage.id
@@ -1204,11 +1206,18 @@ export default function MultiStageSetup() {
                   </span>
                 </div>
 
-                {planSlots.length === 0 && (
+                {planSlots.length === 0 && !isRankPairsStage && (
                   <p className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                     {isEnglish
                       ? 'No destination configured yet — the downstream stage will receive nobody.'
                       : '还没有配置去向，下游赛段将收不到任何选手。'}
+                  </p>
+                )}
+                {planSlots.length === 0 && isRankPairsStage && (
+                  <p className="rounded border border-slate-700/50 bg-slate-800/40 px-2 py-1.5 text-[10px] leading-relaxed text-slate-400">
+                    {isEnglish
+                      ? 'Nothing to configure here: the winner of each in-group pair advance to the downstream stage through its own arrival arrangement.'
+                      : '这里不用配置：同组名次配对的胜者会按下游赛段的「接收名单落位」自动进入，不需要再写去向。'}
                   </p>
                 )}
 
