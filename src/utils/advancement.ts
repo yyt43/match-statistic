@@ -1,4 +1,5 @@
 import type {
+  GameType,
   Player,
   StageAdvancementPairing,
   StageAdvancementPreview,
@@ -14,6 +15,16 @@ import { buildRankedGroup } from '../store/competitionState';
 import { generateId } from '../store/tournamentFactory';
 import { getOrderedStages, getStageGroups } from './multiStage';
 import { getSameGroupMode, normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
+import { getEliminationBracketRounds } from './elimination';
+
+/**
+ * 单败淘汰的轮数跟着实际签表大小走：晋级人数少于计划人数时（例如预计 11 人、实际只有 7 人），
+ * 签表按 8 人生成，轮数也必须是 3，否则界面上会多出一轮永远打不了的比赛。
+ */
+function fitRoundGameTypes(list: GameType[] | undefined, count: number, fallback: GameType): GameType[] {
+  const source = list && list.length > 0 ? list : [fallback];
+  return Array.from({ length: count }, (_, index) => source[index] ?? source[source.length - 1]);
+}
 
 function getRankedPlayers(group: TournamentGroup): Player[] {
   return buildRankedGroup(group).players;
@@ -1355,14 +1366,21 @@ function materializeTargetStage(
       playedAgainst: [...player.playedAgainst],
     }));
     const groupSlots = [...slots];
+    const isElimination = group.pairingType === 'single_elimination';
+    const bracketRounds = isElimination ? getEliminationBracketRounds(bracketSize) : group.totalRounds;
     groups[groupIndex] = {
       ...group,
       players: groupPlayers,
       matches: [],
       status: 'setup',
       currentRound: 0,
+      // 淘汰赛轮数按实际签表大小重算，避免「签到 7 人却显示 4 轮」这种前后不一致。
+      totalRounds: bracketRounds,
+      roundGameTypes: isElimination
+        ? fitRoundGameTypes(group.roundGameTypes, bracketRounds, group.gameType)
+        : group.roundGameTypes,
       // 只有单败淘汰赛的分组才生成签表；其它赛制只接收名单。
-      eliminationBracket: group.pairingType === 'single_elimination'
+      eliminationBracket: isElimination
         ? {
             id: `elimination-${generateId()}`,
             size: bracketSize,

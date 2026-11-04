@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  GameType,
   SeatingPlan,
   StageAdvancementPlan,
   TournamentCompetition,
@@ -325,5 +326,41 @@ describe('general advancement plan', () => {
       group.players.forEach((player, index) => winsById.set(player.id, expectedWins[index] ?? 0))
     );
     preview.seats.forEach(seat => expect(winsById.get(seat.playerId)).toBeGreaterThanOrEqual(4));
+  });
+
+  it('sizes the elimination bracket by the actual headcount instead of the planned count', () => {
+    // 计划 11 人（16 签位、4 轮），实际只到 7 人：签表按 8 人生成，轮数也必须变成 3。
+    const group = {
+      ...groupStageDraft({
+        slots: [
+          {
+            id: 'slot-seven',
+            targetStageId: 'stage-playoff',
+            selectors: [{ fromRank: 1, toRank: 7 }],
+          },
+        ],
+      }),
+      groupCount: 1,
+      groupNames: ['A组'],
+    };
+    const playoff = {
+      ...playoffDraft({ mode: 'ordered' }),
+      playerCountPerGroup: 11,
+      rounds: 4,
+      fixedRounds: 4,
+      roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'] as GameType[],
+    };
+    const competition = finishGroupStage(createMultiStageCompetition('实际人数测试', [group, playoff]));
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(7);
+
+    const advanced = confirmStageAdvancement(competition, preview);
+    const playoffStage = advanced.stages!.find(stage => stage.id === 'stage-playoff')!;
+    const playoffGroup = getStageGroups(advanced, playoffStage)[0];
+    expect(playoffGroup.players).toHaveLength(7);
+    expect(playoffGroup.eliminationBracket?.size).toBe(8);
+    expect(playoffGroup.totalRounds).toBe(3);
+    expect(playoffGroup.roundGameTypes).toEqual(['bo3', 'bo5', 'bo5']);
   });
 });
