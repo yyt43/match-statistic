@@ -8,6 +8,7 @@ import type {
 } from '../../types';
 import { getRoundGameType } from '../swissPairing';
 import { normalizeUid } from '../playerProfiles';
+import { defaultEvidenceStatus, normalizeEvidencePolicy } from './evidencePolicy';
 import { parseWorkbookFile, type ParsedWorkbookSheet } from './playerImport';
 
 export interface MatchSubmissionRow {
@@ -198,7 +199,8 @@ function createCandidate(
   groupIndex: number,
   match: Match,
   score: { winnerWins: number; loserWins: number },
-  evidenceRef: string
+  evidenceRef: string,
+  evidenceVerificationStatus: EvidenceVerificationStatus
 ): MatchImportCandidate {
   const isPlayer1 = match.player1Id === player.id;
   const player1Games = isPlayer1 ? score.winnerWins : score.loserWins;
@@ -230,7 +232,7 @@ function createCandidate(
     player2Games,
     evidenceRef,
     evidenceHash: evidenceRef.match(/^[a-f0-9]{64}$/i)?.[0],
-    evidenceVerificationStatus: 'not_required',
+    evidenceVerificationStatus,
     sourceSubmissionId,
     sourceSubmittedAt: row.submittedAt,
     submitter: row.submitter,
@@ -247,6 +249,8 @@ export function buildMatchImportPreview(
   const duplicates: MatchImportCandidate[] = [];
   const issues: MatchImportIssue[] = [];
   const byMatch = new Map<string, MatchImportCandidate>();
+  const policy = normalizeEvidencePolicy(competition.evidencePolicy);
+  const initialStatus = defaultEvidenceStatus(policy);
 
   for (const row of rows) {
     if (!row.participantCode || !row.resultOption) {
@@ -255,6 +259,16 @@ export function buildMatchImportPreview(
         code: 'MISSING_REQUIRED',
         message: '选手编号或比赛结果为空',
         messageEn: 'Participant code or result is missing',
+      });
+      continue;
+    }
+
+    if (policy !== 'off' && !row.evidenceRef.trim()) {
+      issues.push({
+        rowNumber: row.rowNumber,
+        code: 'EVIDENCE_MISSING',
+        message: '当前赛事要求提供截图，这一行缺少截图引用',
+        messageEn: 'This event requires screenshots and this row has no evidence reference',
       });
       continue;
     }
@@ -357,7 +371,8 @@ export function buildMatchImportPreview(
       found.groupIndex,
       match,
       score,
-      row.evidenceRef || `${sourceFileName}:row-${row.rowNumber}`
+      row.evidenceRef || `${sourceFileName}:row-${row.rowNumber}`,
+      initialStatus
     );
     const existing = byMatch.get(match.id);
     if (!existing) {

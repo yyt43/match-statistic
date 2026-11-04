@@ -14,7 +14,9 @@ import type {
   TiebreakTemplate,
   PlayerSchemaId,
   EvidenceVerificationStatus,
+  EvidencePolicy,
 } from '../types';
+import { normalizeEvidencePolicy } from '../utils/import/evidencePolicy';
 import { calculateAllWinRates, getRankedPlayers, generatePairings, getRoundGameType, PairingBlockedError } from '../utils/swissPairing';
 import {
   assignEliminationBracketSlot as assignBracketSlot,
@@ -213,6 +215,8 @@ export interface CompetitionState {
   loadSavedCompetition: () => Promise<boolean>;
   importCompetition: (competition: TournamentCompetition) => void;
   updateCompetitionName: (name: string) => void;
+  /** 修改赛果导入的截图核验策略（off / required / strict）。 */
+  setEvidencePolicy: (policy: EvidencePolicy) => void;
   setCurrentGroup: (index: number) => void;
   addGroup: () => void;
   removeGroup: (index: number) => void;
@@ -527,6 +531,14 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     const { competition } = get();
     const updated = { ...competition, name: name.trim() || '新建赛事' };
     set({ competition: updated }, { label: '修改赛事名称' });
+  },
+
+  setEvidencePolicy: (policy: EvidencePolicy) => {
+    const { competition } = get();
+    const next = normalizeEvidencePolicy(policy);
+    if (normalizeEvidencePolicy(competition.evidencePolicy) === next) return;
+    const updated = { ...competition, evidencePolicy: next };
+    set({ competition: updated }, { label: '修改截图核验策略' });
   },
 
   startTournament: (totalRounds: number) => {

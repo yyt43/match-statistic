@@ -16,6 +16,7 @@ const TIEBREAK_RULES = new Set([
   'playoffWins',
 ]);
 const PLAYER_SCHEMA_IDS = new Set(['generic', 'poetryCupS2']);
+const EVIDENCE_POLICIES = new Set(['off', 'required', 'strict']);
 const PLAYER_FIELD_TYPES = new Set(['text', 'gameUid', 'qq', 'select']);
 const PLAYER_FIELD_VISIBILITIES = new Set(['public', 'admin']);
 const EVIDENCE_VERIFICATION_STATUSES = new Set([
@@ -48,6 +49,15 @@ export function validateCompetitionData(value: unknown): CompetitionSchemaResult
   requireString(competition, 'createdAt', 'root.createdAt', errors);
   if (competition.playerSchemaId !== undefined) {
     requireEnum(competition, 'playerSchemaId', PLAYER_SCHEMA_IDS, 'root.playerSchemaId', errors);
+  }
+  if (competition.evidencePolicy !== undefined) {
+    requireEnum(
+      competition,
+      'evidencePolicy',
+      EVIDENCE_POLICIES,
+      'root.evidencePolicy',
+      errors
+    );
   }
   if (competition.playerFields !== undefined) {
     validatePlayerFields(competition.playerFields, 'root.playerFields', errors);
