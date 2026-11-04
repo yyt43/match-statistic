@@ -26,6 +26,21 @@ describe('roster import template', () => {
     expect(groups).toContain('B组');
   });
 
+  it('uses placeholder UID and QQ values instead of real-looking IDs', () => {
+    const [roster, guide] = buildRosterTemplateSheets();
+    const uids = roster.rows.slice(1).map(row => String(row[2] ?? '')).filter(Boolean);
+    uids.forEach(uid => expect(uid).toMatch(/^9[0-9]{8}$/));
+    expect(new Set(uids).size).toBe(uids.length);
+    roster.rows.slice(1).forEach(row => {
+      const qq = String(row[3] ?? '');
+      if (qq) expect(qq).toMatch(/^1[0-9]{11}$/);
+    });
+    expect(guide.rows.some(row => String(row[0]) === '示例数据')).toBe(true);
+
+    const [, resultGuide] = buildMatchResultTemplateSheets('bo3');
+    expect(resultGuide.rows.some(row => String(row[0]) === '示例数据')).toBe(true);
+  });
+
   it('can be parsed back by the roster importer', () => {
     const [roster] = buildRosterTemplateSheets({ groupNames: ['A组', 'B组'] });
     const headers = roster.rows[0].map(String);
@@ -45,7 +60,7 @@ describe('roster import template', () => {
       name: '示例选手1',
       participantCode: 'A01',
       groupName: 'A组',
-      profile: { uid: '180748058', qq: '123456789' },
+      profile: { uid: '900000001', qq: '100000000001' },
     });
   });
 });

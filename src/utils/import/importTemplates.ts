@@ -17,9 +17,9 @@ export function buildRosterTemplateSheets(options: RosterTemplateOptions = {}): 
 
   const rows: (string | number)[][] = [
     [...HEADERS],
-    ['示例选手1', 'A01', '180748058', '123456789', firstGroup],
-    ['示例选手2', 'A02', '338916899', '', firstGroup],
-    ['示例选手3', 'B01', '1234567891', '987654321', secondGroup],
+    ['示例选手1', 'A01', '900000001', '100000000001', firstGroup],
+    ['示例选手2', 'A02', '900000002', '', firstGroup],
+    ['示例选手3', 'B01', '900000003', '100000000003', secondGroup],
   ];
 
   const guide: (string | number)[][] = [
@@ -30,6 +30,7 @@ export function buildRosterTemplateSheets(options: RosterTemplateOptions = {}): 
     ['QQ', '选填', '联系用，不随导出公开。'],
     ['小组', '选填', '填写时按这一列归组；留空时按工作表名归组。'],
     [],
+    ['示例数据', '', '示例行的昵称、编号、UID、QQ 都是占位数据（UID 以 9 开头、QQ 为 12 位），请先替换成真实信息再导入。'],
     ['用法', '', '一张表里放全部选手，用「小组」列区分；也可以每组一张工作表（如 A组、B组），表名即小组名。'],
     ['提示', '', '表头行必须在第一张有内容的行；多余的说明行、空行会被跳过。'],
   ];
@@ -64,8 +65,8 @@ export function buildMatchResultTemplateSheets(
     `我以 ${required}-${index} 获胜`
   );
   const samples: (string | number)[][] = [
-    ['A01', '180748058', resultOptions[required - 1] ?? resultOptions[0], 'A-R1-01_01.png', '示例提交者', '2026-09-25 20:30', ''],
-    ['A02', '338916899', resultOptions[0], 'A-R1-02_01.png', '示例提交者', '2026-09-25 20:45', ''],
+    ['A01', '900000001', resultOptions[required - 1] ?? resultOptions[0], 'A-R1-01_01.png', '示例提交者', '2026-09-25 20:30', ''],
+    ['A02', '900000002', resultOptions[0], 'A-R1-02_01.png', '示例提交者', '2026-09-25 20:45', ''],
   ];
 
   return [
@@ -86,6 +87,7 @@ export function buildMatchResultTemplateSheets(
         ['结算截图', '选填', '截图文件名或链接，用于赛后核验；不填也能导入，只是缺少截图证据。'],
         ['提交者 / 提交时间 / 备注', '选填', '原样记录，不影响匹配。'],
         [],
+        ['示例数据', '', '示例行的选手编号与 UID 都是占位数据（UID 以 9 开头），请替换成真实信息。'],
         ['注意', '', '一行只写一场比赛；同一选手在同一轮出现两次会被判为矛盾，需要在预览里处理。'],
       ],
     },
