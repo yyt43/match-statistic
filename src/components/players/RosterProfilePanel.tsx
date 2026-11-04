@@ -1,4 +1,4 @@
-import { BadgeCheck, ListPlus, Lock, Save, Upload } from 'lucide-react';
+import { BadgeCheck, Download, ListPlus, Lock, Save, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguagePreference } from '../../i18n/context';
 import { useTournamentStore } from '../../store/useTournamentStore';
@@ -10,6 +10,7 @@ import {
   type RosterProfileImportRow,
 } from '../../utils/import/rosterProfileImport';
 import { mapRosterRowsToGroups } from '../../utils/import/rosterGroupMapping';
+import { downloadRosterTemplate } from '../../utils/import/importTemplates';
 import {
   isRosterLocked,
   validateRoster,
@@ -185,6 +186,22 @@ export function RosterProfilePanel() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadRosterTemplate({
+        groupNames: competition.groups.map(group => group.name),
+        isEnglish,
+      });
+      setMessage(isEnglish
+        ? 'Template downloaded: fill in rows under the header, then import it here.'
+        : '模板已下载：在表头下面逐行填写后，回到这里导入即可。');
+    } catch (error) {
+      setMessage(isEnglish
+        ? `Could not create the template: ${error instanceof Error ? error.message : String(error)}`
+        : `生成模板失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const selectOptions = [
     ['name', isEnglish ? 'Nickname' : '游戏昵称'],
     ['participantCode', isEnglish ? 'Participant code' : '选手编号'],
@@ -225,6 +242,16 @@ export function RosterProfilePanel() {
               {isEnglish ? `Fill missing codes (${missingCodeCount})` : `一键编号 (${missingCodeCount})`}
             </button>
           </div>
+          <button
+            onClick={() => void handleDownloadTemplate()}
+            className="w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-[11px] text-slate-300 hover:bg-slate-700/50"
+            title={isEnglish
+              ? 'XLSX with a roster sheet (nickname, participant code, UID, QQ, group) and a field guide sheet.'
+              : 'XLSX 模板：一张「选手名单」（昵称、编号、UID、QQ、小组）加一张填写说明。'}
+          >
+            <Download className="mr-1 inline h-3 w-3" />
+            {isEnglish ? 'Download import template' : '下载导入模板'}
+          </button>
           <button
             onClick={handleLock}
             disabled={locked}

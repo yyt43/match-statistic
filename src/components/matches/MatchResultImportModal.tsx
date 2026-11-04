@@ -1,6 +1,7 @@
 import {
   Check,
   Clipboard,
+  Download,
   FileSpreadsheet,
   Image as ImageIcon,
   ShieldAlert,
@@ -18,7 +19,7 @@ import {
   type MatchImportPreview,
 } from '../../utils/import/matchResultImport';
 import { getRoundGameType } from '../../utils/swissPairing';
-import { writeExcelWorkbook } from '../../utils/export/excelWorkbook';
+import { downloadMatchResultTemplate } from '../../utils/import/importTemplates';
 
 interface MatchResultImportModalProps {
   isOpen: boolean;
@@ -155,22 +156,7 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
   const downloadTemplate = async () => {
     const group = competition.groups[competition.currentGroupIndex];
     const currentRound = Math.max(1, group.currentRound);
-    const gameType = getRoundGameType(group, currentRound);
-    const options = gameType === 'bo3'
-      ? ['我以 2-0 获胜', '我以 2-1 获胜']
-      : gameType === 'bo5'
-        ? ['我以 3-0 获胜', '我以 3-1 获胜', '我以 3-2 获胜']
-        : gameType === 'bo7'
-          ? ['我以 4-0 获胜', '我以 4-1 获胜', '我以 4-2 获胜', '我以 4-3 获胜']
-          : ['我以 1-0 获胜'];
-    await writeExcelWorkbook([{
-      name: '赛果导入',
-      rows: [
-        ['我的选手编号', '你的原神UID', '比赛结果', '结算截图', '提交者', '提交时间', '备注'],
-        ['A01', '180748058', options[1] ?? options[0], 'A-R1-01_01.png', '示例提交者', '2026-09-25 20:30', ''],
-        ['A02', '338916899', options[0], 'A-R1-02_01.png', '示例提交者', '2026-09-25 20:45', ''],
-      ],
-    }], `诗意杯-${gameType.toUpperCase()}-赛果导入模板.xlsx`);
+    await downloadMatchResultTemplate(getRoundGameType(group, currentRound));
   };
 
   return (
@@ -221,6 +207,13 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
           >
             <FileSpreadsheet className="mr-1 inline h-3.5 w-3.5" />
             {isEnglish ? 'Select XLSX' : '选择 XLSX'}
+          </button>
+          <button
+            onClick={() => void downloadTemplate()}
+            className="rounded-lg border border-slate-600 bg-slate-800/70 px-3 py-2 text-xs text-slate-300"
+          >
+            <Download className="mr-1 inline h-3.5 w-3.5" />
+            {isEnglish ? 'Download template' : '下载模板'}
           </button>
         </div>
 
@@ -341,14 +334,6 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
               >
                 <Upload className="mr-1 inline h-3.5 w-3.5" />
                 {isEnglish ? 'Load screenshot files for preview' : '载入截图文件用于核验'}
-              </button>
-
-              <button
-                onClick={() => void downloadTemplate()}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800/70 px-3 py-2 text-xs text-slate-300"
-              >
-                <FileSpreadsheet className="mr-1 inline h-3.5 w-3.5" />
-                {isEnglish ? 'Download import template' : '下载赛果导入模板'}
               </button>
 
               <div className="rounded-lg border border-slate-700 bg-slate-950/35 p-2 text-[10px] leading-5 text-slate-400">
