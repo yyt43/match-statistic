@@ -111,7 +111,7 @@ try {
   await waitForText(page, 'Poetic · Tournament Results System');
   // 首页现在是赛事类型选择，进入单阶段赛事工作区后再继续。
   await page.getByRole('button', { name: 'Open setup' }).first().click();
-  await page.getByRole('button', { name: /^Format/ }).waitFor();
+  await page.getByText('Format', { exact: true }).waitFor();
 
   await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
   await waitForText(page, 'Imported 4 player profiles across 1 group.');
@@ -123,8 +123,8 @@ try {
   ) {
     throw new Error('The pre-start screen still renders ranking or match-table content.');
   }
-  const formatManagement = page.getByRole('button', { name: /^Format/ });
-  const playerManagement = page.getByRole('button', { name: /^Players/ });
+  const formatManagement = page.getByText('Format', { exact: true }).first();
+  const playerManagement = page.getByText('Players', { exact: true }).first();
   await formatManagement.waitFor({ state: 'visible' });
   await playerManagement.waitFor({ state: 'visible' });
   const [formatBox, playerBox] = await Promise.all([

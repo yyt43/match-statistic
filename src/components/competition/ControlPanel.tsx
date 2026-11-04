@@ -195,8 +195,6 @@ export function ControlPanel({
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [nameInput, setNameInput] = useState(competition.name);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [showFormatManager, setShowFormatManager] = useState(setupLayout);
-  const [showPlayerManager, setShowPlayerManager] = useState(true);
   const [draftPairingType, setDraftPairingType] = useState<PairingType>(currentGroup.pairingType);
   const [draftGameType, setDraftGameType] = useState<GameType>(currentGroup.gameType);
   const [draftRoundGameTypes, setDraftRoundGameTypes] = useState<GameType[]>(() =>
@@ -332,7 +330,6 @@ export function ControlPanel({
       },
       target
     );
-    setShowFormatManager(false);
   };
 
   const systemTools = useMemo(() => (
@@ -528,17 +525,7 @@ export function ControlPanel({
             <Edit2 className="h-3.5 w-3.5 shrink-0 text-slate-500" />
           </button>
         )}
-
-        <button
-          onClick={() => exportCompetitionToFile(competition)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-[11px] text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white"
-        >
-          <Download className="h-3.5 w-3.5" />
-          {isEnglish ? 'Export data' : '导出比赛数据'}
-        </button>
       </section>
-
-      {startEventSection}
 
       {isSetup && (
         <section className="border-t border-slate-700/50 pt-3">
@@ -547,6 +534,9 @@ export function ControlPanel({
           </Suspense>
         </section>
       )}
+
+      {startEventSection}
+
       {setupLayout && (
         <section className="border-t border-slate-700/50 pt-3">
           {systemTools}
@@ -648,31 +638,18 @@ export function ControlPanel({
       {setupLayout && (
       <div className="grid grid-cols-3 border-b border-slate-700/50 bg-slate-800/40 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)_minmax(180px,0.85fr)] xl:grid-cols-[340px_minmax(460px,1fr)_280px]">
         {isSetup && (
-          <button
-            onClick={() => {
-              setShowFormatManager(!showFormatManager);
-              controlScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
-              showFormatManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
+          <div className="order-1 flex items-center justify-center gap-1.5 border-l border-slate-700/50 bg-gold-500/10 px-1 py-2.5 text-[10px] font-medium text-gold-400 sm:order-none sm:px-2 sm:text-xs">
             {rulesTabLabel
               ? <ShieldCheck className="w-3.5 h-3.5" />
               : <Settings className="w-3.5 h-3.5" />}
             <span className="truncate">{rulesTabLabel ?? (isEnglish ? 'Format' : '赛制管理')}</span>
-          </button>
+          </div>
         )}
         {isSetup && (
-          <button
-            onClick={() => setShowPlayerManager(current => !current)}
-            className={`order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium transition-colors sm:order-none sm:px-2 sm:text-xs ${
-              showPlayerManager ? 'bg-gold-500/10 text-gold-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
+          <div className="order-2 flex items-center justify-center gap-1.5 border-l border-slate-700/50 bg-gold-500/10 px-1 py-2.5 text-[10px] font-medium text-gold-400 sm:order-none sm:px-2 sm:text-xs">
             <Users className="w-3.5 h-3.5" />
             <span className="truncate">{isEnglish ? 'Players' : '选手管理'}</span>
-          </button>
+          </div>
         )}
         {setupLayout && (
           <div className="order-3 flex items-center justify-center gap-1.5 border-l border-slate-700/50 px-1 py-2.5 text-[10px] font-medium text-slate-300 sm:order-none sm:px-2 sm:text-xs">
@@ -699,8 +676,8 @@ export function ControlPanel({
           ? 'order-1 grid min-w-0 grid-cols-1 overflow-visible sm:order-none sm:col-span-2 sm:col-start-1 sm:row-start-1 sm:min-h-0 sm:grid-cols-[minmax(190px,0.9fr)_minmax(0,1.5fr)] sm:overflow-hidden xl:grid-cols-[340px_minmax(460px,1fr)]'
           : 'flex-1 overflow-y-auto p-4 space-y-4'}
       >
-        {/* 赛制管理：折叠后不再占位 */}
-        {isSetup && showFormatManager && (
+        {/* 赛制管理：常驻显示，不再折叠 */}
+        {isSetup && (
           <div className={setupLayout
             ? 'min-w-0 overflow-visible border-b border-slate-700/50 p-4 sm:min-h-full sm:overflow-y-auto sm:border-b-0 sm:border-r'
             : 'space-y-3'}
@@ -933,7 +910,7 @@ export function ControlPanel({
           </div>
         )}
 
-        {isSetup && showPlayerManager && (
+        {isSetup && (
           <div
             data-testid="player-management-scroll"
             className={setupLayout

@@ -1,6 +1,8 @@
 import type {
   GameType,
   PairingType,
+  SeatingPlan,
+  StageAdvancementPlan,
   StageAdvancementRule,
   StageBreakoutConfig,
   StageSeedRule,
@@ -26,11 +28,15 @@ export interface MultiStageDraftStage {
   roundGameTypes: GameType[];
   /** 名单来自哪些上游赛段；缺省表示手动导入。 */
   sourceStageIds?: string[];
-  /** 该赛段的晋级规则，用于生成下游名单。 */
+  /** 该赛段的晋级计划：谁晋级、去哪个赛段（优先于旧 advancementRules）。 */
+  advancementPlan?: StageAdvancementPlan;
+  /** 本赛段接收晋级者时的落位方式（优先于旧 breakout/seedRules）。 */
+  seating?: SeatingPlan;
+  /** @deprecated 旧版晋级规则，仅用于兼容旧草稿。 */
   advancementRules?: StageAdvancementRule[];
-  /** 本赛段为突围赛时的配对规则。 */
+  /** @deprecated 旧版突围配对，仅用于兼容旧草稿。 */
   breakout?: StageBreakoutConfig;
-  /** 淘汰赛固定签位。 */
+  /** @deprecated 旧版固定签位，仅用于兼容旧草稿。 */
   seedRules?: StageSeedRule[];
 }
 
@@ -197,6 +203,20 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       rounds: 5,
       gameType: 'bo3',
       roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
+      advancementPlan: {
+        slots: [
+          {
+            id: 's3-top-two',
+            targetStageId: 's3-playoff',
+            selectors: [{ fromRank: 1, toRank: 2 }],
+          },
+          {
+            id: 's3-breakout-4-1',
+            targetStageId: 's3-breakout',
+            selectors: [{ fromRank: 3, toRank: 6, minWins: 4, maxWins: 4 }],
+          },
+        ],
+      },
       advancementRules: [
         { id: 's3-top-two', fromRank: 1, toRank: 2, targetStageId: 's3-playoff' },
         {
@@ -220,6 +240,7 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo3',
       roundGameTypes: ['bo3'],
       sourceStageIds: ['s3-group'],
+      seating: { mode: 'ordered', sameGroup: 'rankPairs', pairs: [[3, 6], [4, 5]] },
       breakout: { pairings: [[3, 6], [4, 5]] },
     },
     {
@@ -232,6 +253,14 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       gameType: 'bo5',
       roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'],
       sourceStageIds: ['s3-group', 's3-breakout'],
+      seating: {
+        mode: 'fixedSlots',
+        slots: S3_SEED_RULES.map(rule => ({
+          sourceGroupName: rule.sourceGroupName,
+          rank: rule.rank,
+          slot: rule.targetSlot,
+        })),
+      },
       seedRules: S3_SEED_RULES,
     },
   ];

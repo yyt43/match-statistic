@@ -206,7 +206,10 @@ export type CompetitionWorkflow = 'standard' | 'poetry_cup_s3';
 
 export type AdvancementRoute = 'direct' | 'breakout' | 'breakout_direct';
 
-/** 结构化的晋级规则：来源赛段第 fromRank-toRank 名中满足胜场条件的选手晋级。 */
+/**
+ * 旧版晋级规则：来源赛段第 fromRank-toRank 名中满足胜场条件的选手晋级。
+ * @deprecated 新数据改用 StageAdvancementPlan，读取时由 normalizeAdvancementPlan 兼容。
+ */
 export interface StageAdvancementRule {
   id: string;
   fromRank: number;
@@ -217,16 +220,72 @@ export interface StageAdvancementRule {
   targetStageId: string;
 }
 
-/** 固定签位：来源小组的第 rank 名进入目标赛段的第 targetSlot 个位置。 */
+/**
+ * 旧版固定签位：来源小组的第 rank 名进入目标赛段的第 targetSlot 个位置。
+ * @deprecated 新数据改用 SeatingPlan(fixedSlots)，读取时由 normalizeSeatingPlan 兼容。
+ */
 export interface StageSeedRule {
   sourceGroupName: string;
   rank: number;
   targetSlot: number;
 }
 
-/** 突围配对：来源小组内的名次两两对阵。 */
+/**
+ * 旧版突围配对：来源小组内的名次两两对阵。
+ * @deprecated 新数据改用 SeatingPlan(rankPairs)，读取时由 normalizeSeatingPlan 兼容。
+ */
 export interface StageBreakoutConfig {
   pairings: Array<[number, number]>;
+}
+
+/**
+ * 选人条件：从上游赛段每个小组取第 fromRank-toRank 名，可叠加胜场条件，
+ * 也可以跨组按成绩取前 N（例如「最好的 4 个第三名」）。
+ *
+ * `mode === 'wins'` 时按胜场区间选人、忽略名次区间：单败淘汰赛段同轮出局的
+ * 选手名次并列，用「胜场 = 淘汰轮次」判定更严谨（例如胜场 2 = 半决赛负者）。
+ */
+export interface AdvanceSelector {
+  /** 选人依据：rank 按小组名次（默认），wins 按胜场区间（单败淘汰更严谨）。 */
+  mode?: 'rank' | 'wins';
+  fromRank: number;
+  toRank: number;
+  minWins?: number;
+  maxWins?: number;
+  /** 候选人跨组按成绩排序后取前 N；省略表示全部晋级。 */
+  take?: number;
+}
+
+/** 一条晋级去向：选出来的选手送进哪个下游赛段。 */
+export interface AdvanceSlot {
+  id: string;
+  selectors: AdvanceSelector[];
+  targetStageId: string;
+}
+
+/** 赛段的晋级计划：把本赛段的选手按规则送往各下游赛段。 */
+export interface StageAdvancementPlan {
+  slots: AdvanceSlot[];
+}
+
+/**
+ * 落位方式：接收方赛段把进来的席位排成名单或签表的方式。
+ * `rankPairs` 是旧数据写法，读取时会归一化成 `ordered` + `sameGroup: 'rankPairs'`。
+ */
+export type SeatingMode = 'ordered' | 'snake' | 'rankPairs' | 'fixedSlots';
+
+/** 同组处理：进来的选手里有同一个来源小组的人时怎么安排。 */
+export type SameGroupMode = 'none' | 'avoid' | 'rankPairs';
+
+/** 接收方赛段的落位设置：先决定「排成什么顺序」，再决定「同组的人怎么处理」。 */
+export interface SeatingPlan {
+  mode: SeatingMode;
+  /** 同组处理：none 不特殊处理（默认）；avoid 首轮回避同组；rankPairs 组内按名次配对。 */
+  sameGroup?: SameGroupMode;
+  /** sameGroup=rankPairs：同一来源小组内按名次两两对阵，默认 [[3,6],[4,5]]。 */
+  pairs?: Array<[number, number]>;
+  /** mode=fixedSlots：来源小组名次 → 签位下标。 */
+  slots?: Array<{ sourceGroupName: string; rank: number; slot: number }>;
 }
 
 export interface StageAdvancementSeat {
@@ -289,11 +348,15 @@ export interface TournamentStage {
   sourceStageIds?: string[];
   /** 锁定模板赛段，界面不提供结构编辑。 */
   locked?: boolean;
-  /** 该赛段的晋级规则：满足条件的结果写入下游赛段。 */
+  /** 该赛段的晋级计划：满足条件的选手写入哪个下游赛段（优先于旧 advancementRules）。 */
+  advancementPlan?: StageAdvancementPlan;
+  /** 本赛段接收晋级者时的落位方式（优先于旧 breakout/seedRules）。 */
+  seating?: SeatingPlan;
+  /** @deprecated 旧版晋级规则，读取时由 normalizeAdvancementPlan 兼容。 */
   advancementRules?: StageAdvancementRule[];
-  /** 本赛段为突围赛时的配对规则。 */
+  /** @deprecated 旧版突围配对，读取时由 normalizeSeatingPlan 兼容。 */
   breakout?: StageBreakoutConfig;
-  /** 固定签位映射，用于淘汰赛。 */
+  /** @deprecated 旧版固定签位，读取时由 normalizeSeatingPlan 兼容。 */
   seedRules?: StageSeedRule[];
 }
 
