@@ -2,6 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+
+// 版本号只有一个来源：package.json，构建时注入 __APP_VERSION__ 供帮助页等信息展示。
+const appVersion = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version as string;
 
 // 生产构建注入 CSP。项目本身不向外部发送数据，只额外允许远程字体样式/字体文件；
 // 开发服务器不注入，避免和 Vite/React Refresh 的内联脚本冲突。
@@ -37,6 +43,9 @@ export default defineConfig(({ command }) => ({
   // GitHub Pages 部署：仓库名为 <repo-name>，base 需设为 '/<repo-name>/'
   // 若部署到自定义域名或用户名.github.io 根路径，则改为 './'
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   build: {
     // 本项目发布到公共的 GitHub Pages，sourcemap 会把完整源码暴露给任何访问者，
     // 因此生产构建默认不生成；需要排查线上问题时用 VITE_SOURCEMAP=1 临时开启。
