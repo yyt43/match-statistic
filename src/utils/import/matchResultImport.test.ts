@@ -166,28 +166,4 @@ describe('match result import', () => {
     expect(preview.ready.map(candidate => candidate.groupIndex)).toEqual([0, 1]);
   });
 
-  it('marks every parsed row as pending when the event requires screenshots', () => {
-    const competition = competitionWithMatch();
-    competition.evidencePolicy = 'required';
-    const preview = buildMatchImportPreview(competition, [row()]);
-    expect(preview.ready).toHaveLength(1);
-    expect(preview.ready[0].evidenceVerificationStatus).toBe('pending');
-  });
-
-  it('reports rows without an evidence reference when screenshots are required', () => {
-    const competition = competitionWithMatch();
-    competition.evidencePolicy = 'required';
-    const preview = buildMatchImportPreview(competition, [row({ evidenceRef: '' })]);
-    expect(preview.ready).toHaveLength(0);
-    expect(preview.issues.some(issue => issue.code === 'EVIDENCE_MISSING')).toBe(true);
-  });
-
-  it('keeps screenshots optional when the policy is off', () => {
-    const competition = competitionWithMatch();
-    const preview = buildMatchImportPreview(competition, [row({ evidenceRef: '' })]);
-    expect(preview.ready).toHaveLength(1);
-    expect(preview.ready[0].evidenceVerificationStatus).toBe('not_required');
-    expect(preview.issues.some(issue => issue.code === 'EVIDENCE_MISSING')).toBe(false);
-  });
-
 });

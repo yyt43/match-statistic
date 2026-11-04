@@ -16,11 +16,6 @@ import {
   type StageLockMessage,
 } from '../../utils/advancement';
 import {
-  coerceEvidenceStatus,
-  isEvidenceBlocked,
-  normalizeEvidencePolicy,
-} from '../../utils/import/evidencePolicy';
-import {
   hasPlayedDownstreamBracketMatches,
   rebuildEliminationMatchesAfterResult,
 } from '../../utils/elimination';
@@ -126,15 +121,14 @@ export function createImportActions(
     applyImportedMatchResults: (candidates, label = '导入比赛结果') => {
       if (candidates.length === 0) return;
       const { competition } = get();
-      const evidencePolicy = normalizeEvidencePolicy(competition.evidencePolicy);
       const groups = cloneGroups(competition);
       let changed = false;
       let blockedLock: StageLockMessage | null = null;
 
       for (const candidate of candidates) {
         if (candidate.identityVerified === false) continue;
-        const candidateStatus = candidate.evidenceVerificationStatus ?? 'not_required';
-        if (isEvidenceBlocked(coerceEvidenceStatus(candidateStatus, evidencePolicy), evidencePolicy)) {
+        if (candidate.evidenceVerificationStatus === 'mismatch'
+          || candidate.evidenceVerificationStatus === 'unreadable') {
           continue;
         }
         const group = groups[candidate.groupIndex];

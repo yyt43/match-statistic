@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.8.0
+当前版本：v0.7.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.8.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.8.0)
+[![Release](https://img.shields.io/badge/Release-v0.7.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.7.0)
 
 ![项目预览](./docs/social-preview.png)
 
