@@ -2,11 +2,11 @@
 
 [English README](./README.en.md)
 
-当前版本：v0.8.0
+当前版本：v0.8.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.8.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.8.0)
+[![Release](https://img.shields.io/badge/Release-v0.8.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.8.1)
 
 ![项目预览](./docs/social-preview.png)
 
@@ -39,7 +39,7 @@
 - 选手编辑保护：手动修改昵称后切换小组再返回，原小组内容不会丢失
 - 当前小组切换：在“当前小组”区域直接点击 A组、B组、C组、D组
 - 赛果表导入：按选手编号匹配比赛，支持编号与 UID 双重确认、冲突检测和裁判异常队列
-- 腾讯文档适配：支持长表头、多个工作表和截图文件名引用，截图核验可选
+- 赛果表格兼容：XLSX / CSV 均可导入，支持腾讯文档等长表头、多个工作表和截图文件名引用；截图核验提供「关闭 / 要求提供截图 / 严格」三档策略
 - 赛前弃赛 / 赛后弃赛 / 轮空规则：覆盖日常比赛边界情况
 - 持久化操作历史：最近 30 个赛事操作保存在本地，刷新后可继续撤销、重做或跳转
 - 单写者保护：多个标签页打开时仅一个可编辑，其余自动只读
@@ -258,7 +258,7 @@ QQ / QQ号
 
 ## 赛果表导入
 
-腾讯文档导出的赛果表可以直接上传。系统会查找表头并自动识别：
+赛果表（XLSX / CSV，腾讯文档、Excel 或任意工具导出均可）可以直接上传。系统会查找表头并自动识别：
 
 ```text
 我的选手编号 / 选手编号 / 参赛编号 / 编号

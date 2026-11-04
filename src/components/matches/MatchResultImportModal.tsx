@@ -320,7 +320,9 @@ export function MatchResultImportModal({ isOpen, onClose }: MatchResultImportMod
           <div className="min-h-0 overflow-y-auto border-r border-slate-700/50 p-4">
             {!preview ? (
               <div className="flex h-56 items-center justify-center text-sm text-slate-500">
-                {isEnglish ? 'Select a result workbook to start.' : '请选择腾讯文档导出的 XLSX。'}
+                {isEnglish
+                  ? 'Select a result spreadsheet (XLSX / CSV) to start.'
+                  : '请选择赛果表格（XLSX / CSV，任意来源均可）。'}
               </div>
             ) : (
               <div className="space-y-3">

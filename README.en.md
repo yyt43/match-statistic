@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.8.0
+Current version: v0.8.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.8.0-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.8.0)
+[![Release](https://img.shields.io/badge/Release-v0.8.1-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.8.1)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -39,7 +39,7 @@ This project is suited for tournament management, club events, team activities, 
 - Player edit protection: manual nickname changes remain in their original group after switching away and back
 - Current group switcher: click Group A, B, C, or D directly in the Current Group bar
 - Result workbook import: match by participant code, verify code plus UID, detect conflicts, and route exceptions to referees
-- Tencent Docs compatibility: long headers, multiple sheets, screenshot filename references, and optional screenshot verification
+- Result spreadsheet compatibility: import XLSX / CSV from Tencent Docs, Excel, or any tool; long headers, multiple sheets, and screenshot filename references are detected automatically. Screenshot verification ships with three policies (off / required / strict)
 - Bye / pre-drop / post-drop handling: supports common edge cases in competitive events
 - Persistent operation history: the latest 30 tournament changes survive refresh and can be undone, redone, or restored
 - Single-writer protection: the first tab edits while other tabs become read-only
@@ -221,7 +221,7 @@ The app no longer requires a per-match confirmation or dispute flow. If a result
 
 ## Result Workbook Import
 
-The result importer accepts Tencent Docs exports and detects headers such as:
+The result importer accepts XLSX / CSV files from Tencent Docs, Excel, or any other tool, and detects headers such as:
 
 ```text
 Participant code: 我的选手编号 / 选手编号 / 参赛编号 / 编号

@@ -15,6 +15,11 @@ import { exportCompetitionToFile } from '../../utils/export/fileStorage';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
 import { validateRoster } from '../../utils/playerProfiles';
 import {
+  EVIDENCE_POLICY_LABELS,
+  EVIDENCE_POLICY_VALUES,
+  normalizeEvidencePolicy,
+} from '../../utils/import/evidencePolicy';
+import {
   getDefaultTiebreakRules,
   getDefaultTiebreakTemplate,
   normalizeTiebreakRules,
@@ -155,6 +160,7 @@ export function ControlPanel({
     resetCompetition,
     updateCompetitionName,
     applyGroupConfiguration,
+    setEvidencePolicy,
     actionError,
     clearActionError,
   } = useTournamentStore(useShallow(state => ({
@@ -169,6 +175,7 @@ export function ControlPanel({
     resetCompetition: state.resetCompetition,
     updateCompetitionName: state.updateCompetitionName,
     applyGroupConfiguration: state.applyGroupConfiguration,
+    setEvidencePolicy: state.setEvidencePolicy,
     actionError: state.actionError,
     clearActionError: state.clearActionError,
   })));
@@ -622,6 +629,44 @@ export function ControlPanel({
             <Download className="w-3.5 h-3.5" />
             {isEnglish ? 'Export tournament data' : '导出比赛数据'}
           </button>
+        </div>
+
+        {/* 截图核验策略：导入赛果时生效，放在这里方便随时调整 */}
+        <div className="mt-3 space-y-1.5 border-t border-slate-700/50 pt-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">
+              {isEnglish ? 'Screenshot verification' : '截图核验策略'}
+            </span>
+            <span className="text-[10px] text-slate-500">
+              {isEnglish ? 'Applies to result import' : '导入赛果时生效'}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {EVIDENCE_POLICY_VALUES.map(policyValue => {
+              const label = EVIDENCE_POLICY_LABELS[policyValue];
+              const active = normalizeEvidencePolicy(competition.evidencePolicy) === policyValue;
+              return (
+                <button
+                  key={policyValue}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setEvidencePolicy(policyValue)}
+                  className={`rounded-md border px-1.5 py-1.5 text-[10px] leading-tight transition-colors ${
+                    active
+                      ? 'border-gold-500/40 bg-gold-500/20 text-gold-300'
+                      : 'border-slate-700/60 bg-slate-800/50 text-slate-400 hover:bg-slate-700/50'
+                  }`}
+                >
+                  {isEnglish ? label.en : label.zh}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            {isEnglish
+              ? EVIDENCE_POLICY_LABELS[normalizeEvidencePolicy(competition.evidencePolicy)].description.en
+              : EVIDENCE_POLICY_LABELS[normalizeEvidencePolicy(competition.evidencePolicy)].description.zh}
+          </p>
         </div>
       </div>
       )}
