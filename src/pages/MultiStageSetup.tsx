@@ -134,6 +134,17 @@ function commonGameType(stage: MultiStageDraftStage): GameType | 'custom' {
   return first;
 }
 
+/**
+ * 一个赛段的上游来源：既看它声明的「名单来源」，也看实际有晋级去向指向它的赛段，
+ * 避免用户只在来源赛段配了去向、没在这边点「名单来源」时，接收方看不到落位设置。
+ */
+function upstreamStagesOf(target: MultiStageDraftStage, stages: MultiStageDraftStage[]): MultiStageDraftStage[] {
+  return stages.filter(item => item.id !== target.id && (
+    (target.sourceStageIds ?? []).includes(item.id)
+    || (normalizeAdvancementPlan(item)?.slots ?? []).some(slot => slot.targetStageId === target.id)
+  ));
+}
+
 interface NumberFieldProps {
   value: number | undefined;
   onCommit: (next: number | undefined) => void;
@@ -369,7 +380,7 @@ export default function MultiStageSetup() {
     }));
   };
 
-  /** 晋级去向里直接设置落位方式：改的是目标赛段接收名单时的排法。 */
+  /** 「接收名单落位」：在接收方赛段卡片里配置——上游晋级的选手到达本赛段后怎么排。 */
   const renderLandingControls = (targetStageId: string) => {
     const target = stages.find(item => item.id === targetStageId);
     if (!target) return null;
@@ -377,24 +388,14 @@ export default function MultiStageSetup() {
     const sameGroupMode = getSameGroupMode(seating);
     const seatingPairs = sameGroupMode === 'rankPairs' ? seating.pairs ?? [] : [];
     const seatingSlots = seating.mode === 'fixedSlots' ? seating.slots ?? [] : [];
-    // 来源小组名：既看目标赛段声明的「名单来源」，也看实际有去向指向它、但没点声明来源的赛段。
-    const upstreamStages = stages.filter(item => item.id !== target.id && (
-      (target.sourceStageIds ?? []).includes(item.id)
-      || (normalizeAdvancementPlan(item)?.slots ?? []).some(slot => slot.targetStageId === target.id)
-    ));
     const upstreamGroupNames = Array.from(
-      new Set(upstreamStages.flatMap(item => getDraftGroupNames(item)))
+      new Set(upstreamStagesOf(target, stages).flatMap(item => getDraftGroupNames(item)))
     );
 
     return (
       <div className="space-y-1.5 rounded-md bg-slate-900/30 px-2 py-1.5">
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-          <span>
-            {isEnglish ? 'Arrangement' : '落位'}
-            <span className="ml-1 text-slate-600">
-              {isEnglish ? `(how "${target.name || 'untitled'}" arranges arrivals)` : `（${target.name || '未命名赛段'} 如何排名单）`}
-            </span>
-          </span>
+          <span>{isEnglish ? 'Arrangement' : '落位'}</span>
           <select
             value={seating.mode}
             onChange={event => changeSeatingMode(target.id, event.target.value as SeatingMode)}
@@ -484,9 +485,6 @@ export default function MultiStageSetup() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[10px] text-slate-500">
                 {isEnglish ? 'Pinned slots' : '固定签位'}
-                <span className="ml-1 text-slate-600">
-                  {isEnglish ? `(layout of stage "${target.name || 'untitled'}")` : `（${target.name || '未命名赛段'} 的对位）`}
-                </span>
               </span>
               <button
                 type="button"
@@ -562,6 +560,43 @@ export default function MultiStageSetup() {
             ))}
           </div>
         )}
+      </div>
+    );
+  };
+
+  /** 来源赛段只读摘要：落位是接收方赛段的设置，这里只给结论 + 跳过去改。 */
+  const renderLandingSummary = (targetStageId: string) => {
+    const target = stages.find(item => item.id === targetStageId);
+    if (!target) return null;
+    const seating = normalizeSeatingPlan(target);
+    const sameGroupMode = getSameGroupMode(seating);
+    const modeLabel = seating.mode === 'snake'
+      ? (isEnglish ? 'Seeded spread' : '种子分散')
+      : seating.mode === 'fixedSlots'
+        ? (isEnglish ? 'Pinned slots' : '手动指定签位')
+        : (isEnglish ? 'In order' : '顺序填入');
+    const sameGroupLabel = sameGroupMode === 'avoid'
+      ? (isEnglish ? 'avoid round 1' : '首轮回避同组')
+      : sameGroupMode === 'rankPairs'
+        ? (isEnglish ? 'pair by rank' : '组内按名次配对')
+        : null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-slate-900/30 px-2 py-1 text-[10px] text-slate-500">
+        <span>
+          {isEnglish ? 'Arrangement: ' : '落位：'}
+          {modeLabel}
+          {sameGroupLabel ? ` · ${sameGroupLabel}` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            const card = document.getElementById(`stage-card-${target.id}`);
+            card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="text-gold-400 underline-offset-2 hover:underline"
+        >
+          {isEnglish ? `Set in "${target.name || 'untitled'}"` : `在「${target.name || '未命名赛段'}」设置`}
+        </button>
       </div>
     );
   };
@@ -808,7 +843,8 @@ export default function MultiStageSetup() {
             return (
             <section
               key={stage.id}
-              className="space-y-4 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4"
+              id={`stage-card-${stage.id}`}
+              className="scroll-mt-4 space-y-4 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4"
             >
               <div className="flex items-center gap-2">
                 <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
@@ -1020,6 +1056,21 @@ export default function MultiStageSetup() {
                 </div>
               </div>
 
+              {/* 接收名单落位：从上游晋级的选手到达本赛段后怎么排 */}
+              {upstreamStagesOf(stage, stages).length > 0 && (
+                <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
+                  <span className="text-xs font-medium text-slate-400">
+                    {isEnglish ? 'Arrival arrangement' : '接收名单落位'}
+                  </span>
+                  <p className="text-[10px] leading-relaxed text-slate-500">
+                    {isEnglish
+                      ? 'How advancers from earlier stages are arranged once they arrive here. First pick the order, then decide how players from the same group are handled.'
+                      : '从上游赛段晋级的选手到达本赛段后怎么排：先决定「排成什么顺序」，再决定「同组的人怎么处理」。'}
+                  </p>
+                  {renderLandingControls(stage.id)}
+                </div>
+              )}
+
               {/* 赛段内规则：轮次局制、跨组配对与签表对位 */}
               <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
                 <span className="text-xs font-medium text-slate-400">
@@ -1118,7 +1169,7 @@ export default function MultiStageSetup() {
                       </button>
                     </div>
 
-                    {slot.targetStageId ? renderLandingControls(slot.targetStageId) : null}
+                    {slot.targetStageId ? renderLandingSummary(slot.targetStageId) : null}
 
                     {slot.selectors.map((selector, selectorIndex) => {
                       const winsMode = selector.mode === 'wins';
@@ -1267,8 +1318,8 @@ export default function MultiStageSetup() {
 
                 <p className="text-[10px] leading-relaxed text-slate-500">
                   {isEnglish
-                    ? 'Each condition is checked inside every source group. "Best N across groups" then keeps only the top N candidates (e.g. the best four 3rd places). A stage may point to several destinations.'
-                    : '每个条件都会在来源赛段的每个小组里分别判定；「跨组取 N」再把所有小组的候选人按积分、胜场、胜率排一遍，只留前 N 名（例如 4 个小组只收最好的 4 个第三名）。同一赛段可以有多条去向。'}
+                    ? 'Each condition is checked inside every source group. "Best N across groups" then keeps only the top N candidates (e.g. the best four 3rd places). A stage may point to several destinations. Arrangement (order and same-group handling) is set on the receiving stage under "Arrival arrangement".'
+                    : '每个条件都会在来源赛段的每个小组里分别判定；「跨组取 N」再把所有小组的候选人按积分、胜场、胜率排一遍，只留前 N 名（例如 4 个小组只收最好的 4 个第三名）。同一赛段可以有多条去向。落位（排成什么顺序、同组怎么处理）在接收方赛段的「接收名单落位」里设置。'}
                 </p>
               </div>
               )}
