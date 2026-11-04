@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { PairingType, StageAdvancementRule } from '../../types';
+import type { PairingType, StageAdvancementPlan, StageAdvancementRule } from '../../types';
 
 /** 流程图节点：草稿赛段与已落库赛段都能映射到这一结构。 */
 export interface EventFlowStage {
@@ -8,8 +8,26 @@ export interface EventFlowStage {
   kind: PairingType;
   sourceStageIds?: string[];
   advancementRules?: StageAdvancementRule[];
+  /** 新模型的晋级计划；有它时优先于旧字段。 */
+  advancementPlan?: StageAdvancementPlan;
   /** 附加说明，例如「4 组」「来自小组赛」。 */
   note?: string;
+}
+
+/** 把新模型的 plan 折算成流程图用的规则（只取每条去向的第一个选人条件）。 */
+function flowRules(stage: EventFlowStage): StageAdvancementRule[] {
+  if (stage.advancementRules?.length) return stage.advancementRules;
+  return (stage.advancementPlan?.slots ?? []).map(slot => {
+    const selector = slot.selectors[0] ?? { fromRank: 1, toRank: 2 };
+    return {
+      id: slot.id,
+      fromRank: selector.fromRank,
+      toRank: selector.toRank,
+      minWins: selector.minWins,
+      maxWins: selector.maxWins,
+      targetStageId: slot.targetStageId,
+    };
+  });
 }
 
 interface FlowEdge {
@@ -30,13 +48,14 @@ function buildEdges(stages: EventFlowStage[]): FlowEdge[] {
     edges.set(`${from}->${to}`, { from, to });
   };
   stages.forEach((stage, index) => {
-    (stage.advancementRules ?? []).forEach(rule => {
+    const rules = flowRules(stage);
+    rules.forEach(rule => {
       if (rule.targetStageId) add(stage.id, rule.targetStageId);
     });
     (stage.sourceStageIds ?? []).forEach(sourceId => add(sourceId, stage.id));
     // 规则还没选去向、但只有一个候选下游时，默认就指向它。
     const fallback = getDefaultTarget(stages, index);
-    if (fallback && (stage.advancementRules ?? []).some(rule => !rule.targetStageId)) {
+    if (fallback && rules.some(rule => !rule.targetStageId)) {
       add(stage.id, fallback.id);
     }
   });
@@ -236,7 +255,7 @@ export function EventFlowDiagram({
   if (stages.length === 0) return null;
 
   const renderCard = (stage: EventFlowStage) => {
-    const rules = stage.advancementRules ?? [];
+    const rules = flowRules(stage);
     const index = stages.findIndex(item => item.id === stage.id);
     // 最后一个赛段的规则不会流向任何地方，没有填去向时不必显示。
     const showRules = rules.length > 0

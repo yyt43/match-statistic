@@ -127,6 +127,18 @@ TournamentCompetition
 - 提供字段路径错误，最多返回前 8 条。
 - 用于 JSON 导入和 IndexedDB/localStorage 加载。
 
+### 4.3 多阶段晋级模型
+
+赛段上的晋级规则统一为「选人 → 去向赛段 → 落位」三件事：
+
+- `StageAdvancementPlan`：`slots[]`，每个 slot 指向一个目标赛段，内含若干 `AdvanceSelector`。选择器有两种模式：`rank`（按名次区间 `fromRank`/`toRank`）与 `wins`（按胜场区间 `minWins`/`maxWins`；单败赛段写作「按淘汰轮次」，0 胜即首轮出局）。两种模式都可带 `take`，表示跨组按积分、胜场、胜率排序后只取前 N（例如 4 个小组只收最好的 4 个第三名）。
+- `StageSeatingPlan`：**接收方赛段**接收名单后的排法，分两个维度。`mode` 决定顺序：`ordered`（按来源小组顺序再名次补位）、`snake`（标准签表种子分布，8 人为 1、8、5、4、3、6、7、2）、`fixedSlots`（把「某组某名次」钉到指定签位，未列出的按顺序补空位）。`sameGroup` 决定同组处理：`none`（不特殊处理）、`avoid`（首轮回避同组，引擎用贪心换位尽量拆开）、`rankPairs`（组内按名次配对打附加赛，双→相邻两槽，单边→单槽轮空；晋级者新名次取配对中较小名次）。旧数据里的 `mode: 'rankPairs'` 会被归一化成 `ordered + sameGroup: 'rankPairs'`。
+- 归一化在 `src/utils/advancementPlan.ts`：新字段优先，缺失时从旧 `advancementRules` / `breakout` / `seedRules` 映射；读取端只认归一化结果，写入端同时保留旧字段供旧版本降级读取。
+- 计算入口 `src/utils/advancement.ts::computeStageAdvancement`：存在新模型字段时走 `computePlanBasedAdvancement` 统一管线（选人 → 按目标分组落位 → 席位校验），否则继续走旧实现。
+- 落位属于接收方赛段：设置页在目标赛段卡片里编辑 `seating`，来源赛段的去向行只显示摘要和跳转，避免多条去向指向同一目标时出现重复控件。
+- 轮数不再手填：瑞士轮按每组人数取 `ceil(log2 n)`，单败淘汰按「最多可能到达人数」取 `ceil(log2 n)`（胜场条件人数不固定时按整组都可能晋级估算）；签表与轮数在晋级落库时按**实际**到达人数重算，`roundGameTypes` 随之裁剪/补齐。
+- 设置页 `MultiStageSetup` 编辑新字段，工厂 `multiStageFactory` 归一化后落库，校验 `stageDraftValidation` 与展示组件（流程图、规则摘要）都读归一化结果。
+
 ## 5. 存储架构
 
 ### 5.1 IndexedDB 主存储
@@ -255,6 +267,7 @@ src/
 │   ├── import/
 │   ├── storage/
 │   ├── advancement.ts
+│   ├── advancementPlan.ts
 │   ├── elimination.ts
 │   ├── multiStage.ts
 │   ├── matchResult.ts

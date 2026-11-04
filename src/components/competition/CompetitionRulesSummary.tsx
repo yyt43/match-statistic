@@ -56,6 +56,7 @@ export function CompetitionRulesSummary() {
             kind: stage.kind,
             sourceStageIds: stage.sourceStageIds,
             advancementRules: stage.advancementRules,
+            advancementPlan: stage.advancementPlan,
             note: isEnglish
               ? `${stage.groupIds.length} groups`
               : `${stage.groupIds.length} 组`,

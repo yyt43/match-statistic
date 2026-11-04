@@ -111,38 +111,40 @@ export function StageGroupSwitcher() {
             })}
           </div>
         )}
-        {stageList.length === 0 && (
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {stageList.length === 0 && (
+            <button
+              onClick={() => addGroup()}
+              className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-1 text-emerald-300 hover:bg-emerald-500/20"
+              title={isEnglish ? 'Add group' : '添加小组'}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {stageList.length === 0 && (
+            <button
+              onClick={() => removeGroup(competition.currentGroupIndex)}
+              disabled={competition.groups.length <= 1}
+              className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+              title={isEnglish ? 'Delete current group' : '删除当前小组'}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <span className="shrink-0 text-slate-600">
+            {currentGroup.players.length}{isEnglish ? '' : '人'}
+          </span>
           <button
-            onClick={() => addGroup()}
-            className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-1 text-emerald-300 hover:bg-emerald-500/20"
-            title={isEnglish ? 'Add group' : '添加小组'}
+            onClick={() => {
+              setEditingGroupIndex(competition.currentGroupIndex);
+              setEditGroupNameValue(currentGroup.name);
+            }}
+            className="shrink-0 rounded-md border border-slate-700/60 bg-slate-800/50 p-1 text-slate-400 hover:text-gold-300"
+            title={isEnglish ? 'Rename current group' : '修改当前小组名称'}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Edit2 className="h-3.5 w-3.5" />
           </button>
-        )}
-        <button
-          onClick={() => {
-            setEditingGroupIndex(competition.currentGroupIndex);
-            setEditGroupNameValue(currentGroup.name);
-          }}
-          className="shrink-0 rounded-md border border-slate-700/60 bg-slate-800/50 p-1 text-slate-400 hover:text-gold-300"
-          title={isEnglish ? 'Rename current group' : '修改当前小组名称'}
-        >
-          <Edit2 className="h-3.5 w-3.5" />
-        </button>
-        {stageList.length === 0 && (
-          <button
-            onClick={() => removeGroup(competition.currentGroupIndex)}
-            disabled={competition.groups.length <= 1}
-            className="shrink-0 rounded-md border border-rose-500/25 bg-rose-500/10 p-1 text-rose-300 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-30"
-            title={isEnglish ? 'Delete current group' : '删除当前小组'}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-        )}
-        <span className="shrink-0 text-slate-600">
-          {currentGroup.players.length}{isEnglish ? '' : '人'}
-        </span>
+        </div>
       </div>
     </div>
   );

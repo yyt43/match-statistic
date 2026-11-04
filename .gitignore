@@ -14,6 +14,9 @@ test-results
 coverage
 *.local
 
+# 本地审查脚本/截图，不入库
+review-notes/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
