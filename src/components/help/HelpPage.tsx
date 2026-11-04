@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BookOpen,
   ExternalLink,
   Github,
   HelpCircle,
@@ -27,6 +28,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
   useEscapeClose(isOpen, onClose);
   const { language, t } = useLanguagePreference();
   const copy = helpContent[language];
+  const isEnglish = language === 'en';
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(isOpen, dialogRef);
 
@@ -104,6 +106,31 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
           <div className="space-y-6">
             {copy.steps.map((step, index) => (
               <StepBlock key={step.title} number={index + 1} title={step.title} steps={step.items} />
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-gold-400" />
+            {copy.caseStudy}
+          </h2>
+          <div className="space-y-4">
+            {copy.caseStudies.map((item, index) => (
+              <article key={item.id} className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-5">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="rounded bg-gold-500/15 px-1.5 py-0.5 text-[10px] font-medium text-gold-400">
+                    {isEnglish ? `Example ${index + 1}` : `案例 ${index + 1}`}
+                  </span>
+                  <h3 className="text-sm font-semibold text-slate-100">{item.title}</h3>
+                </div>
+                <p className="mb-3 text-xs text-slate-400">{item.summary}</p>
+                <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-300">
+                  {item.steps.map(step => (
+                    <li key={step} className="leading-relaxed">{step}</li>
+                  ))}
+                </ol>
+              </article>
             ))}
           </div>
         </section>

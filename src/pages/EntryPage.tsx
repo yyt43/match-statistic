@@ -4,7 +4,6 @@ import { Download, FileUp, HelpCircle, Languages, Layers, PlayCircle, Swords, Tr
 import type { TournamentCompetition } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
-import { createPoetryCupS3Competition } from '../store/multiStageFactory';
 import { getCompetitionKind } from '../utils/multiStage';
 import { importCompetitionFromFile } from '../utils/export/fileStorage';
 import { describeImportError } from '../utils/export/importErrorText';
@@ -18,7 +17,7 @@ import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
 
 const HelpPage = lazy(() => import('../components/help/HelpPage').then(module => ({ default: module.HelpPage })));
 
-type EntryKind = 'single_stage' | 'multi_stage' | 'poetry_cup_s3';
+type EntryKind = 'single_stage' | 'multi_stage';
 
 interface EntryOption {
   kind: EntryKind;
@@ -34,7 +33,6 @@ export default function EntryPage() {
   const isEnglish = language === 'en';
   const competition = useTournamentStore(state => state.competition);
   const initCompetition = useTournamentStore(state => state.initCompetition);
-  const initMultiStageCompetition = useTournamentStore(state => state.initMultiStageCompetition);
   const importCompetition = useTournamentStore(state => state.importCompetition);
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
 
@@ -113,11 +111,6 @@ export default function EntryPage() {
       navigate('/multi-stage');
       return;
     }
-    if (kind === 'poetry_cup_s3') {
-      initMultiStageCompetition(createPoetryCupS3Competition());
-      navigate('/workspace');
-      return;
-    }
     initCompetition('新建赛事');
     navigate('/workspace');
   };
@@ -136,7 +129,7 @@ export default function EntryPage() {
 
   const importedKindLabel = (competition: TournamentCompetition) => {
     const kind = getCompetitionKind(competition);
-    if (kind === 'poetry_cup_s3') return isEnglish ? 'Poetry Cup S3' : '诗意杯 S3（专用）';
+    if (kind === 'poetry_cup_s3') return isEnglish ? 'Poetry Cup S3 preset' : '诗意杯 S3 预设';
     if (kind === 'multi_stage') return isEnglish ? 'Multi-stage event' : '多阶段赛事';
     return isEnglish ? 'Single-stage event' : '单阶段赛事';
   };
@@ -185,25 +178,14 @@ export default function EntryPage() {
     },
     {
       kind: 'multi_stage',
-      title: isEnglish ? 'Multi-stage event (test feature)' : '多阶段赛事（测试功能）',
+      title: isEnglish ? 'Multi-stage event' : '多阶段赛事',
       description: isEnglish
-        ? 'Configure stages and formats first, then work in the same workspace.'
-        : '先设置赛段与赛制，再进入相同的赛事工作区。',
+        ? 'Configure stages and formats first, then work in the same workspace. Start blank or load the Poetry Cup S3 preset.'
+        : '先设置赛段与赛制，再进入相同的赛事工作区。可以从空白搭建，也可以直接套用诗意杯 S3 预设。',
       highlights: isEnglish
-        ? ['Define stage order and formats', 'Several groups per stage', 'Format tab shows the rules summary']
-        : ['自定义赛段顺序与赛制', '每个赛段可包含多个小组', '赛制管理显示规则说明'],
-      badge: isEnglish ? 'Not final' : '功能未定稿',
-    },
-    {
-      kind: 'poetry_cup_s3',
-      title: isEnglish ? 'Poetry Cup S3 (dedicated)' : '诗意杯 S3（专用）',
-      description: isEnglish
-        ? 'Locked three-stage template: group stage, breakout stage and playoffs.'
-        : '锁定的小组赛、突围赛、淘汰赛三赛段模板。',
-      highlights: isEnglish
-        ? ['Rules, groups and seeds are locked', 'Only import the A-D rosters', 'Format tab shows the S3 rules']
-        : ['规则、分组与签位全部锁定', '只需导入 A-D 四组名单', '赛制管理显示 S3 规则说明'],
-      badge: isEnglish ? 'Locked template' : '规则锁定',
+        ? ['Define stage order and formats', 'Several groups per stage', 'Poetry Cup S3 preset included']
+        : ['自定义赛段顺序与赛制', '每个赛段可包含多个小组', '内置诗意杯 S3 预设'],
+      badge: isEnglish ? 'Poetry Cup S3 preset' : '含诗意杯 S3 预设',
     },
   ];
 
