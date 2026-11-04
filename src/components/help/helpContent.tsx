@@ -165,6 +165,7 @@ export const HELP_CONTENT_ZH: HelpCopy = {
       items: [
         '首页选择「多阶段赛事」或「诗意杯 S3」；S3 只需导入 A-D 四组名单。',
         '多阶段赛事先在设置页定义赛段顺序与赛制，再进入同一套工作区。',
+        '设置页的「晋级去向」决定谁晋级到哪个赛段，「接收名单落位」决定这些人到达后怎么排（顺序 / 种子分散 / 手动签位，以及同组怎么处理）。',
         '赛段打完后点「计算晋级」，确认预览后名单与固定签表写入下一赛段。',
       ],
     },
@@ -224,6 +225,7 @@ export const HELP_CONTENT_ZH: HelpCopy = {
     { question: '为什么突围赛或淘汰赛开不了赛？', answer: '下游赛段需要上游先确认晋级。请先在上一赛段的「赛段晋级」面板里计算并确认，名单写入后即可开赛。' },
     { question: '为什么小组赛的赛果改不了了？', answer: '上游晋级已确认且下游赛段已开赛时，上游赛果会锁定。需要修改时先清空下游赛段并回退晋级，改完上游赛果后重新确认晋级。' },
     { question: '淘汰赛的签位是随机的吗？', answer: '诗意杯 S3 使用固定签位：A1-D4、B2-C3、C1-B4、D2-A3、B1-C4、A2-D3、D1-A4、C2-B3。确认晋级时按小组名次自动排好，人数不足按实际人数轮空、不补位。' },
+    { question: '为什么下游签表的人数和我预计的不一样？', answer: '如果用「按胜场」选人，晋级人数取决于赛果（例如要求至少 4 胜，可能 10 人也可能 12 人）。签表和轮数会按实际到达人数生成；想固定人数时，在这条去向的「跨组取」里填上限。' },
     { question: '首页导入 JSON 会认错赛事类型吗？', answer: '不会，类型取自文件内容，单阶段、多阶段、诗意杯 S3 自动匹配；当前已有赛事时会先提示识别结果并确认替换。' },
   ],
   disclaimer: '免责声明',
@@ -316,7 +318,7 @@ export const HELP_CONTENT_EN: HelpCopy = {
     {
       id: 'multi-stage',
       title: 'Multi-stage events',
-      items: ['Choose "Multi-stage" or "Poetry Cup S3" on the home page; S3 only requires importing the four A-D rosters.', 'For multi-stage events, define the stage order and formats on the setup page, then continue in the same workspace.', 'After a stage finishes, use "Calculate advancement", review the preview, then write the roster and fixed seeds into the next stage.'],
+      items: ['Choose "Multi-stage" or "Poetry Cup S3" on the home page; S3 only requires importing the four A-D rosters.', 'For multi-stage events, define the stage order and formats on the setup page, then continue in the same workspace.', 'On the setup page, "Advancement destinations" decides who moves to which stage, and "Arrival arrangement" decides how they line up once they arrive (order, seeded spread, pinned slots, plus same-group handling).', 'After a stage finishes, use "Calculate advancement", review the preview, then write the roster and fixed seeds into the next stage.'],
     },
     {
       id: 'export-backup',
@@ -374,6 +376,7 @@ export const HELP_CONTENT_EN: HelpCopy = {
     { question: 'Why can a breakout or playoff stage not start?', answer: 'A downstream stage needs the upstream advancement to be confirmed first. Calculate and confirm it in the stage-advancement panel, then the roster is written and the stage can start.' },
     { question: 'Why can group-stage results no longer be edited?', answer: 'Once the advancement is confirmed and the downstream stage has started, upstream results lock. Clear the downstream stage, revert the advancement, edit the results, then confirm again.' },
     { question: 'Are playoff seeds random?', answer: 'Poetry Cup S3 uses fixed seeds: A1-D4, B2-C3, C1-B4, D2-A3, B1-C4, A2-D3, D1-A4, C2-B3. They are filled from the group standings on confirmation, with byes when fewer players qualify.' },
+    { question: 'Why does the downstream bracket have a different size than I expected?', answer: 'With "by wins" selection the number of advancers depends on results (requiring at least 4 wins may send 10 or 12 players). The bracket and round count are generated from the actual headcount; fill in "best N across groups" on that destination if you need a fixed number.' },
     { question: 'Can the home-page JSON import pick the wrong event type?', answer: 'No. The type comes from the file contents, so single-stage, multi-stage, and Poetry Cup S3 are matched automatically; an existing event triggers a confirmation with the detected type.' },
   ],
   disclaimer: 'Disclaimer',
