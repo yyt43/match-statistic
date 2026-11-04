@@ -177,6 +177,8 @@ Player management now has one unified workbook import:
 3. Registration, summary, and aggregate sheets such as `报名信息`, `汇总`, `总表`, and `All` are skipped before sheet names are matched to groups.
 4. Column mapping can be adjusted before importing when headers are ambiguous.
 
+If you are unsure how to lay out the sheet, click **Download import template**: it produces a workbook with a `选手名单` sheet (columns: nickname / participant code / UID / QQ / group, with three sample rows) plus a `填写说明` field guide.
+
 The previous name-only import, text-paste panel, and second import button have been removed.
 
 The import process automatically removes blank rows, duplicate names, header-like labels, and irrelevant numeric / note columns to avoid empty names and duplicate entries.
@@ -229,6 +231,8 @@ Screenshot: 结算截图 / 小王子对局截图 / 截图 / 证据引用
 ```
 
 No phase, group, or round selection is required. Results are matched across all groups by participant code and automatically use each group's current round, so one workbook can contain results for multiple groups.
+
+If you would rather not build the header row by hand, click **Download template** in the import dialog: it writes a legal score for the current round's format (`我以 2-1 获胜` for BO3, `我以 3-2 获胜` for BO5) and includes a field-guide sheet.
 
 Example:
 
