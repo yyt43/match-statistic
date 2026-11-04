@@ -49,6 +49,7 @@ export function HelpPage({ isOpen, onClose }: HelpPageProps) {
             <h1 className="text-3xl font-bold text-white">{t.appName}</h1>
           </div>
           <p className="text-slate-400">{copy.subtitle}</p>
+          <p className="mt-1 text-xs text-slate-500">v{__APP_VERSION__}</p>
         </div>
 
         <section className="mb-10">

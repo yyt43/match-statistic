@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  CircleHelp,
   Languages,
   Layers,
   Plus,
@@ -39,6 +40,8 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { EventFlowDiagram } from '../components/competition/EventFlowDiagram';
+
+const HelpPage = lazy(() => import('../components/help/HelpPage').then(module => ({ default: module.HelpPage })));
 
 const GAME_TYPES: GameType[] = ['bo1', 'bo3', 'bo5', 'bo7'];
 
@@ -251,6 +254,7 @@ export default function MultiStageSetup() {
   // 已有赛事（存档或内存中）时，开始搭建会覆盖它，需要二次确认。
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -766,14 +770,25 @@ export default function MultiStageSetup() {
       <StorageBanner />
       <WriterLockBanner />
 
-      <button
-        onClick={() => setLanguage(isEnglish ? 'zh' : 'en')}
-        className="fixed top-4 right-4 z-50 flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
-        title={isEnglish ? 'Switch to Chinese' : 'Switch to English'}
-      >
-        <Languages className="w-3.5 h-3.5" />
-        <span>{t.swapLanguage}</span>
-      </button>
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => setShowHelp(true)}
+          className="flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
+          title={isEnglish ? 'Open help' : '打开帮助'}
+          aria-label={isEnglish ? 'Open help' : '打开帮助'}
+        >
+          <CircleHelp className="w-3.5 h-3.5" />
+          <span>{isEnglish ? 'Help' : '帮助'}</span>
+        </button>
+        <button
+          onClick={() => setLanguage(isEnglish ? 'zh' : 'en')}
+          className="flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
+          title={isEnglish ? 'Switch to Chinese' : 'Switch to English'}
+        >
+          <Languages className="w-3.5 h-3.5" />
+          <span>{t.swapLanguage}</span>
+        </button>
+      </div>
 
       <header className="relative overflow-hidden border-b border-slate-700/40">
         <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/40 to-transparent" />
@@ -1451,6 +1466,10 @@ export default function MultiStageSetup() {
         confirmText={isEnglish ? 'Replace and continue' : '替换并继续'}
         onConfirm={doStartEvent}
       />
+
+      <Suspense fallback={null}>
+        <HelpPage isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      </Suspense>
     </div>
   );
 }

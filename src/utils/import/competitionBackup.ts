@@ -14,8 +14,8 @@ export const IMPORT_TIMEOUT_MS = 30_000;
  */
 export const COMPETITION_BACKUP_FORMAT_VERSION = CURRENT_STORAGE_VERSION;
 
-/** 导出时写入的应用版本，发版时与 package.json 的 version 保持一致。 */
-export const APP_VERSION = '0.6.3';
+/** 导出时写入的应用版本：由构建从 package.json 注入，避免发版时手工同步。 */
+export const APP_VERSION = __APP_VERSION__;
 
 export type BackupImportErrorCode =
   | 'too-large'

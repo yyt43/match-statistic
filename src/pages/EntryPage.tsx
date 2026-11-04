@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, FileUp, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
+import { Download, FileUp, HelpCircle, Languages, Layers, PlayCircle, Swords, Trophy } from 'lucide-react';
 import type { TournamentCompetition } from '../types';
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
@@ -15,6 +15,8 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { StorageBanner } from '../components/common/StorageBanner';
 import { WriterLockBanner } from '../components/common/WriterLockBanner';
 import { AppUpdatePrompt } from '../components/common/AppUpdatePrompt';
+
+const HelpPage = lazy(() => import('../components/help/HelpPage').then(module => ({ default: module.HelpPage })));
 
 type EntryKind = 'single_stage' | 'multi_stage' | 'poetry_cup_s3';
 
@@ -43,6 +45,7 @@ export default function EntryPage() {
   const [pendingImport, setPendingImport] = useState<TournamentCompetition | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importAbortRef = useRef<AbortController | null>(null);
 
@@ -210,14 +213,25 @@ export default function EntryPage() {
       <WriterLockBanner />
       <AppUpdatePrompt />
 
-      <button
-        onClick={() => setLanguage(isEnglish ? 'zh' : 'en')}
-        className="fixed top-4 right-4 z-50 flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
-        title={isEnglish ? 'Switch to Chinese' : 'Switch to English'}
-      >
-        <Languages className="w-3.5 h-3.5" />
-        <span>{t.swapLanguage}</span>
-      </button>
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => setShowHelp(true)}
+          className="flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
+          title={isEnglish ? 'Open help' : '打开帮助'}
+          aria-label={isEnglish ? 'Open help' : '打开帮助'}
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>{isEnglish ? 'Help' : '帮助'}</span>
+        </button>
+        <button
+          onClick={() => setLanguage(isEnglish ? 'zh' : 'en')}
+          className="flex items-center gap-1.5 rounded-full border border-slate-700/40 bg-slate-800/60 px-2.5 py-2 text-xs font-medium text-slate-200 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-slate-700 hover:text-gold-400"
+          title={isEnglish ? 'Switch to Chinese' : 'Switch to English'}
+        >
+          <Languages className="w-3.5 h-3.5" />
+          <span>{t.swapLanguage}</span>
+        </button>
+      </div>
 
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/50 to-transparent" />
@@ -428,6 +442,10 @@ export default function EntryPage() {
           if (kind) void openKind(kind);
         }}
       />
+
+      <Suspense fallback={null}>
+        <HelpPage isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      </Suspense>
     </div>
   );
 }
