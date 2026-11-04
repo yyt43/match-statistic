@@ -36,6 +36,14 @@ export interface HelpStep {
   items: string[];
 }
 
+/** 案例教学：一个完整设置案例，按步骤说明怎么填。 */
+export interface HelpCase {
+  id: string;
+  title: string;
+  summary: string;
+  steps: string[];
+}
+
 export interface HelpRule {
   title: string;
   text: string;
@@ -64,6 +72,8 @@ export interface HelpCopy {
   shortcutNote: string;
   quickStart: string;
   steps: HelpStep[];
+  caseStudy: string;
+  caseStudies: HelpCase[];
   rules: string;
   swissRules: string;
   swissRuleItems: HelpRule[];
@@ -99,7 +109,7 @@ export const HELP_CONTENT_ZH: HelpCopy = {
     { id: 'result-import', icon: <FileUp className="w-5 h-5" />, title: '赛果导入', description: '导入腾讯文档 XLSX，按选手编号匹配比赛，逐场核验截图后写入结果。' },
     { id: 'bracket-edit', icon: <ArrowLeftRight className="w-5 h-5" />, title: '签表调整', description: '开赛前可随机重抽、交换签位或指定选手/轮空；确认后完整签表锁定，后续轮次只填入胜者。' },
     { id: 'live-rankings', icon: <Trophy className="w-5 h-5" />, title: '实时排名', description: '自动计算胜率、对手胜率、局胜率，并展示淘汰、弃赛和加赛状态。' },
-    { id: 'event-types', icon: <Layers className="w-5 h-5" />, title: '赛事类型', description: '首页选择单阶段赛事、多阶段赛事（测试功能）或诗意杯 S3（专用）。单阶段沿用原有工作区，多阶段与 S3 额外记录赛段、晋级与固定签位。' },
+    { id: 'event-types', icon: <Layers className="w-5 h-5" />, title: '赛事类型', description: '首页选择单阶段赛事或多阶段赛事；多阶段设置页可以从空白搭建，也可以直接套用诗意杯 S3 预设。单阶段沿用原有工作区，多阶段额外记录赛段、晋级与固定签位。' },
     { id: 'stage-advancement', icon: <ShieldCheck className="w-5 h-5" />, title: '赛段晋级', description: '赛段打完后「计算晋级」得到预览，裁判确认才写入下游赛段；可回退。上游未确认时下游不能开赛，下游已开赛时上游赛果锁定。' },
     { id: 'landing-arrangement', icon: <GripVertical className="w-5 h-5" />, title: '接收名单落位', description: '晋级去向决定谁晋级，落位决定他们到达后怎么排：先选顺序（顺序填入 / 种子分散 / 手动指定签位），再选同组处理（不特殊处理 / 首轮回避同组 / 组内按名次配对）。落位在接收方赛段的「接收名单落位」里配置，来源赛段只显示摘要与跳转。' },
     { id: 'export-tools', icon: <Download className="w-5 h-5" />, title: '导出工具', description: '排行榜、对阵表和总表可导出为 PNG 或 Excel，并包含选手编号与 UID；多阶段赛事的工作表名带赛段，并附「最终名次」「晋级记录」工作表，图片导出可选最终名次视图；赛事数据可导出为 JSON。' },
@@ -164,8 +174,8 @@ export const HELP_CONTENT_ZH: HelpCopy = {
       id: 'multi-stage',
       title: '多阶段赛事',
       items: [
-        '首页选择「多阶段赛事」或「诗意杯 S3」；S3 只需导入 A-D 四组名单。',
-        '多阶段赛事先在设置页定义赛段顺序与赛制，再进入同一套工作区。',
+        '首页选择「多阶段赛事」进入设置页；可以从空白搭建，也可以直接套用内置的诗意杯 S3 预设。',
+        '在设置页定义赛段顺序与赛制，设置页顶部的「起点」决定是空白还是预设。',
         '设置页的「晋级去向」决定谁晋级到哪个赛段，「接收名单落位」决定这些人到达后怎么排（顺序 / 种子分散 / 手动签位，以及同组怎么处理）。',
         '赛段打完后点「计算晋级」，确认预览后名单与固定签表写入下一赛段。',
       ],
@@ -174,6 +184,35 @@ export const HELP_CONTENT_ZH: HelpCopy = {
       id: 'export-backup',
       title: '导出与备份',
       items: ['图片和 Excel 支持当前小组或全部小组。', '总表包含排行榜和各轮对阵。', '重要比赛后建议导出 JSON 备份。'],
+    },
+  ],
+  caseStudy: '案例教学',
+  caseStudies: [
+    {
+      id: 'case-swiss-to-elimination',
+      title: '案例一：32 人单组瑞士轮 → 8 人单败淘汰',
+      summary: '最常用的两赛段结构：先打 5 轮瑞士轮排出名次，前 8 名进入单败淘汰。',
+      steps: [
+        '首页进入「多阶段赛事」，起点保持「空白搭建」，赛事名填「示例赛」。',
+        '赛段1：赛制选瑞士轮，小组数 1、每组人数 32、每轮局数 BO3；轮数会自动算成 5。',
+        '赛段1 的「晋级去向」：晋级到「赛段2」，选人条件选「按名次」、名次 1–2；把名次上限改成 8 即可让前 8 名全部晋级。',
+        '点「+ 添加赛段」建赛段2：赛制选单败淘汰，小组数 1；「每组人数」会显示「由晋级决定」，不用改。',
+        '赛段2 的「接收名单落位」：顺序填入（想打乱强弱可换成种子分散，想固定对位可换成手动指定签位）。',
+        '赛段2 的逐轮局数按需设置（例如首轮 BO3、之后 BO5），规则检查通过后点「进入赛事设置」，导入名单即可开赛。',
+      ],
+    },
+    {
+      id: 'case-poetry-cup-s3',
+      title: '案例二：诗意杯 S3 预设（4 组 → 突围赛 → 16 人淘汰赛）',
+      summary: '点一下「诗意杯 S3 预设」就得到完整三赛段，不用从零搭；套用后每一项仍可修改。',
+      steps: [
+        '首页进入「多阶段赛事」，起点选「诗意杯 S3 预设」，赛事名会自动填入。',
+        '赛段1 小组赛：A–D 四组、每组 32 人、5 轮 BO3；去向有两条：前 2 名→淘汰赛，3–6 名且胜场正好 4→突围赛。',
+        '赛段2 突围赛：单败、16 人、只打 1 轮；「接收名单落位」是同组名次配对，3 对 6、4 对 5。',
+        '赛段3 淘汰赛：单败、16 人；落位是手动指定签位（A1 对 D4、B2 对 C3 ……），四轮局数为 BO3 / BO5 / BO5 / BO7。',
+        '只改需要改的地方：赛段名、每轮局数、晋级名次都可以调；不想动就保持预设。',
+        '规则检查通过后进入赛事设置，导入 A–D 四组名单，开赛流程与单阶段赛事一致。',
+      ],
     },
   ],
   rules: '赛制与排名',
@@ -257,7 +296,7 @@ export const HELP_CONTENT_EN: HelpCopy = {
     { id: 'result-import', icon: <FileUp className="w-5 h-5" />, title: 'Result import', description: 'Import Tencent Docs XLSX files, match matches by player code, and verify each screenshot before writing results.' },
     { id: 'bracket-edit', icon: <ArrowLeftRight className="w-5 h-5" />, title: 'Bracket editing', description: 'Before play, redraw, swap slots, or assign a player/bye. Once confirmed, the full bracket is locked and later rounds only receive winners.' },
     { id: 'live-rankings', icon: <Trophy className="w-5 h-5" />, title: 'Live rankings', description: 'Track win rate, opponent win rate, game win rate, eliminations, drops, and playoffs.' },
-    { id: 'event-types', icon: <Layers className="w-5 h-5" />, title: 'Event types', description: 'Pick single-stage, multi-stage (test feature), or Poetry Cup S3 on the home page. Single-stage keeps the previous workspace; multi-stage and S3 also track stages, advancement, and fixed seeds.' },
+    { id: 'event-types', icon: <Layers className="w-5 h-5" />, title: 'Event types', description: 'Pick single-stage or multi-stage on the home page; the multi-stage setup page starts blank or loads the Poetry Cup S3 preset. Single-stage keeps the previous workspace; multi-stage also tracks stages, advancement, and fixed seeds.' },
     { id: 'stage-advancement', icon: <ShieldCheck className="w-5 h-5" />, title: 'Stage advancement', description: 'Calculate a preview after a stage finishes, then confirm to write it into downstream stages; reverting is supported. Downstream stages cannot start before the upstream confirmation, and upstream results lock once the downstream stage starts.' },
     { id: 'landing-arrangement', icon: <GripVertical className="w-5 h-5" />, title: 'Arrival arrangement', description: 'Destinations decide who advances; the arrangement decides how they line up on arrival. First the order (in order / seeded spread / pinned slots), then the same-group handling (no special rule / avoid round 1 / pair by rank). It is configured on the receiving stage under "Arrival arrangement"; the source stage only shows a summary and a jump link.' },
     { id: 'export-tools', icon: <Download className="w-5 h-5" />, title: 'Export tools', description: 'Export rankings, match tables, and summaries as PNG or Excel with participant codes and UIDs. Multi-stage sheet names carry the stage and add final-standings and advancement sheets, and the image export offers a standings view; tournament data exports as JSON.' },
@@ -321,12 +360,41 @@ export const HELP_CONTENT_EN: HelpCopy = {
     {
       id: 'multi-stage',
       title: 'Multi-stage events',
-      items: ['Choose "Multi-stage" or "Poetry Cup S3" on the home page; S3 only requires importing the four A-D rosters.', 'For multi-stage events, define the stage order and formats on the setup page, then continue in the same workspace.', 'On the setup page, "Advancement destinations" decides who moves to which stage, and "Arrival arrangement" decides how they line up once they arrive (order, seeded spread, pinned slots, plus same-group handling).', 'After a stage finishes, use "Calculate advancement", review the preview, then write the roster and fixed seeds into the next stage.'],
+      items: ['Choose "Multi-stage event" on the home page; start from a blank setup or load the built-in Poetry Cup S3 preset.', 'Define stage order and formats on the setup page; the "Start from" switch at the top decides blank vs. preset.', 'On the setup page, "Advancement destinations" decides who moves to which stage, and "Arrival arrangement" decides how they line up once they arrive (order, seeded spread, pinned slots, plus same-group handling).', 'After a stage finishes, use "Calculate advancement", review the preview, then write the roster and fixed seeds into the next stage.'],
     },
     {
       id: 'export-backup',
       title: 'Export and back up',
       items: ['Export images and Excel for one group or all groups.', 'Summary files include rankings and every completed round.', 'Export a JSON backup after important matches.'],
+    },
+  ],
+  caseStudy: 'Worked examples',
+  caseStudies: [
+    {
+      id: 'case-swiss-to-elimination',
+      title: 'Example 1: 32-player Swiss → top 8 single elimination',
+      summary: 'The most common two-stage shape: play five Swiss rounds, then send the top 8 into a single-elimination bracket.',
+      steps: [
+        'Open "Multi-stage event" from the home page, keep the start point on "Blank setup", and name the event "Example".',
+        'Stage 1: choose Swiss, 1 group, 32 players per group, BO3 per round; the round count is derived automatically as 5.',
+        'Stage 1 "Advancement destinations": advance to "Stage 2" and keep the condition on "by rank" with ranks 1–2; raise the upper rank to 8 so the top 8 all advance.',
+        'Press "+ Add stage" for stage 2: choose single elimination and 1 group; "players per group" shows "decided by advancement", leave it as is.',
+        'Stage 2 "Arrival arrangement": in order (switch to seeded spread to separate strong players, or pinned slots for fixed pairings).',
+        'Set stage 2 series per round if needed (for example BO3 first, then BO5); once the rule check passes, enter the event setup and import the roster.',
+      ],
+    },
+    {
+      id: 'case-poetry-cup-s3',
+      title: 'Example 2: Poetry Cup S3 preset (4 groups → breakout → 16-player playoffs)',
+      summary: 'One click loads the full three-stage template; every field stays editable afterwards.',
+      steps: [
+        'Open "Multi-stage event" and set the start point to "Poetry Cup S3 preset"; the event name is filled in for you.',
+        'Stage 1 group stage: groups A–D, 32 players each, 5 Swiss rounds, BO3; two destinations: ranks 1–2 → playoffs, ranks 3–6 with exactly 4 wins → breakout stage.',
+        'Stage 2 breakout stage: single elimination, 16 players, one round only; its arrival arrangement pairs same-group ranks 3 vs 6 and 4 vs 5.',
+        'Stage 3 playoffs: single elimination, 16 players, pinned slots (A1 vs D4, B2 vs C3, …) and series BO3 / BO5 / BO5 / BO7.',
+        'Only change what you need: stage names, series per round, advancement ranks; otherwise keep the preset.',
+        'Once the rule check passes, enter setup, import the four A–D rosters, and run the event like a single-stage event.',
+      ],
     },
   ],
   rules: 'Formats and rankings',

@@ -25,9 +25,10 @@ This project is suited for tournament management, club events, team activities, 
 ## Key Highlights
 
 - Multi-group tournament management: manage multiple groups, formats, and rounds in one event
-- Event type selection: single-stage, multi-stage (test feature), or Poetry Cup S3 (dedicated); the single-stage flow stays unchanged
-- Multi-stage events: configure stages and formats first, then work in the same workspace, with one advancement confirmation per stage
-- Poetry Cup S3 locked template: group stage (groups A-D, 32 players each, 5 Swiss rounds of BO3), breakout stage (4-1 players from ranks 3-6, paired 3 vs 6 and 4 vs 5), playoffs (fixed 16-player seeds)
+- Event type selection: single-stage or multi-stage on the home page; the single-stage flow stays unchanged
+- Multi-stage events: configure stages and formats first, then work in the same workspace, with one advancement confirmation per stage; start from a blank setup or load the Poetry Cup S3 preset
+- General advancement model: each stage declares "who advances where" (selection conditions + target stage) and "how arrivals line up" (order + same-group handling); stage rounds are derived from the format
+- Poetry Cup S3 preset: group stage (groups A-D, 32 players each, 5 Swiss rounds of BO3), breakout stage (4-1 players from ranks 3-6, paired 3 vs 6 and 4 vs 5), playoffs (fixed 16-player seeds); every field stays editable after loading
 - Advancement engine: calculate, preview, confirm; revertible, and upstream results lock once the downstream stage has started
 - Shared format draft: apply one configuration to the current group or all groups, with a pre-start event summary
 - Dedicated pre-start workspace: hide rankings and match tables, keep group actions in the current-group bar, and use format, players, and event-data columns
@@ -153,10 +154,10 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - Overview of all players: preview all group rosters before the event starts and detect duplicate names or empty groups
 - Player management: one unified workbook import for nickname, participant code, UID, and QQ, followed by direct editing in the same list
 
-### Multi-stage events and Poetry Cup S3 (test feature)
+### Multi-stage events and Poetry Cup S3
 
-- Event type: pick single-stage, multi-stage, or Poetry Cup S3 on the home page. Single-stage keeps the previous workspace and flow untouched.
-- Stages and formats: define stage order and configure format (Swiss / single elimination), groups, players per group, per-round match length, and roster source. Rounds are derived automatically (Swiss by the log2 of the group size, elimination by the worst-case headcount), so there is no round field to fill in. S3 uses a locked three-stage template where the referee only imports rosters.
+- Event type: pick single-stage or multi-stage on the home page. Single-stage keeps the previous workspace and flow untouched. Poetry Cup S3 is a built-in preset of multi-stage events: switch the "Start from" control on the setup page to "Poetry Cup S3 preset" to load the full three-stage setup, then edit anything you like.
+- Stages and formats: define stage order and configure format (Swiss / single elimination), groups, players per group, per-round match length, and roster source. Rounds are derived automatically (Swiss by the log2 of the group size, elimination by the worst-case headcount), so there is no round field to fill in. The S3 preset fills these values for you, so the referee only imports rosters.
 - Advancement destinations: each destination pairs selection conditions with a target stage. Conditions cover rank ranges, win ranges (elimination rounds for brackets, match wins for Swiss), and "best N across groups" (for example the best four 3rd places); one stage can point to several destinations, and conditions are evaluated inside every source group.
 - Arrival arrangement: configured on the receiving stage under "Arrival arrangement", in two questions — first the order (in order / seeded spread / pinned slots), then the same-group handling (no special rule / avoid round 1 / pair by rank). The source stage only shows a summary such as "Arrangement: seeded spread · avoid round 1" with a jump link to the target stage.
 - Rule editor: the setup page is split into stage settings, stage relationships, in-stage rules, advancement destinations, and arrival arrangement. Format is a segmented control, groups and headcount sit side by side, per-round match length lives in a collapsible section, and a stage can take several upstream sources (for example the playoffs receiving group qualifiers plus breakout winners).

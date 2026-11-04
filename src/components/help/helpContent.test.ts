@@ -11,6 +11,7 @@ const ARRAY_SECTIONS = [
   'featureItems',
   'shortcutGroups',
   'steps',
+  'caseStudies',
   'swissRuleItems',
   'swissRankingRuleItems',
   'eliminationRuleItems',
@@ -62,6 +63,12 @@ describe('help content language parity', () => {
     }
   });
 
+  it('keeps worked examples in the same id order for both languages', () => {
+    expect(HELP_CONTENT_EN.caseStudies.map(item => item.id))
+      .toEqual(HELP_CONTENT_ZH.caseStudies.map(item => item.id));
+    expect(HELP_CONTENT_ZH.caseStudies.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('gives every localized entry non-empty text', () => {
     for (const [language, copy] of Object.entries(helpContent)) {
       expect(copy.close.trim(), `${language}.close`).not.toBe('');
@@ -77,6 +84,15 @@ describe('help content language parity', () => {
         expect(step.items.length, `${where}.items`).toBeGreaterThan(0);
         for (const item of step.items) {
           expect(item.trim(), `${where}.item`).not.toBe('');
+        }
+      }
+      for (const example of copy.caseStudies) {
+        const where = `${language}.case.${example.id}`;
+        expect(example.title.trim(), `${where}.title`).not.toBe('');
+        expect(example.summary.trim(), `${where}.summary`).not.toBe('');
+        expect(example.steps.length, `${where}.steps`).toBeGreaterThan(0);
+        for (const step of example.steps) {
+          expect(step.trim(), `${where}.step`).not.toBe('');
         }
       }
     }

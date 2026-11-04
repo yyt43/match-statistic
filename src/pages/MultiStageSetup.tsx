@@ -24,7 +24,12 @@ import type {
 import { useLanguagePreference } from '../i18n/context';
 import { useTournamentStore } from '../store/useTournamentStore';
 import { createDefaultStageDraft, createMultiStageCompetition } from '../store/multiStageFactory';
-import { getDraftGroupNames, type MultiStageDraftStage } from '../utils/multiStage';
+import {
+  POETRY_CUP_S3_NAME,
+  createPoetryCupS3DraftStages,
+  getDraftGroupNames,
+  type MultiStageDraftStage,
+} from '../utils/multiStage';
 import {
   DEFAULT_RANK_PAIRS,
   createAdvanceSlot,
@@ -112,14 +117,24 @@ function maxIncomingPlayers(stage: MultiStageDraftStage, stages: MultiStageDraft
     const possible = Math.max(1, source.groupCount * Math.max(1, perGroup));
     return total + (takeCaps.length > 0 ? Math.min(possible, Math.min(...takeCaps)) : possible);
   }, 0);
-  return Math.max(2, incoming);
+  // 再按赛段自身声明的容量封顶：固定签位按最大签位算，否则按小组数 × 每组人数。
+  const capacity = Math.max(2, stage.groupCount * stage.playerCountPerGroup);
+  const seating = normalizeSeatingPlan(stage);
+  const slotCapacity = seating.mode === 'fixedSlots' && seating.slots?.length
+    ? Math.max(...seating.slots.map(slot => slot.slot)) + 1
+    : capacity;
+  return Math.max(2, Math.min(incoming, capacity, slotCapacity));
 }
 
 /**
  * 轮数由赛制自动推导，不再单独设置：
  * 瑞士轮按每组人数取 ceil(log2 n)，单败淘汰按最多可能到达人数取 ceil(log2 n)，保证签表放得下。
+ * 例外：接收名单时选「组内按名次配对」的单败赛段本质是附加赛，只打一轮，胜者进入下一个赛段。
  */
 function autoRounds(stage: MultiStageDraftStage, stages: MultiStageDraftStage[]): number {
+  if (stage.kind === 'single_elimination' && getSameGroupMode(normalizeSeatingPlan(stage)) === 'rankPairs') {
+    return 1;
+  }
   const players = stage.kind === 'swiss'
     ? Math.max(2, stage.playerCountPerGroup)
     : maxIncomingPlayers(stage, stages);
@@ -251,6 +266,8 @@ export default function MultiStageSetup() {
 
   const [nameInput, setNameInput] = useState('新建赛事');
   const [stages, setStages] = useState<MultiStageDraftStage[]>(() => [createDefaultStageDraft(1)]);
+  // 预设只影响草稿内容；套用后仍可在下面逐项修改。
+  const [preset, setPreset] = useState<'blank' | 'poetry_cup_s3'>('blank');
   // 已有赛事（存档或内存中）时，开始搭建会覆盖它，需要二次确认。
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
@@ -750,8 +767,24 @@ export default function MultiStageSetup() {
   const ruleErrors = ruleIssues.filter(issue => issue.severity === 'error');
   const canStartEvent = !hasInvalidStage && ruleErrors.length === 0;
 
+  /** 切换起点：空白搭建或套用诗意杯 S3 预设；预设只是填充草稿，套用后仍可逐项修改。 */
+  const applyPreset = (next: 'blank' | 'poetry_cup_s3') => {
+    setPreset(next);
+    if (next === 'poetry_cup_s3') {
+      setStages(createPoetryCupS3DraftStages());
+      setNameInput(current => (current.trim() && current !== '新建赛事' ? current : POETRY_CUP_S3_NAME));
+      return;
+    }
+    setStages([createDefaultStageDraft(1)]);
+    setNameInput(current => (current.trim() && current !== POETRY_CUP_S3_NAME ? current : '新建赛事'));
+  };
+
   const doStartEvent = () => {
-    const nextCompetition = createMultiStageCompetition(nameInput.trim() || '多阶段赛事', stages);
+    const nextCompetition = createMultiStageCompetition(
+      nameInput.trim() || '多阶段赛事',
+      stages,
+      preset === 'poetry_cup_s3' ? { workflow: 'poetry_cup_s3' } : {}
+    );
     initMultiStageCompetition(nextCompetition);
     navigate('/workspace');
   };
@@ -809,9 +842,6 @@ export default function MultiStageSetup() {
                 <h1 className="truncate text-lg font-semibold text-slate-100">
                   {isEnglish ? 'Multi-stage rules' : '多阶段赛制设置'}
                 </h1>
-                <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">
-                  {isEnglish ? 'Test feature' : '测试功能'}
-                </span>
               </div>
               <p className="text-xs text-slate-400">
                 {isEnglish
@@ -836,6 +866,35 @@ export default function MultiStageSetup() {
               onChange={event => setNameInput(event.target.value)}
               className="w-full rounded-lg border border-slate-700/50 bg-slate-800/60 px-3 py-2 text-sm text-white outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
             />
+          </section>
+
+          <section className="space-y-2 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">{isEnglish ? 'Start from' : '起点'}</span>
+              {([
+                { id: 'blank' as const, label: isEnglish ? 'Blank setup' : '空白搭建' },
+                { id: 'poetry_cup_s3' as const, label: isEnglish ? 'Poetry Cup S3 preset' : '诗意杯 S3 预设' },
+              ]).map(option => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => applyPreset(option.id)}
+                  aria-pressed={preset === option.id}
+                  className={`rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 ${
+                    preset === option.id
+                      ? 'border-gold-500/40 bg-gold-500/20 text-gold-400'
+                      : 'border-slate-700/50 bg-slate-800/60 text-slate-300 hover:bg-slate-700/50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs leading-relaxed text-slate-500">
+              {isEnglish
+                ? 'The preset only fills in the stages below: group stage → breakout stage → playoffs, with their advancement and arrival settings. Every field stays editable.'
+                : '预设只会填充下面的赛段：小组赛 → 突围赛 → 淘汰赛，连同晋级去向与落位设置一起填好；套用后每一项仍然可以修改。'}
+            </p>
           </section>
 
           {stages.map((stage, index) => {
