@@ -377,19 +377,24 @@ export default function MultiStageSetup() {
     const sameGroupMode = getSameGroupMode(seating);
     const seatingPairs = sameGroupMode === 'rankPairs' ? seating.pairs ?? [] : [];
     const seatingSlots = seating.mode === 'fixedSlots' ? seating.slots ?? [] : [];
+    // 来源小组名：既看目标赛段声明的「名单来源」，也看实际有去向指向它、但没点声明来源的赛段。
+    const upstreamStages = stages.filter(item => item.id !== target.id && (
+      (target.sourceStageIds ?? []).includes(item.id)
+      || (normalizeAdvancementPlan(item)?.slots ?? []).some(slot => slot.targetStageId === target.id)
+    ));
     const upstreamGroupNames = Array.from(
-      new Set(
-        (target.sourceStageIds ?? [])
-          .map(id => stages.find(item => item.id === id))
-          .filter((item): item is MultiStageDraftStage => Boolean(item))
-          .flatMap(item => getDraftGroupNames(item))
-      )
+      new Set(upstreamStages.flatMap(item => getDraftGroupNames(item)))
     );
 
     return (
       <div className="space-y-1.5 rounded-md bg-slate-900/30 px-2 py-1.5">
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-          <span>{isEnglish ? 'Arrangement' : '落位'}</span>
+          <span>
+            {isEnglish ? 'Arrangement' : '落位'}
+            <span className="ml-1 text-slate-600">
+              {isEnglish ? `(how "${target.name || 'untitled'}" arranges arrivals)` : `（${target.name || '未命名赛段'} 如何排名单）`}
+            </span>
+          </span>
           <select
             value={seating.mode}
             onChange={event => changeSeatingMode(target.id, event.target.value as SeatingMode)}
@@ -474,10 +479,15 @@ export default function MultiStageSetup() {
           </div>
         )}
 
-        {seating.mode === 'fixedSlots' && upstreamGroupNames.length > 0 && (
+        {seating.mode === 'fixedSlots' && (
           <div className="space-y-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] text-slate-500">{isEnglish ? 'Pinned slots' : '固定签位'}</span>
+              <span className="text-[10px] text-slate-500">
+                {isEnglish ? 'Pinned slots' : '固定签位'}
+                <span className="ml-1 text-slate-600">
+                  {isEnglish ? `(layout of stage "${target.name || 'untitled'}")` : `（${target.name || '未命名赛段'} 的对位）`}
+                </span>
+              </span>
               <button
                 type="button"
                 onClick={() => updateSeedRules(target.id, rules => [
@@ -491,21 +501,34 @@ export default function MultiStageSetup() {
             </div>
             {seatingSlots.map((rule, seedIndex) => (
               <div key={`seed-${seedIndex}`} className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-                <select
-                  value={rule.sourceGroupName}
-                  onChange={event => updateSeedRules(target.id, rules => rules.map((item, index) =>
-                    index === seedIndex ? { ...item, sourceGroupName: event.target.value } : item
-                  ))}
-                  aria-label={isEnglish ? `Pinned slot ${seedIndex + 1} source group` : `固定签位第${seedIndex + 1}位的来源小组`}
-                  className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-0.5 text-slate-200 outline-none focus:border-gold-500/40"
-                >
-                  {upstreamGroupNames.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                  {!upstreamGroupNames.includes(rule.sourceGroupName) && (
-                    <option value={rule.sourceGroupName}>{rule.sourceGroupName}</option>
-                  )}
-                </select>
+                {upstreamGroupNames.length > 0 ? (
+                  <select
+                    value={rule.sourceGroupName}
+                    onChange={event => updateSeedRules(target.id, rules => rules.map((item, index) =>
+                      index === seedIndex ? { ...item, sourceGroupName: event.target.value } : item
+                    ))}
+                    aria-label={isEnglish ? `Pinned slot ${seedIndex + 1} source group` : `固定签位第${seedIndex + 1}位的来源小组`}
+                    className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-0.5 text-slate-200 outline-none focus:border-gold-500/40"
+                  >
+                    {upstreamGroupNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                    {!upstreamGroupNames.includes(rule.sourceGroupName) && (
+                      <option value={rule.sourceGroupName}>{rule.sourceGroupName}</option>
+                    )}
+                  </select>
+                ) : (
+                  // 目标赛段还没声明来源小组时，允许手动填写小组名，避免固定签位表无处可填。
+                  <input
+                    value={rule.sourceGroupName}
+                    onChange={event => updateSeedRules(target.id, rules => rules.map((item, index) =>
+                      index === seedIndex ? { ...item, sourceGroupName: event.target.value } : item
+                    ))}
+                    placeholder={isEnglish ? 'Group name' : '小组名'}
+                    aria-label={isEnglish ? `Pinned slot ${seedIndex + 1} source group` : `固定签位第${seedIndex + 1}位的来源小组`}
+                    className="w-20 rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-0.5 text-slate-200 outline-none focus:border-gold-500/40"
+                  />
+                )}
                 <span>{isEnglish ? 'rank' : '第'}</span>
                 <NumberField
                   value={rule.rank}
