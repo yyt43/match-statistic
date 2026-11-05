@@ -239,4 +239,21 @@ describe('stage draft validation', () => {
     };
     expect(warningsOf([capped, next]).join(' ')).not.toContain('人数取决于赛果');
   });
+
+  it('warns that a wins cap may cut players on the same wins', () => {
+    const source: MultiStageDraftStage = {
+      ...groupStage(),
+      advancementRules: [],
+      advancementPlan: {
+        slots: [
+          {
+            id: 'slot-capped',
+            targetStageId: 'stage-final',
+            selectors: [{ fromRank: 1, toRank: 8, mode: 'wins' as const, minWins: 4, take: 4 }],
+          },
+        ],
+      },
+    };
+    expect(warningsOf([source, finalStage()]).join(' ')).toContain('同胜场');
+  });
 });

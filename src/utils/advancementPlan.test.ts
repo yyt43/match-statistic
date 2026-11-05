@@ -328,6 +328,44 @@ describe('general advancement plan', () => {
     preview.seats.forEach(seat => expect(winsById.get(seat.playerId)).toBeGreaterThanOrEqual(4));
   });
 
+  it('reports selection counts and same-wins cuts in the preview', () => {
+    const plan: StageAdvancementPlan = {
+      slots: [
+        {
+          id: 'slot-capped',
+          targetStageId: 'stage-final',
+          selectors: [{ mode: 'wins', fromRank: 1, toRank: 8, minWins: 4, take: 4 }],
+        },
+      ],
+    };
+    const final: MultiStageDraftStage = {
+      id: 'stage-final',
+      name: '淘汰赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 4,
+      rounds: 2,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5'],
+      sourceStageIds: ['stage-group'],
+    };
+    const base = createMultiStageCompetition('晋级统计测试', [groupStageDraft(plan), final]);
+    const competition = finishGroupStage(base);
+    const preview = computeStageAdvancement(competition, 'stage-group');
+
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(4);
+    expect(preview.selectionStats).toHaveLength(1);
+    const stat = preview.selectionStats![0];
+    // 战绩 [5,4,4,4,4,3,2,1] × 2 组：5 人达到 4 胜/组，共 10 人；上限 4 人。
+    expect(stat.mode).toBe('wins');
+    expect(stat.matched).toBe(10);
+    expect(stat.taken).toBe(4);
+    expect(stat.dropped).toBe(6);
+    // 被截掉的 6 人胜场都是 4（与最后一名入选者相同）。
+    expect(stat.tieDropped).toBe(6);
+  });
+
   it('sizes the elimination bracket by the actual headcount instead of the planned count', () => {
     // 计划 11 人（16 签位、4 轮），实际只到 7 人：未显式设置轮数时，签表按 8 人生成，轮数也必须变成 3。
     const group = {

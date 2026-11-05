@@ -316,6 +316,26 @@ export interface StageAdvancementPairing {
   targetStageId?: string;
 }
 
+/** 单条选人条件的命中情况，仅用于在晋级预览里说明「符合多少人、实际取了多少人」。 */
+export interface StageAdvancementSelectionStat {
+  /** 所属去向（AdvanceSlot.id）。 */
+  slotId: string;
+  /** 该去向里的第几条选人条件，从 1 开始。 */
+  selectorIndex: number;
+  targetStageId: string;
+  targetStageName: string;
+  /** rank 按小组名次、wins 按胜场。 */
+  mode: 'rank' | 'wins';
+  /** 符合条件的人数（已扣掉被前面去向先选走的人）。 */
+  matched: number;
+  /** 实际写进下游赛段的人数。 */
+  taken: number;
+  /** 因「跨组取」上限被截掉的人数。 */
+  dropped: number;
+  /** 被截掉的人里，与最后一名入选者胜场相同的数量（只有按胜场选人且填了上限时统计）。 */
+  tieDropped: number;
+}
+
 export interface StageAdvancementPreview {
   sourceStageId: string;
   targetStageIds: string[];
@@ -323,6 +343,8 @@ export interface StageAdvancementPreview {
   breakoutPairings: StageAdvancementPairing[];
   errors: string[];
   warnings: string[];
+  /** 新模型（按计划选人）下的条件命中统计；旧模型没有该字段。 */
+  selectionStats?: StageAdvancementSelectionStat[];
   /** 裁判改签理由，确认时写入记录。 */
   reason?: string;
 }

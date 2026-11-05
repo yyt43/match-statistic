@@ -136,6 +136,14 @@ export function validateStageDrafts(
               : '按胜场晋级的人数取决于赛果、不固定：下游赛段会按实际晋级人数生成名单与签表。需要固定人数时，可改用名次条件，或填写「跨组取」作为人数上限。'
           );
         }
+        if (rule.take !== undefined) {
+          push(
+            'warning',
+            isEnglish
+              ? `"Best N across groups" keeps at most ${rule.take} player(s). When more players share the same wins, the cut is decided by points, win rate, opponent win rate and finally by name — so some same-wins players may be cut. Check the names in the advancement preview before confirming.`
+              : `「跨组取」最多保留 ${rule.take} 人：同胜场人数超过上限时，会按积分、胜率、对手胜率、最后按姓名排序后截断，同胜场的选手中可能有人被截掉。确认晋级前请在预览里核对名单。`
+          );
+        }
       } else {
         if (from > to) {
           push(
