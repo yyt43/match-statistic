@@ -1367,14 +1367,19 @@ function materializeTargetStage(
     }));
     const groupSlots = [...slots];
     const isElimination = group.pairingType === 'single_elimination';
-    const bracketRounds = isElimination ? getEliminationBracketRounds(bracketSize) : group.totalRounds;
+    // 淘汰赛轮数：用户显式设置（roundsLocked / fixedRounds）时以设置为准，
+    // 例如 16 人签表只打 1 轮取前 8 晋级；但实际到达人数撑不满时以签表上限为准，
+    // 避免出现「8 人签表却安排 4 轮」这种打不出来的赛程。
+    const capacityRounds = getEliminationBracketRounds(bracketSize);
+    const bracketRounds = isElimination
+      ? Math.min(group.roundsLocked ? group.totalRounds : capacityRounds, capacityRounds)
+      : group.totalRounds;
     groups[groupIndex] = {
       ...group,
       players: groupPlayers,
       matches: [],
       status: 'setup',
       currentRound: 0,
-      // 淘汰赛轮数按实际签表大小重算，避免「签到 7 人却显示 4 轮」这种前后不一致。
       totalRounds: bracketRounds,
       roundGameTypes: isElimination
         ? fitRoundGameTypes(group.roundGameTypes, bracketRounds, group.gameType)

@@ -329,7 +329,7 @@ describe('general advancement plan', () => {
   });
 
   it('sizes the elimination bracket by the actual headcount instead of the planned count', () => {
-    // 计划 11 人（16 签位、4 轮），实际只到 7 人：签表按 8 人生成，轮数也必须变成 3。
+    // 计划 11 人（16 签位、4 轮），实际只到 7 人：未显式设置轮数时，签表按 8 人生成，轮数也必须变成 3。
     const group = {
       ...groupStageDraft({
         slots: [
@@ -347,7 +347,6 @@ describe('general advancement plan', () => {
       ...playoffDraft({ mode: 'ordered' }),
       playerCountPerGroup: 11,
       rounds: 4,
-      fixedRounds: 4,
       roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'] as GameType[],
     };
     const competition = finishGroupStage(createMultiStageCompetition('实际人数测试', [group, playoff]));
@@ -362,5 +361,75 @@ describe('general advancement plan', () => {
     expect(playoffGroup.eliminationBracket?.size).toBe(8);
     expect(playoffGroup.totalRounds).toBe(3);
     expect(playoffGroup.roundGameTypes).toEqual(['bo3', 'bo5', 'bo5']);
+  });
+
+  it('keeps the rounds the user set even when the bracket is bigger', () => {
+    // S3 突围赛：16 人签表只打 1 轮、胜者进下一赛段；用户设置了 fixedRounds=1，落库时不能被签表大小覆盖。
+    const group = {
+      ...groupStageDraft({
+        slots: [
+          {
+            id: 'slot-sixteen',
+            targetStageId: 'stage-playoff',
+            selectors: [{ fromRank: 1, toRank: 8 }],
+          },
+        ],
+      }),
+      groupCount: 2,
+      groupNames: ['A组', 'B组'],
+      playerCountPerGroup: 8,
+    };
+    const playoff = {
+      ...playoffDraft({ mode: 'ordered' }),
+      playerCountPerGroup: 16,
+      rounds: 4,
+      fixedRounds: 1,
+      roundGameTypes: ['bo3'] as GameType[],
+    };
+    const competition = finishGroupStage(createMultiStageCompetition('轮数锁定测试', [group, playoff]));
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(16);
+
+    const advanced = confirmStageAdvancement(competition, preview);
+    const playoffStage = advanced.stages!.find(stage => stage.id === 'stage-playoff')!;
+    const playoffGroup = getStageGroups(advanced, playoffStage)[0];
+    expect(playoffGroup.players).toHaveLength(16);
+    expect(playoffGroup.eliminationBracket?.size).toBe(16);
+    expect(playoffGroup.totalRounds).toBe(1);
+    expect(playoffGroup.roundGameTypes).toEqual(['bo3']);
+  });
+
+  it('caps user-set rounds when fewer players actually arrive', () => {
+    // 计划 4 轮、只到 7 人：8 人签表最多只能打 3 轮，锁定值 4 会按签表深度收敛到 3。
+    const group = {
+      ...groupStageDraft({
+        slots: [
+          {
+            id: 'slot-seven',
+            targetStageId: 'stage-playoff',
+            selectors: [{ fromRank: 1, toRank: 7 }],
+          },
+        ],
+      }),
+      groupCount: 1,
+      groupNames: ['A组'],
+    };
+    const playoff = {
+      ...playoffDraft({ mode: 'ordered' }),
+      playerCountPerGroup: 16,
+      rounds: 4,
+      fixedRounds: 4,
+      roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'] as GameType[],
+    };
+    const competition = finishGroupStage(createMultiStageCompetition('轮数上限测试', [group, playoff]));
+    const preview = computeStageAdvancement(competition, 'stage-group');
+    expect(preview.errors).toEqual([]);
+
+    const advanced = confirmStageAdvancement(competition, preview);
+    const playoffStage = advanced.stages!.find(stage => stage.id === 'stage-playoff')!;
+    const playoffGroup = getStageGroups(advanced, playoffStage)[0];
+    expect(playoffGroup.eliminationBracket?.size).toBe(8);
+    expect(playoffGroup.totalRounds).toBe(3);
   });
 });

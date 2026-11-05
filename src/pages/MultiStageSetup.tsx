@@ -127,9 +127,10 @@ function maxIncomingPlayers(stage: MultiStageDraftStage, stages: MultiStageDraft
 }
 
 /**
- * 轮数由赛制自动推导，不再单独设置：
- * 瑞士轮按每组人数取 ceil(log2 n)，单败淘汰按最多可能到达人数取 ceil(log2 n)，保证签表放得下。
- * 例外：接收名单时选「组内按名次配对」的单败赛段本质是附加赛，只打一轮，胜者进入下一个赛段。
+ * 轮数默认值：
+ * - 瑞士轮按每组人数取 ceil(log2 n)；
+ * - 单败淘汰按最多可能到达人数取 ceil(log2 n)，保证签表放得下，但用户可以手动指定轮数
+ *   （例如 16 人签表只打 1 轮取前 8 晋级，此时固定 1 轮，不再按签表大小推算）。
  */
 function autoRounds(stage: MultiStageDraftStage, stages: MultiStageDraftStage[]): number {
   if (stage.kind === 'single_elimination' && getSameGroupMode(normalizeSeatingPlan(stage)) === 'rankPairs') {
@@ -299,19 +300,19 @@ export default function MultiStageSetup() {
     }));
   };
 
-  // 轮数不再单独设置：赛制、人数或来源变化后自动推导一次，草稿里同步成 derivable 值。
+  // 轮数默认按赛制推导；单败淘汰允许手动指定（fixedRounds），手动值优先且不会被自动值覆盖。
   useEffect(() => {
     setStages(current => {
       let changed = false;
       const next = current.map(stage => {
-        const rounds = autoRounds(stage, current);
-        const fixedRounds = stage.kind === 'single_elimination' ? rounds : undefined;
-        if (stage.rounds === rounds && stage.fixedRounds === fixedRounds) return stage;
+        const rounds = stage.kind === 'single_elimination' && stage.fixedRounds !== undefined
+          ? stage.fixedRounds
+          : autoRounds(stage, current);
+        if (stage.rounds === rounds) return stage;
         changed = true;
         return {
           ...stage,
           rounds,
-          fixedRounds,
           roundGameTypes: fitRoundGameTypes(stage.roundGameTypes, rounds, stage.gameType),
         };
       });
@@ -1035,15 +1036,37 @@ export default function MultiStageSetup() {
                   </label>
 
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500">{isEnglish ? 'Rounds (auto)' : '轮数（自动）'}</span>
                     <span
-                      className="flex h-8 items-center rounded-md bg-slate-800/30 px-2 text-xs text-slate-300"
-                      title={stage.kind === 'swiss'
-                        ? (isEnglish ? 'ceil(log2 players per group)' : '按每组人数自动计算：ceil(log2 人数)')
-                        : (isEnglish ? 'ceil(log2 players arriving)' : '按到达人数自动计算：ceil(log2 人数)')}
+                      className="text-[10px] text-slate-500"
+                      title={stage.kind === 'single_elimination'
+                        ? (isEnglish
+                          ? 'Single elimination: set it yourself when you need e.g. a 1-round play-in; leave empty to estimate from the arriving players.'
+                          : '单败淘汰可自行指定轮数（例如 16 人签表只打 1 轮取前 8 晋级）；留空则按到达人数估算。')
+                        : undefined}
                     >
-                      {effectiveRounds(stage)}
+                      {stage.kind === 'single_elimination'
+                        ? (isEnglish ? 'Rounds' : '轮数')
+                        : (isEnglish ? 'Rounds (auto)' : '轮数（自动）')}
                     </span>
+                    {stage.kind === 'single_elimination' ? (
+                      <NumberField
+                        value={stage.fixedRounds ?? effectiveRounds(stage)}
+                        allowEmpty
+                        min={1}
+                        max={20}
+                        onCommit={next => updateStage(stage.id, { fixedRounds: next })}
+                        ariaLabel={isEnglish ? 'Rounds for this stage' : '赛段轮数'}
+                        placeholder={isEnglish ? 'Auto' : '自动'}
+                        className="h-8 w-full rounded-md border border-slate-700/50 bg-slate-800/60 px-2 text-center text-xs text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                      />
+                    ) : (
+                      <span
+                        className="flex h-8 items-center rounded-md bg-slate-800/30 px-2 text-xs text-slate-300"
+                        title={isEnglish ? 'ceil(log2 players per group)' : '按每组人数自动计算：ceil(log2 人数)'}
+                      >
+                        {effectiveRounds(stage)}
+                      </span>
+                    )}
                   </label>
 
                   <label className="flex flex-col gap-1">
