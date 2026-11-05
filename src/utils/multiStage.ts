@@ -24,6 +24,8 @@ export interface MultiStageDraftStage {
   rounds: number;
   /** 模板固定的轮数（例如突围赛只打一轮），设置后不再按人数自动计算。 */
   fixedRounds?: number;
+  /** 瑞士轮手动设置过轮数：为 true 时不再覆盖 `rounds`，清空后恢复自动推导。 */
+  roundsManual?: boolean;
   gameType: GameType;
   roundGameTypes: GameType[];
   /** 名单来自哪些上游赛段；缺省表示手动导入。 */

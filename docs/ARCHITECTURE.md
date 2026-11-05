@@ -136,7 +136,7 @@ TournamentCompetition
 - 归一化在 `src/utils/advancementPlan.ts`：新字段优先，缺失时从旧 `advancementRules` / `breakout` / `seedRules` 映射；读取端只认归一化结果，写入端同时保留旧字段供旧版本降级读取。
 - 计算入口 `src/utils/advancement.ts::computeStageAdvancement`：存在新模型字段时走 `computePlanBasedAdvancement` 统一管线（选人 → 按目标分组落位 → 席位校验），否则继续走旧实现。
 - 落位属于接收方赛段：设置页在目标赛段卡片里编辑 `seating`，来源赛段的去向行只显示摘要和跳转，避免多条去向指向同一目标时出现重复控件。
-- 轮数默认推导：瑞士轮按每组人数取 `ceil(log2 n)`，单败淘汰按「最多可能到达人数」取 `ceil(log2 n)`（胜场条件人数不固定时按整组都可能晋级估算）；单败淘汰赛段可以手动指定轮数（写入 `fixedRounds`，设置页里以 `roundsLocked` 落库），例如 16 人签表只打 1 轮取前 8 晋级。晋级落库时，未手动设置的按**实际**到达人数重算，手动设置的优先、但会被签表深度（`ceil(log2 实际人数)`）封顶；`roundGameTypes` 随之裁剪/补齐。
+- 轮数默认推导：瑞士轮按每组人数取 `ceil(log2 n)`，单败淘汰按「最多可能到达人数」取 `ceil(log2 n)`（胜场条件人数不固定时按整组都可能晋级估算）；单败淘汰赛段可以手动指定轮数（写入 `fixedRounds`，设置页里以 `roundsLocked` 落库），例如 16 人签表只打 1 轮取前 8 晋级；上限为理论轮数（如 16 人最多 4 轮）。瑞士轮也可以手动设置轮数（草稿用 `rounds` + `roundsManual`，落库仍是 `totalRounds`），上限为每组人数 - 1 且最多 20 轮；两种赛制清空输入框都会恢复自动推导。晋级落库时，未手动设置的按**实际**到达人数重算，手动设置的优先、但会被签表深度（`ceil(log2 实际人数)`）封顶；`roundGameTypes` 随之裁剪/补齐。
 - 设置页 `MultiStageSetup` 编辑新字段，工厂 `multiStageFactory` 归一化后落库，校验 `stageDraftValidation` 与展示组件（流程图、规则摘要）都读归一化结果。
 
 ## 5. 存储架构

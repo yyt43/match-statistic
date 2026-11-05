@@ -85,4 +85,30 @@ describe('multi-stage factory', () => {
     expect(stages[1].sourceStageIds).toEqual([first.id]);
     expect(getStageGroups(competition, stages[1])[0].totalRounds).toBe(4);
   });
+
+  it('keeps a hand-set swiss round count and a hand-set elimination round count', () => {
+    const swiss = createDefaultStageDraft(1);
+    swiss.name = '瑞士轮';
+    swiss.rounds = 7;
+
+    const elimination = {
+      ...createDefaultStageDraft(2),
+      name: '淘汰赛',
+      kind: 'single_elimination' as const,
+      playerCountPerGroup: 16,
+      sourceStageIds: [swiss.id],
+      fixedRounds: 1,
+    };
+
+    const competition = createMultiStageCompetition('自定义轮数', [swiss, elimination]);
+    const stages = getOrderedStages(competition);
+
+    const swissGroup = getStageGroups(competition, stages[0])[0];
+    expect(swissGroup.totalRounds).toBe(7);
+    expect(swissGroup.roundsLocked).toBe(false);
+
+    const eliminationGroup = getStageGroups(competition, stages[1])[0];
+    expect(eliminationGroup.totalRounds).toBe(1);
+    expect(eliminationGroup.roundsLocked).toBe(true);
+  });
 });
