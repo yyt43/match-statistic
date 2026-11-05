@@ -4,6 +4,8 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  ChevronDown,
+  ChevronRight,
   CircleHelp,
   Languages,
   Layers,
@@ -273,6 +275,24 @@ export default function MultiStageSetup() {
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // 赛段卡默认收起，只留一行摘要；单赛段时始终展开。
+  const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(() => new Set());
+
+  const toggleStageExpanded = (stageId: string) => {
+    setExpandedStageIds(current => {
+      const next = new Set(current);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  };
+
+  const expandAllStages = () => setExpandedStageIds(new Set(stages.map(stage => stage.id)));
+  const collapseAllStages = () => setExpandedStageIds(new Set());
+
+  const scrollToStage = (stageId: string) => {
+    document.getElementById(`stage-card-${stageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     let active = true;
@@ -769,10 +789,19 @@ export default function MultiStageSetup() {
 
   const removeStage = (stageId: string) => {
     setStages(current => (current.length <= 1 ? current : current.filter(stage => stage.id !== stageId)));
+    setExpandedStageIds(current => {
+      if (!current.has(stageId)) return current;
+      const next = new Set(current);
+      next.delete(stageId);
+      return next;
+    });
   };
 
   const addStage = () => {
-    setStages(current => [...current, createDefaultStageDraft(current.length + 1)]);
+    const nextStage = createDefaultStageDraft(stages.length + 1);
+    setStages(current => [...current, nextStage]);
+    // 新建的赛段直接展开，方便马上编辑。
+    setExpandedStageIds(current => new Set(current).add(nextStage.id));
   };
 
   const hasInvalidStage = stages.some(stage => !stage.name.trim() || stage.playerCountPerGroup < 2);
@@ -783,6 +812,8 @@ export default function MultiStageSetup() {
   /** 切换起点：空白搭建或套用诗意杯 S3 预设；预设只是填充草稿，套用后仍可逐项修改。 */
   const applyPreset = (next: 'blank' | 'poetry_cup_s3') => {
     setPreset(next);
+    // 换起点后所有赛段先收起，只显示摘要行，方便整体浏览。
+    setExpandedStageIds(new Set());
     if (next === 'poetry_cup_s3') {
       setStages(createPoetryCupS3DraftStages());
       setNameInput(current => (current.trim() && current !== '新建赛事' ? current : POETRY_CUP_S3_NAME));
@@ -910,6 +941,38 @@ export default function MultiStageSetup() {
             </p>
           </section>
 
+          {stages.length > 1 && (
+            <div className="sticky top-2 z-10 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/95 px-2 py-1.5 backdrop-blur">
+              <span className="px-1 text-[10px] text-slate-500">{isEnglish ? 'Stages' : '赛段导航'}</span>
+              {stages.map((stage, index) => (
+                <button
+                  key={stage.id}
+                  type="button"
+                  onClick={() => scrollToStage(stage.id)}
+                  className="rounded border border-slate-700/50 bg-slate-800/60 px-2 py-0.5 text-[11px] text-slate-300 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+                >
+                  {index + 1}. {stage.name || (isEnglish ? 'Untitled' : '未命名')}
+                </button>
+              ))}
+              <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={expandAllStages}
+                  className="rounded border border-slate-700/50 bg-slate-800/60 px-2 py-0.5 text-[11px] text-slate-300 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+                >
+                  {isEnglish ? 'Expand all' : '全部展开'}
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAllStages}
+                  className="rounded border border-slate-700/50 bg-slate-800/60 px-2 py-0.5 text-[11px] text-slate-300 transition-colors hover:border-gold-500/40 hover:text-gold-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+                >
+                  {isEnglish ? 'Collapse all' : '全部收起'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {stages.map((stage, index) => {
             const laterStages = stages.slice(index + 1);
             const upstreamStages = (stage.sourceStageIds ?? [])
@@ -929,13 +992,57 @@ export default function MultiStageSetup() {
                 )
               )
               .map(target => target.name || (isEnglish ? 'Untitled stage' : '未命名赛段'));
+            // 单赛段时始终展开，多赛段默认收起成摘要行。
+            const isExpanded = expandedStageIds.has(stage.id) || stages.length === 1;
+            const receivesAdvancers = upstreamStagesOf(stage, stages).length > 0;
+            const formatLabel = stage.kind === 'single_elimination'
+              ? (isEnglish ? 'Single elimination' : '单败淘汰')
+              : (isEnglish ? 'Swiss' : '瑞士轮');
+            const sizeLabel = receivesAdvancers
+              ? (isEnglish ? 'roster from upstream' : '名单由上游决定')
+              : (isEnglish
+                ? `${stage.groupCount} group(s) × ${stage.playerCountPerGroup}`
+                : `${stage.groupCount} 组 × ${stage.playerCountPerGroup} 人`);
+            const landingLabel = stageSeating.mode === 'snake'
+              ? (isEnglish ? 'seeded spread' : '种子分散')
+              : stageSeating.mode === 'fixedSlots'
+                ? (isEnglish ? 'pinned slots' : '手动签位')
+                : (isEnglish ? 'in order' : '顺序填入');
+            const stageSummary = [
+              formatLabel,
+              sizeLabel,
+              isEnglish ? `${effectiveRounds(stage)} round(s)` : `${effectiveRounds(stage)} 轮`,
+              ...(laterStages.length > 0
+                ? [planSlots.length > 0
+                  ? (isEnglish ? `${planSlots.length} destination(s)` : `${planSlots.length} 条去向`)
+                  : isRankPairsStage
+                    ? (isEnglish ? 'winners advance automatically' : '胜者自动进入下游')
+                    : (isEnglish ? 'no destination yet' : '未设去向')]
+                : []),
+              ...(receivesAdvancers ? [(isEnglish ? 'arrangement: ' : '落位：') + landingLabel] : []),
+            ].join(' · ');
             return (
             <section
               key={stage.id}
               id={`stage-card-${stage.id}`}
-              className="scroll-mt-4 space-y-4 rounded-lg border border-slate-700/50 bg-slate-800/50 p-4"
+              className="scroll-mt-20 space-y-3 rounded-lg border border-slate-700/50 bg-slate-800/50 p-3"
             >
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleStageExpanded(stage.id)}
+                  disabled={stages.length === 1}
+                  aria-expanded={isExpanded}
+                  aria-label={isEnglish
+                    ? (isExpanded ? `Collapse stage ${index + 1}` : `Expand stage ${index + 1}`)
+                    : (isExpanded ? `收起第${index + 1}赛段` : `展开第${index + 1}赛段`)}
+                  title={isEnglish
+                    ? (isExpanded ? 'Collapse' : 'Expand')
+                    : (isExpanded ? '收起' : '展开')}
+                  className="shrink-0 rounded-md border border-slate-700/50 bg-slate-800/50 p-1 text-slate-300 transition-colors hover:bg-slate-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </button>
                 <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
                   {isEnglish ? `Stage ${index + 1}` : `第${index + 1}赛段`}
                 </span>
@@ -979,6 +1086,13 @@ export default function MultiStageSetup() {
                 </button>
               </div>
 
+              {!isExpanded && (
+                <p className="truncate text-[11px] leading-relaxed text-slate-500" title={stageSummary}>
+                  {stageSummary}
+                </p>
+              )}
+
+              {isExpanded && (<>
               <div className="space-y-3 rounded-lg border border-slate-700/40 bg-slate-900/20 p-3">
                 <span className="text-xs font-medium text-slate-400">
                   {isEnglish ? 'Stage settings' : '赛段设置'}
@@ -1440,6 +1554,7 @@ export default function MultiStageSetup() {
                 </p>
               </div>
               )}
+              </>)}
             </section>
             );
           })}
