@@ -6,6 +6,7 @@ import type {
   StageAdvancementRecord,
   StageAdvancementRule,
   StageAdvancementSeat,
+  StageAdvancementSelectionStat,
   TournamentCompetition,
   TournamentGroup,
   TournamentStage,
@@ -652,15 +653,16 @@ function collectPlanSeats(
   sourceStage: TournamentStage,
   targets: TournamentStage[],
   language: AppLanguage
-): { pending: PendingSeat[]; errors: string[] } {
+): { pending: PendingSeat[]; errors: string[]; stats: StageAdvancementSelectionStat[] } {
   const plan = normalizeAdvancementPlan(sourceStage);
   const groups = getStageGroups(competition, sourceStage);
   const pending: PendingSeat[] = [];
   const errors: string[] = [];
+  const stats: StageAdvancementSelectionStat[] = [];
   const claimed = new Set<string>();
 
   if (!plan || plan.slots.length === 0) {
-    return { pending, errors: ['该赛段没有配置晋级规则。'] };
+    return { pending, errors: ['该赛段没有配置晋级规则。'], stats };
   }
 
   for (const slot of plan.slots) {
@@ -698,6 +700,22 @@ function collectPlanSeats(
       const chosen = take === undefined
         ? candidates
         : [...candidates].sort(compareCandidates).slice(0, take);
+      const chosenIds = new Set(chosen.map(candidate => candidate.player.id));
+      const droppedCandidates = candidates.filter(candidate => !chosenIds.has(candidate.player.id));
+      const boundaryWins = chosen.length > 0 ? chosen[chosen.length - 1].player.wins : undefined;
+      stats.push({
+        slotId: slot.id,
+        selectorIndex: slot.selectors.indexOf(selector) + 1,
+        targetStageId: target.id,
+        targetStageName: target.name,
+        mode: winsMode ? 'wins' : 'rank',
+        matched: candidates.length,
+        taken: chosen.length,
+        dropped: droppedCandidates.length,
+        tieDropped: winsMode && boundaryWins !== undefined
+          ? droppedCandidates.filter(candidate => candidate.player.wins === boundaryWins).length
+          : 0,
+      });
       for (const candidate of chosen) {
         claimed.add(candidate.player.id);
         pending.push({
@@ -719,7 +737,7 @@ function collectPlanSeats(
       message(language, '没有选手满足当前的晋级条件。', 'No player matches the current advancement conditions.')
     );
   }
-  return { pending, errors };
+  return { pending, errors, stats };
 }
 
 /** 由名次配对赛段（旧称突围赛）继续晋级时，取首轮胜者/轮空者并重排名次。 */
@@ -1031,6 +1049,7 @@ function computePlanBasedAdvancement(
   const warnings: string[] = [];
   const errors: string[] = [];
   let pending: PendingSeat[] = [];
+  let selectionStats: StageAdvancementSelectionStat[] = [];
 
   if (getSameGroupMode(seating) === 'rankPairs') {
     const survivors = collectRankPairsSurvivors(competition, sourceStage, language);
@@ -1049,6 +1068,7 @@ function computePlanBasedAdvancement(
     const collected = collectPlanSeats(competition, sourceStage, targets, language);
     pending = collected.pending;
     errors.push(...collected.errors);
+    selectionStats = collected.stats;
   }
 
   const byTarget = new Map<string, PendingSeat[]>();
@@ -1078,6 +1098,7 @@ function computePlanBasedAdvancement(
     ...preview,
     seats,
     breakoutPairings: pairings,
+    selectionStats,
     errors: [...errors, ...validateAdvancementSeats(competition, seats, language)],
     warnings: [...preview.warnings, ...warnings],
   };

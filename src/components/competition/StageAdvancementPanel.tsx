@@ -173,6 +173,41 @@ export function StageAdvancementPanel() {
                 </p>
               ))}
 
+              {preview.selectionStats && preview.selectionStats.length > 0 && (
+                <section className="space-y-1 rounded border border-slate-700/40 bg-slate-800/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-slate-400">
+                    {isEnglish ? 'Selection counts' : '选人条件命中'}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {preview.selectionStats.map((stat, index) => (
+                      <li key={`${stat.slotId}-${stat.selectorIndex}-${index}`} className="text-[11px] text-slate-400">
+                        <span className="text-slate-300">{stat.targetStageName}</span>
+                        <span className="ml-1 text-slate-500">
+                          {stat.mode === 'wins'
+                            ? (isEnglish ? 'by wins' : '按胜场')
+                            : (isEnglish ? 'by rank' : '按名次')}
+                        </span>
+                        <span className="ml-1.5">
+                          {isEnglish
+                            ? `matched ${stat.matched}, taken ${stat.taken}`
+                            : `符合 ${stat.matched} 人，取 ${stat.taken} 人`}
+                          {stat.dropped > 0 && (isEnglish
+                            ? `, cut ${stat.dropped}`
+                            : `，截掉 ${stat.dropped} 人`)}
+                        </span>
+                        {stat.tieDropped > 0 && (
+                          <span className="ml-1 text-amber-300">
+                            {isEnglish
+                              ? `(${stat.tieDropped} of them had the same wins)`
+                              : `（其中 ${stat.tieDropped} 人同胜场）`}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {downstream.map(stage => {
                 const seats = preview.seats.filter(seat => seat.targetStageId === stage.id);
                 if (seats.length === 0) return null;
