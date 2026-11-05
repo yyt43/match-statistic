@@ -300,19 +300,31 @@ export default function MultiStageSetup() {
     }));
   };
 
-  // 轮数默认按赛制推导；单败淘汰允许手动指定（fixedRounds），手动值优先且不会被自动值覆盖。
+  // 轮数默认按赛制推导：瑞士轮按每组人数、单败淘汰按最多可能到达人数。
+  // 两种赛制都允许手动指定（瑞士轮用 rounds + roundsManual，单败用 fixedRounds）；手动值优先，但都会被上限收敛：
+  // 单败淘汰的上限是理论轮数（例如 16 人最多 4 轮），瑞士轮的上限是每组人数 - 1（最多 20 轮）。
   useEffect(() => {
     setStages(current => {
       let changed = false;
       const next = current.map(stage => {
-        const rounds = stage.kind === 'single_elimination' && stage.fixedRounds !== undefined
-          ? stage.fixedRounds
-          : autoRounds(stage, current);
-        if (stage.rounds === rounds) return stage;
+        const auto = autoRounds(stage, current);
+        const maxRounds = stage.kind === 'single_elimination'
+          ? Math.max(1, auto)
+          : Math.max(auto, Math.min(20, Math.max(2, stage.playerCountPerGroup) - 1));
+        const rounds = stage.kind === 'single_elimination'
+          ? Math.min(stage.fixedRounds ?? auto, maxRounds)
+          : stage.roundsManual
+            ? Math.min(stage.rounds, maxRounds)
+            : auto;
+        const fixedRounds = stage.kind === 'single_elimination' && stage.fixedRounds !== undefined
+          ? Math.min(stage.fixedRounds, maxRounds)
+          : stage.fixedRounds;
+        if (stage.rounds === rounds && stage.fixedRounds === fixedRounds) return stage;
         changed = true;
         return {
           ...stage,
           rounds,
+          fixedRounds,
           roundGameTypes: fitRoundGameTypes(stage.roundGameTypes, rounds, stage.gameType),
         };
       });
@@ -1040,33 +1052,32 @@ export default function MultiStageSetup() {
                       className="text-[10px] text-slate-500"
                       title={stage.kind === 'single_elimination'
                         ? (isEnglish
-                          ? 'Single elimination: set it yourself when you need e.g. a 1-round play-in; leave empty to estimate from the arriving players.'
-                          : '单败淘汰可自行指定轮数（例如 16 人签表只打 1 轮取前 8 晋级）；留空则按到达人数估算。')
-                        : undefined}
+                          ? 'Single elimination: set it yourself when you need e.g. a 1-round play-in; leave empty to estimate from the arriving players. The upper bound is the theoretical round count (16 players → at most 4 rounds); larger values are capped.'
+                          : '单败淘汰可自行指定轮数（例如 16 人签表只打 1 轮取前 8 晋级）；留空则按到达人数估算。上限按理论轮数计算（16 人最多 4 轮），超出会被收敛到上限。')
+                        : (isEnglish
+                          ? 'Swiss rounds default to ceil(log2 players per group); you can set a different count and clear the field to go back to automatic (max: players - 1, up to 20).'
+                          : '瑞士轮默认按每组人数取 ceil(log2 人数)；也可以自行设置轮数，留空恢复自动推导（上限：每组人数 - 1，最多 20 轮）。')}
                     >
-                      {stage.kind === 'single_elimination'
-                        ? (isEnglish ? 'Rounds' : '轮数')
-                        : (isEnglish ? 'Rounds (auto)' : '轮数（自动）')}
+                      {isEnglish ? 'Rounds' : '轮数'}
                     </span>
-                    {stage.kind === 'single_elimination' ? (
-                      <NumberField
-                        value={stage.fixedRounds ?? effectiveRounds(stage)}
-                        allowEmpty
-                        min={1}
-                        max={20}
-                        onCommit={next => updateStage(stage.id, { fixedRounds: next })}
-                        ariaLabel={isEnglish ? 'Rounds for this stage' : '赛段轮数'}
-                        placeholder={isEnglish ? 'Auto' : '自动'}
-                        className="h-8 w-full rounded-md border border-slate-700/50 bg-slate-800/60 px-2 text-center text-xs text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
-                      />
-                    ) : (
-                      <span
-                        className="flex h-8 items-center rounded-md bg-slate-800/30 px-2 text-xs text-slate-300"
-                        title={isEnglish ? 'ceil(log2 players per group)' : '按每组人数自动计算：ceil(log2 人数)'}
-                      >
-                        {effectiveRounds(stage)}
-                      </span>
-                    )}
+                    <NumberField
+                      value={stage.kind === 'single_elimination'
+                        ? stage.fixedRounds ?? effectiveRounds(stage)
+                        : stage.rounds}
+                      allowEmpty
+                      min={1}
+                      max={stage.kind === 'single_elimination'
+                        ? Math.max(1, autoRounds(stage, stages))
+                        : Math.max(1, Math.min(20, Math.max(2, stage.playerCountPerGroup) - 1))}
+                      onCommit={next => updateStage(stage.id, stage.kind === 'single_elimination'
+                        ? { fixedRounds: next }
+                        : next === undefined
+                          ? { roundsManual: false }
+                          : { rounds: next, roundsManual: true })}
+                      ariaLabel={isEnglish ? 'Rounds for this stage' : '赛段轮数'}
+                      placeholder={isEnglish ? 'Auto' : '自动'}
+                      className="h-8 w-full rounded-md border border-slate-700/50 bg-slate-800/60 px-2 text-center text-xs text-slate-200 outline-none focus:border-gold-500/40 focus-visible:ring-1 focus-visible:ring-gold-400/50"
+                    />
                   </label>
 
                   <label className="flex flex-col gap-1">
