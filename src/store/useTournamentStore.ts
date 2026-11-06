@@ -801,6 +801,16 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   generateNextRound: () => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (group && group.matches.some(match => match.round === group.currentRound + 1)) {
+      set({
+        actionError: {
+          zh: '数据里已经存在下一轮的对阵（可能来自历史重复生成），请先刷新页面或重新导入备份，系统会自动修复重复对阵。',
+          en: 'The next round already exists in the data (possibly from duplicated historical matches). Refresh the page or re-import the backup so the duplicate brackets can be repaired automatically.',
+        },
+      });
+      return;
+    }
     let updated: TournamentCompetition;
     try {
       updated = generateNextRoundForCompetition(competition, idx);
@@ -811,6 +821,15 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
         return;
       }
       throw error;
+    }
+    if (group && updated.groups[idx].currentRound === group.currentRound) {
+      set({
+        actionError: {
+          zh: '本轮还有未完成的对阵，或下一轮暂时无法生成，请检查对阵结果。',
+          en: 'This round is not complete yet, or the next round cannot be generated. Please check the match results.',
+        },
+      });
+      return;
     }
     set(
       { competition: updated, viewRound: updated.groups[idx].currentRound },
@@ -825,10 +844,28 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
 
     const nextRound = group.currentRound + 1;
     if (nextRound > group.totalRounds) return;
+    if (group.matches.some(match => match.round === nextRound)) {
+      set({
+        actionError: {
+          zh: `${group.name}：数据里已经存在下一轮的对阵，请刷新页面或重新导入备份以自动修复重复对阵。`,
+          en: `${group.name}: the next round already exists. Refresh the page or re-import the backup to repair duplicate brackets.`,
+        },
+      });
+      return;
+    }
 
     // 只有单败淘汰赛才走签表生成；瑞士轮即使残留签表也按正常配对生成（P1-4）。
     if (group.pairingType === 'single_elimination' && group.eliminationBracket) {
       const updated = generateNextRoundForCompetition(competition, groupIdx);
+      if (updated.groups[groupIdx].currentRound === group.currentRound) {
+        set({
+          actionError: {
+            zh: `${group.name}：本轮还有未完成的对阵，无法生成下一轮。`,
+            en: `${group.name}: this round is not complete yet, so the next round cannot be generated.`,
+          },
+        });
+        return;
+      }
       set({ competition: updated }, { label: '生成小组下一轮' });
       return;
     }
