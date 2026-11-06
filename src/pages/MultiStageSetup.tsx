@@ -290,6 +290,13 @@ export default function MultiStageSetup() {
   const expandAllStages = () => setExpandedStageIds(new Set(stages.map(stage => stage.id)));
   const collapseAllStages = () => setExpandedStageIds(new Set());
 
+  // 「逐轮不同」：选中后展开并定位到逐轮局数编辑区（<details> 用 DOM 展开，避免受控属性反复触发 toggle）。
+  const openRoundRules = (stageId: string) => {
+    const element = document.getElementById(`round-rules-${stageId}`);
+    if (element instanceof HTMLDetailsElement) element.open = true;
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const scrollToStage = (stageId: string) => {
     document.getElementById(`stage-card-${stageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -1199,7 +1206,11 @@ export default function MultiStageSetup() {
                     <select
                       value={commonGameType(stage)}
                       onChange={event => {
-                        if (event.target.value === 'custom') return;
+                        if (event.target.value === 'custom') {
+                          // 「逐轮不同」不是一种局制：展开逐轮局数编辑区，让用户逐轮点选。
+                          openRoundRules(stage.id);
+                          return;
+                        }
                         updateStage(stage.id, {
                           roundGameTypes: Array.from(
                             { length: effectiveRounds(stage) },
@@ -1213,8 +1224,17 @@ export default function MultiStageSetup() {
                       {GAME_TYPES.map(gameType => (
                         <option key={gameType} value={gameType}>{gameType.toUpperCase()}</option>
                       ))}
-                      <option value="custom">{isEnglish ? 'Custom per round' : '逐轮不同'}</option>
+                      {effectiveRounds(stage) > 1 && (
+                        <option value="custom">{isEnglish ? 'Custom per round' : '逐轮不同'}</option>
+                      )}
                     </select>
+                    {effectiveRounds(stage) > 1 && commonGameType(stage) === 'custom' && (
+                      <span className="text-[10px] leading-tight text-slate-500">
+                        {isEnglish
+                          ? 'Set each round below under "Per-round match length".'
+                          : '已启用逐轮不同，在下方「赛段内规则 → 逐轮局数」里逐轮设置。'}
+                      </span>
+                    )}
                   </label>
                 </div>
               </div>
@@ -1301,7 +1321,7 @@ export default function MultiStageSetup() {
                   {isEnglish ? 'In-stage rules' : '赛段内规则'}
                 </span>
 
-                <details className="group">
+                <details id={`round-rules-${stage.id}`} className="group">
                   <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-[11px] text-slate-400 hover:text-slate-200">
                     <span>{isEnglish ? 'Per-round match length' : '逐轮局数'}</span>
                     <span className="text-[10px] text-slate-500">
