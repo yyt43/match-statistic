@@ -6,15 +6,15 @@ interface BracketImageViewProps {
   isEnglish: boolean;
 }
 
-const NODE_WIDTH = 214;
-const COLUMN_GAP = 46;
-const ROW_HEIGHT = 148;
+const NODE_WIDTH = 320;
+const COLUMN_GAP = 182;
+const ROW_HEIGHT = 138;
 const HEADER_HEIGHT = 28;
 const BODY_GAP = 14;
-const MATCH_NODE_HEIGHT = 100;
-const CHAMPION_WIDTH = 176;
-const CHAMPION_GAP = 40;
-const CHAMPION_NODE_HEIGHT = 112;
+const MATCH_NODE_HEIGHT = 96;
+const CHAMPION_WIDTH = 220;
+const CHAMPION_GAP = 70;
+const CHAMPION_NODE_HEIGHT = 108;
 
 const COLORS = {
   paper: '#0B1020',
@@ -167,9 +167,9 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
         <span
           style={{
             position: 'absolute',
-            left: 12,
-            top: 18,
-            width: 40,
+            left: 14,
+            top: 16,
+            width: 46,
             fontSize: 10,
             letterSpacing: '0.04em',
             color: COLORS.faint,
@@ -181,25 +181,25 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
           <span
           style={{
             position: 'absolute',
-            left: 62,
-            right: 34,
-            top: 14,
+            left: 70,
+            right: 52,
+            top: 12,
             whiteSpace: 'nowrap',
-            fontSize: 14,
-            lineHeight: '21px',
+            fontSize: 15,
+            lineHeight: '22px',
             fontWeight: winner ? 700 : 500,
             color: isPending ? COLORS.muted : winner ? COLORS.winnerText : COLORS.text,
           }}
         >
-          {truncateLabel(displayName(playerId), 10)}
+          {truncateLabel(displayName(playerId), 14)}
         </span>
         <span
           style={{
             position: 'absolute',
-            right: 12,
-            top: 14,
-            fontSize: 13,
-            lineHeight: '21px',
+            right: 16,
+            top: 12,
+            fontSize: 14,
+            lineHeight: '22px',
             fontWeight: 600,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             color: winner ? COLORS.winnerText : COLORS.muted,
