@@ -1,7 +1,7 @@
 import type { TournamentCompetition } from '../../types';
 import { validateCompetitionData } from '../schema';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from '../storage/migrations';
-import { repairCompetitionEliminationMatches } from '../eliminationRepair';
+import { repairCompetitionEliminationMatches, reconcileCompetitionRounds } from '../eliminationRepair';
 
 /** 导入文件大小上限：超过后直接拒绝，不做读取和解析，避免大文件卡死页面。 */
 export const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024;
@@ -137,7 +137,8 @@ export function prepareImportedCompetition(value: unknown): TournamentCompetitio
   // 旧版本可能导出过重复或超出轮数的签表场次（例如突围赛只有 1 轮却生成了第 2 轮），
   // 这里先修复再校验，用户的历史导出文件仍然可以导入。
   const { competition: repaired } = repairCompetitionEliminationMatches(migrated);
-  const validation = validateCompetitionData(repaired);
+  const reconciled = reconcileCompetitionRounds(repaired);
+  const validation = validateCompetitionData(reconciled);
   if (!validation.success) {
     throw new BackupImportError(
       'invalid-data',

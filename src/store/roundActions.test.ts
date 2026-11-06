@@ -123,7 +123,7 @@ describe('配对失败提示（P1-2 调用方）', () => {
     expect(state.competition.groups[0].currentRound).toBe(3);
   });
 
-  it('reports an action error when the next round already exists in the data', () => {
+  it('recovers automatically when the next round already exists but currentRound is stale', () => {
     const competition = singleEliminationCompetition();
     const withRound1 = generateNextRoundForCompetition(competition, 0);
     const group = withRound1.groups[0];
@@ -147,8 +147,8 @@ describe('配对失败提示（P1-2 调用方）', () => {
     useTournamentStore.getState().generateNextRound();
 
     const state = useTournamentStore.getState();
-    expect(state.actionError?.zh).toContain('已经存在下一轮');
-    expect(state.competition.groups[0].currentRound).toBe(1);
+    expect(state.actionError).toBeNull();
+    expect(state.competition.groups[0].currentRound).toBe(2);
   });
 
   it('reports an action error when the bracket round cannot be generated yet', () => {

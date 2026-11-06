@@ -4,7 +4,7 @@ import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
 import { broadcastCompetitionSaved } from './storageSync';
 import { validateCompetitionData } from '../schema';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
-import { repairCompetitionEliminationMatches } from '../eliminationRepair';
+import { repairCompetitionEliminationMatches, reconcileCompetitionRounds } from '../eliminationRepair';
 
 export const STORAGE_KEY = 'swiss_tournament_data';
 export const BACKUP_KEY = 'swiss_tournament_data_backup';
@@ -264,7 +264,9 @@ function migrateAndValidateStoredCompetition(
       ')'
     );
   }
-  const validation = validateCompetitionData(repaired.competition);
+  // 早期版本生成下一轮后可能没有同步 currentRound，导致刷新后仍然「下一轮已存在」。
+  const reconciled = reconcileCompetitionRounds(repaired.competition);
+  const validation = validateCompetitionData(reconciled);
   if (!validation.success) {
     return { ok: false, error: validation.message };
   }
