@@ -88,6 +88,14 @@ describe('generateNextRoundForCompetition', () => {
     expect(() => generateNextRoundForCompetition(exhaustedSwissCompetition(), 0))
       .toThrow(PairingBlockedError);
   });
+
+  it('does not append the same bracket round twice', () => {
+    const first = generateNextRoundForCompetition(singleEliminationCompetition(), 0);
+    const firstMatches = first.groups[0].matches.length;
+    const second = generateNextRoundForCompetition(first, 0);
+    expect(second.groups[0].matches).toHaveLength(firstMatches);
+    expect(second.groups[0].matches.filter(match => match.round === 1)).toHaveLength(firstMatches);
+  });
 });
 
 describe('配对失败提示（P1-2 调用方）', () => {

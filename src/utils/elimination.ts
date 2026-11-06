@@ -490,6 +490,8 @@ export function createEliminationNextRoundMatches(
 ): Match[] {
   const bracket = group.eliminationBracket;
   if (!bracket || round <= 1 || round > getEliminationBracketRounds(bracket.size)) return [];
+  // 同一轮已经生成过对阵时直接返回，避免重复调用把同一签表节点灌成多条。
+  if (group.matches.some(match => match.round === round)) return [];
 
   const previousRoundMatches = sortBracketMatches(
     group.matches.filter(match => match.round === round - 1)
@@ -565,7 +567,13 @@ export function rebuildEliminationMatchesAfterResult(
     !match.bracketNodeId || match.round <= round
   );
   const rebuiltMatches = [...keptMatches];
-  const totalRounds = getEliminationBracketRounds(bracket.size);
+  const bracketRounds = getEliminationBracketRounds(bracket.size);
+  // 赛段可以手动限制轮数（例如突围赛 16 人只打 1 轮），
+  // 重建后续轮次时不能越过该限制，否则会生成永远不该存在的场次。
+  const configuredRounds = Number.isInteger(group.totalRounds) && group.totalRounds > 0
+    ? group.totalRounds
+    : bracketRounds;
+  const totalRounds = Math.max(1, Math.min(bracketRounds, configuredRounds));
 
   for (let nextRound = round + 1; nextRound <= totalRounds; nextRound += 1) {
     const nextMatches = createEliminationNextRoundMatches(

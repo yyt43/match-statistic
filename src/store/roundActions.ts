@@ -66,6 +66,8 @@ export function generateNextRoundForCompetition(
 
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return competition;
+  // 该轮已经生成过对阵时不要重复追加，否则同一签表节点会出现多条重复场次。
+  if (group.matches.some(match => match.round === nextRound)) return competition;
 
   // 只有"单败淘汰赛 + 已有签表"才按签表生成对阵；
   // 其它配对类型即使残留了 eliminationBracket 也必须走正常配对（P1-4）。

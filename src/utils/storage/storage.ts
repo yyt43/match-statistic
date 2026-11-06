@@ -4,6 +4,7 @@ import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
 import { broadcastCompetitionSaved } from './storageSync';
 import { validateCompetitionData } from '../schema';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
+import { repairCompetitionEliminationMatches } from '../eliminationRepair';
 
 export const STORAGE_KEY = 'swiss_tournament_data';
 export const BACKUP_KEY = 'swiss_tournament_data_backup';
@@ -249,7 +250,21 @@ function migrateAndValidateStoredCompetition(
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-  const validation = validateCompetitionData(migrated);
+  // 历史数据可能因为早先的生成逻辑留下重复 / 超出轮数的签表场次，
+  // 先修复再校验，避免用户升级后反而打不开自己的存档。
+  const repaired = repairCompetitionEliminationMatches(migrated);
+  if (repaired.report.removed > 0) {
+    console.warn(
+      '[storage] Repaired elimination matches:',
+      repaired.report.removed,
+      'removed (dedupe:',
+      repaired.report.deduped,
+      ', out-of-range:',
+      repaired.report.trimmed,
+      ')'
+    );
+  }
+  const validation = validateCompetitionData(repaired.competition);
   if (!validation.success) {
     return { ok: false, error: validation.message };
   }
