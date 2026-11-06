@@ -11,6 +11,8 @@ export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
   if (group.status !== 'in_progress') return group;
   const nextRound = group.currentRound + 1;
   if (nextRound > group.totalRounds) return group;
+  // 该轮已有对阵时不重复生成（与 roundActions 保持一致，防止重复签表节点）。
+  if (group.matches.some(match => match.round === nextRound)) return group;
 
   // 与 roundActions / generateNextRound 一致：只有单败淘汰赛 + 已有签表才按签表生成，
   // 历史数据里瑞士轮残留的 eliminationBracket 不能把赛程带偏。
