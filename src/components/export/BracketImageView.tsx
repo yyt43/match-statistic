@@ -99,7 +99,12 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
   const firstRoundCount = rounds[0].nodes.length;
   const bodyHeight = Math.max(1, firstRoundCount) * ROW_HEIGHT;
   const bracketWidth = rounds.length * NODE_WIDTH + Math.max(0, rounds.length - 1) * COLUMN_GAP;
-  const championWidth = CHAMPION_GAP + CHAMPION_WIDTH;
+  // 还没打到最后一轮（且没有产生冠军）时不展示冠军块，避免出现「没打完就写待定」。
+  const finalRoundNumber =
+    group.totalRounds || rounds[rounds.length - 1]?.round || rounds.length;
+  const showChampion =
+    Boolean(view.championId) || group.currentRound >= finalRoundNumber;
+  const championWidth = showChampion ? CHAMPION_GAP + CHAMPION_WIDTH : 0;
   const totalWidth = bracketWidth + championWidth;
   const finalRound = rounds[rounds.length - 1];
   const finalCenterY = getNodeCenterY(finalRound.round, 0);
@@ -266,7 +271,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
               {roundLabel(round.round, bracketSize, isEnglish)}
             </div>
           ))}
-          {rounds.length > 0 && (
+          {showChampion && (
             <div
               style={{
                 position: 'absolute',
@@ -328,7 +333,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 ];
               })
             )}
-            {rounds.length > 0 && (
+            {showChampion && (
               <path
                 d={`M ${getColumnX(finalRound.round) + NODE_WIDTH} ${finalCenterY} H ${championX}`}
                 fill="none"
@@ -363,7 +368,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
             ))
           )}
 
-          {rounds.length > 0 && (
+          {showChampion && (
             <div
               style={{
                 position: 'absolute',
@@ -382,9 +387,11 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 gap: 8,
               }}
             >
-              <div style={{ fontSize: 11, letterSpacing: '0.24em', color: COLORS.championLabel }}>
-                {isEnglish ? 'CHAMPION' : '冠军'}
-              </div>
+              {champion && (
+                <div style={{ fontSize: 11, letterSpacing: '0.24em', color: COLORS.championLabel }}>
+                  {isEnglish ? 'CHAMPION' : '冠军'}
+                </div>
+              )}
               <div
                 style={{
                   maxWidth: CHAMPION_WIDTH - 24,
@@ -394,7 +401,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                   color: COLORS.championName,
                 }}
               >
-                {champion ? truncateLabel(getPlayerDisplayName(champion), 8) : isEnglish ? 'TBD' : '待定'}
+                {champion ? truncateLabel(getPlayerDisplayName(champion), 8) : isEnglish ? 'Champion' : '冠军'}
               </div>
             </div>
           )}
