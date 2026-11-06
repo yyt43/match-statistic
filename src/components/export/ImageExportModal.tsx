@@ -3,7 +3,7 @@ import { X, Download, Camera, Trophy, Swords, Users, Calendar, AlertTriangle, Gi
 import { RankingImageView } from './RankingImageView';
 import { FinalStandingsImageView } from './FinalStandingsImageView';
 import { MatchImageView } from '../matches/MatchImageView';
-import { EliminationBracketTree } from '../competition/EliminationBracketTree';
+import { BracketImageView } from './BracketImageView';
 import { generateImage } from '../../utils/export/imageExport';
 import { useTournamentStore, useCurrentGroup } from '../../store/useTournamentStore';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
@@ -193,18 +193,9 @@ export function ImageExportModal({ isOpen, onClose, initialType = 'ranking', exp
       ) : (
         <div
           id="bracket-image"
-          className="rounded-xl border border-slate-700/60 bg-slate-900 p-4"
+          className="w-fit overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950"
         >
-          <div className="mb-3 text-center text-sm font-semibold text-white">
-            {previewGroup.name} · {language === 'en' ? 'Bracket' : '淘汰签表'}
-          </div>
-          {previewGroup.eliminationBracket ? (
-            <EliminationBracketTree group={previewGroup} isEnglish={language === 'en'} />
-          ) : (
-            <div className="py-16 text-center text-sm text-slate-500">
-              {language === 'en' ? 'This group has no fixed bracket.' : '该小组暂无固定签表。'}
-            </div>
-          )}
+          <BracketImageView group={previewGroup} isEnglish={language === 'en'} />
         </div>
       )}
     </div>
