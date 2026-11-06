@@ -35,6 +35,7 @@ import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators'
 import { normalizeResultScore } from '../utils/matchResult';
 import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTournamentForGroup } from './roundActions';
 import { getCurrentStageGroupIndices } from '../utils/multiStage';
+import { reconcileCompetitionRounds } from '../utils/eliminationRepair';
 import {
   getStageResultLockMessage,
   getUnconfirmedUpstreamStageIds,
@@ -799,14 +800,19 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   },
 
   generateNextRound: () => {
+    const reconciled = reconcileCompetitionRounds(get().competition);
+    if (reconciled !== get().competition) {
+      set({ competition: reconciled }, { label: '修复轮次状态' });
+    }
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const group = competition.groups[idx];
+    if (group && group.currentRound >= group.totalRounds) return;
     if (group && group.matches.some(match => match.round === group.currentRound + 1)) {
       set({
         actionError: {
-          zh: '数据里已经存在下一轮的对阵（可能来自历史重复生成），请先刷新页面或重新导入备份，系统会自动修复重复对阵。',
-          en: 'The next round already exists in the data (possibly from duplicated historical matches). Refresh the page or re-import the backup so the duplicate brackets can be repaired automatically.',
+          zh: '数据里还存在没有对应上的下一轮对阵（轮次不连续），系统无法自动修复；请重新导入备份，或撤销到上一轮后重试。',
+          en: 'The data still has a next round without a continuous round history, so it cannot be repaired automatically. Re-import the backup, or undo to the previous round and try again.',
         },
       });
       return;
@@ -838,6 +844,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   },
 
   generateNextRoundForGroup: (groupIdx: number) => {
+    const reconciled = reconcileCompetitionRounds(get().competition);
+    if (reconciled !== get().competition) {
+      set({ competition: reconciled }, { label: '修复轮次状态' });
+    }
     const { competition } = get();
     const group = competition.groups[groupIdx];
     if (!group || group.status !== 'in_progress') return;
@@ -847,8 +857,8 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     if (group.matches.some(match => match.round === nextRound)) {
       set({
         actionError: {
-          zh: `${group.name}：数据里已经存在下一轮的对阵，请刷新页面或重新导入备份以自动修复重复对阵。`,
-          en: `${group.name}: the next round already exists. Refresh the page or re-import the backup to repair duplicate brackets.`,
+          zh: `${group.name}：数据里还存在没有对应上的下一轮对阵（轮次不连续），系统无法自动修复；请重新导入备份，或撤销到上一轮后重试。`,
+          en: `${group.name}: the data has a next round without a continuous round history. Re-import the backup, or undo to the previous round and try again.`,
         },
       });
       return;
@@ -918,6 +928,10 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   },
 
   generateNextRoundAllGroups: () => {
+    const reconciled = reconcileCompetitionRounds(get().competition);
+    if (reconciled !== get().competition) {
+      set({ competition: reconciled }, { label: '修复轮次状态' });
+    }
     const { competition } = get();
 
     // 为所有 in_progress 且当前轮已完成的小组生成下一轮

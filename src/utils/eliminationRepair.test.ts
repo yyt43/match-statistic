@@ -5,7 +5,7 @@ import {
   createEliminationNextRoundMatches,
   createOrderedEliminationBracket,
 } from './elimination';
-import { repairCompetitionEliminationMatches } from './eliminationRepair';
+import { reconcileCompetitionRounds, repairCompetitionEliminationMatches } from './eliminationRepair';
 
 function player(id: string): Player {
   return {
@@ -192,5 +192,44 @@ describe('repairCompetitionEliminationMatches', () => {
 
     expect(repaired.report).toEqual({ removed: 0, deduped: 0, trimmed: 0, groups: 0 });
     expect(repaired.competition.groups[0]).toBe(healthy);
+  });
+});
+
+describe('reconcileCompetitionRounds', () => {
+  it('moves currentRound up to the highest round that already has matches', () => {
+    const players = Array.from({ length: 8 }, (_, index) => player(`p${index + 1}`));
+    const bracket = createOrderedEliminationBracket(players);
+    const base = { ...group(players, 3), currentRound: 1, eliminationBracket: bracket };
+    let firstRound = createEliminationFirstRoundMatches(base, bracket);
+    firstRound = firstRound.map(match => play([match], match.id, 'player1')[0]!);
+    const secondRound = createEliminationNextRoundMatches({ ...base, matches: firstRound }, 2);
+    const stale = { ...base, matches: [...firstRound, ...secondRound] };
+
+    const competition = {
+      id: 'competition-4',
+      name: 'stale',
+      createdAt: new Date().toISOString(),
+      groups: [stale, { ...stale, id: 'group-2' }],
+    } as never;
+    const reconciled = reconcileCompetitionRounds(competition);
+
+    expect(reconciled).not.toBe(competition);
+    expect(reconciled.groups[0]?.currentRound).toBe(2);
+    expect(reconciled.groups[1]?.currentRound).toBe(2);
+  });
+
+  it('returns the same competition when every round counter is already right', () => {
+    const players = Array.from({ length: 8 }, (_, index) => player(`p${index + 1}`));
+    const bracket = createOrderedEliminationBracket(players);
+    const base = { ...group(players, 3), currentRound: 1, eliminationBracket: bracket };
+    const firstRound = createEliminationFirstRoundMatches(base, bracket);
+    const competition = {
+      id: 'competition-5',
+      name: 'healthy-rounds',
+      createdAt: new Date().toISOString(),
+      groups: [{ ...base, matches: firstRound }],
+    } as never;
+
+    expect(reconcileCompetitionRounds(competition)).toBe(competition);
   });
 });

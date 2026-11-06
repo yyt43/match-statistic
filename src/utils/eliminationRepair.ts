@@ -228,3 +228,27 @@ export function repairCompetitionEliminationMatches(
     report: { removed, deduped, trimmed, groups: repairedGroups },
   };
 }
+
+/**
+ * 把「已经存在后续轮次，但 currentRound 还停在前面」的赛段修正为实际最高轮次。
+ *
+ * 早期版本在生成下一轮后没有同步 currentRound（或重复生成时被覆盖），
+ * 会留下「下一轮对阵已经存在，但系统以为还没生成」的状态：
+ * 界面会提示数据里已经存在下一轮，用户刷新也无法摆脱。
+ * 这里按实际场次把 currentRound 推到最高轮次（不超过 totalRounds）。
+ */
+export function reconcileCompetitionRounds(
+  competition: TournamentCompetition
+): TournamentCompetition {
+  let changed = false;
+  const groups = competition.groups.map(group => {
+    if (group.matches.length === 0) return group;
+    const highestRound = group.matches.reduce((max, match) => Math.max(max, match.round), 0);
+    const totalRounds = Math.max(1, group.totalRounds || highestRound);
+    const targetRound = Math.min(highestRound, totalRounds);
+    if (targetRound <= group.currentRound) return group;
+    changed = true;
+    return { ...group, currentRound: targetRound };
+  });
+  return changed ? { ...competition, groups } : competition;
+}
