@@ -1034,7 +1034,7 @@ export function ControlPanel({
                 <Play className="w-4 h-4" />
                 {t.generateNextRound}
               </button>
-              {competition.groups.length > 1 && competition.groups.some(group => {
+              {startScopeGroups.length > 1 && startScopeGroups.some(group => {
                 if (group.status !== 'in_progress') return false;
                 if (group.currentRound >= group.totalRounds) return false;
                 const matches = group.matches.filter(match => match.round === group.currentRound);

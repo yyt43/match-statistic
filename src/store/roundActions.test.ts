@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { TournamentCompetition } from '../types';
-import { createOrderedEliminationBracket } from '../utils/elimination';
+import { createEliminationNextRoundMatches, createOrderedEliminationBracket } from '../utils/elimination';
 import { PairingBlockedError } from '../utils/swissPairing';
 import { generateNextRoundForCompetition } from './roundActions';
 import { createNewCompetition } from './tournamentFactory';
@@ -121,5 +121,46 @@ describe('配对失败提示（P1-2 调用方）', () => {
     expect(state.actionError?.zh).toContain('无法完成配对');
     expect(state.actionError?.en.toLowerCase()).toContain('cannot generate this round');
     expect(state.competition.groups[0].currentRound).toBe(3);
+  });
+
+  it('reports an action error when the next round already exists in the data', () => {
+    const competition = singleEliminationCompetition();
+    const withRound1 = generateNextRoundForCompetition(competition, 0);
+    const group = withRound1.groups[0];
+    const finishedRound1 = group.matches.map(match => ({
+      ...match,
+      result: 'player1' as const,
+      player1Games: 1,
+      player2Games: 0,
+    }));
+    const round2 = createEliminationNextRoundMatches(
+      { ...group, matches: finishedRound1 },
+      2
+    );
+    // currentRound 仍停在 1，但第 2 轮已经存在——旧版本的重复生成会留下这种状态。
+    const corrupted = {
+      ...withRound1,
+      groups: [{ ...group, currentRound: 1, matches: [...finishedRound1, ...round2] }],
+    };
+    useTournamentStore.setState({ competition: corrupted, viewRound: 1, actionError: null });
+
+    useTournamentStore.getState().generateNextRound();
+
+    const state = useTournamentStore.getState();
+    expect(state.actionError?.zh).toContain('已经存在下一轮');
+    expect(state.competition.groups[0].currentRound).toBe(1);
+  });
+
+  it('reports an action error when the bracket round cannot be generated yet', () => {
+    const competition = singleEliminationCompetition();
+    const withRound1 = generateNextRoundForCompetition(competition, 0);
+    expect(withRound1.groups[0].matches.every(match => match.result === 'pending')).toBe(true);
+    useTournamentStore.setState({ competition: withRound1, viewRound: 1, actionError: null });
+
+    useTournamentStore.getState().generateNextRound();
+
+    const state = useTournamentStore.getState();
+    expect(state.actionError).not.toBeNull();
+    expect(state.competition.groups[0].currentRound).toBe(1);
   });
 });
