@@ -1,6 +1,5 @@
 import type { TournamentGroup } from '../../types';
 import { getEliminationBracketView, getVisibleBracketRounds } from '../../utils/elimination';
-import { getPlayerDisplayName } from '../../utils/playerProfiles';
 
 interface BracketImageViewProps {
   group: TournamentGroup;
@@ -401,7 +400,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                   color: COLORS.championName,
                 }}
               >
-                {champion ? truncateLabel(getPlayerDisplayName(champion), 8) : isEnglish ? 'Champion' : '冠军'}
+                {champion ? truncateLabel(champion.name, 8) : isEnglish ? 'Champion' : '冠军'}
               </div>
             </div>
           )}
