@@ -1,5 +1,9 @@
 import type { TournamentGroup } from '../../types';
-import { getEliminationBracketView, getVisibleBracketRounds } from '../../utils/elimination';
+import {
+  getEliminationBracketRounds,
+  getEliminationBracketView,
+  getVisibleBracketRounds,
+} from '../../utils/elimination';
 
 interface BracketImageViewProps {
   group: TournamentGroup;
@@ -98,11 +102,13 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
   const firstRoundCount = rounds[0].nodes.length;
   const bodyHeight = Math.max(1, firstRoundCount) * ROW_HEIGHT;
   const bracketWidth = rounds.length * NODE_WIDTH + Math.max(0, rounds.length - 1) * COLUMN_GAP;
-  // 还没打到最后一轮（且没有产生冠军）时不展示冠军块，避免出现「没打完就写待定」。
-  const finalRoundNumber =
-    group.totalRounds || rounds[rounds.length - 1]?.round || rounds.length;
-  const showChampion =
-    Boolean(view.championId) || group.currentRound >= finalRoundNumber;
+  // 只有「实际会决出冠军」的单败赛段才显示冠军块：
+  // 突围赛这类只打部分轮次（totalRounds 小于签表深度）的赛段不显示冠军，
+  // 按实际轮数判断，而不是按当前进行到第几轮。
+  const bracketDepth = getEliminationBracketRounds(bracket.size);
+  const actualRounds = group.totalRounds || bracketDepth;
+  const decidesChampion = actualRounds >= bracketDepth;
+  const showChampion = Boolean(view.championId) || decidesChampion;
   const championWidth = showChampion ? CHAMPION_GAP + CHAMPION_WIDTH : 0;
   const totalWidth = bracketWidth + championWidth;
   const finalRound = rounds[rounds.length - 1];
@@ -223,9 +229,9 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
         fontFamily: '"Inter", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: '0.32em', color: COLORS.muted }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.32em', color: COLORS.muted, whiteSpace: 'nowrap' }}>
             MATCH STATISTIC · {isEnglish ? 'SINGLE ELIMINATION' : '单败淘汰'}
           </div>
           <div style={{ marginTop: 8, fontSize: 26, fontWeight: 800, letterSpacing: '0.02em' }}>
@@ -236,16 +242,16 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
             {gameTypes.length > 0 ? ` · ${gameTypes.join(' / ')}` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingTop: 6, fontSize: 11, color: COLORS.muted }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 6, fontSize: 11, color: COLORS.muted, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <span style={{ width: 18, height: 2, background: COLORS.upper, borderRadius: 2 }} />
             {isEnglish ? 'Upper half' : '上半区'}
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <span style={{ width: 18, height: 2, background: COLORS.lower, borderRadius: 2 }} />
             {isEnglish ? 'Lower half' : '下半区'}
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <span style={{ width: 18, height: 2, background: COLORS.neutral, borderRadius: 2 }} />
             {isEnglish ? 'Final' : '决赛'}
           </span>
