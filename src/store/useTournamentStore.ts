@@ -800,23 +800,44 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   },
 
   generateNextRound: () => {
-    const reconciled = reconcileCompetitionRounds(get().competition);
-    if (reconciled !== get().competition) {
+    const original = get().competition;
+    const originalIdx = original.currentGroupIndex;
+    const originalGroup = original.groups[originalIdx];
+    // 录入完一轮结果后，签表会提前把下一轮对阵挂到 matches 里（currentRound 可能还没跟上）。
+    // 这种情况只需要把视图切到那一轮，不应再尝试生成更多轮次。
+    const nextRoundAlreadyExists = Boolean(
+      originalGroup
+      && originalGroup.matches.some(match => match.round === originalGroup.currentRound + 1)
+    );
+
+    const reconciled = reconcileCompetitionRounds(original);
+    if (reconciled !== original) {
       set({ competition: reconciled }, { label: '修复轮次状态' });
     }
     const { competition } = get();
     const idx = competition.currentGroupIndex;
     const group = competition.groups[idx];
-    if (group && group.currentRound >= group.totalRounds) return;
-    if (group && group.matches.some(match => match.round === group.currentRound + 1)) {
+    if (!group) return;
+
+    if (nextRoundAlreadyExists || group.currentRound >= group.totalRounds) {
+      // 已经是最后一轮，或下一轮对阵已经生成：把当前视图切到这一轮，避免「点了没反应」。
+      if (get().viewRound !== group.currentRound) {
+        set({ viewRound: group.currentRound });
+      }
+      return;
+    }
+
+    const currentRoundMatches = group.matches.filter(match => match.round === group.currentRound);
+    if (currentRoundMatches.some(match => match.result === 'pending')) {
       set({
         actionError: {
-          zh: '数据里还存在没有对应上的下一轮对阵（轮次不连续），系统无法自动修复；请重新导入备份，或撤销到上一轮后重试。',
-          en: 'The data still has a next round without a continuous round history, so it cannot be repaired automatically. Re-import the backup, or undo to the previous round and try again.',
+          zh: '本轮还有未完成的对阵，请先把当前轮所有比赛录完再生成下一轮。',
+          en: 'This round still has unfinished matches. Complete every match in the current round before generating the next one.',
         },
       });
       return;
     }
+
     let updated: TournamentCompetition;
     try {
       updated = generateNextRoundForCompetition(competition, idx);
@@ -844,8 +865,15 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
   },
 
   generateNextRoundForGroup: (groupIdx: number) => {
-    const reconciled = reconcileCompetitionRounds(get().competition);
-    if (reconciled !== get().competition) {
+    const original = get().competition;
+    const originalGroup = original.groups[groupIdx];
+    const nextRoundAlreadyExists = Boolean(
+      originalGroup
+      && originalGroup.matches.some(match => match.round === originalGroup.currentRound + 1)
+    );
+
+    const reconciled = reconcileCompetitionRounds(original);
+    if (reconciled !== original) {
       set({ competition: reconciled }, { label: '修复轮次状态' });
     }
     const { competition } = get();
@@ -853,7 +881,13 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     if (!group || group.status !== 'in_progress') return;
 
     const nextRound = group.currentRound + 1;
-    if (nextRound > group.totalRounds) return;
+    if (nextRoundAlreadyExists || nextRound > group.totalRounds) {
+      // 下一轮对阵已经生成（录入结果时签表会提前挂上），切过去即可，不应报错。
+      if (groupIdx === competition.currentGroupIndex && get().viewRound !== group.currentRound) {
+        set({ viewRound: group.currentRound });
+      }
+      return;
+    }
     if (group.matches.some(match => match.round === nextRound)) {
       set({
         actionError: {
