@@ -149,6 +149,8 @@ describe('配对失败提示（P1-2 调用方）', () => {
     const state = useTournamentStore.getState();
     expect(state.actionError).toBeNull();
     expect(state.competition.groups[0].currentRound).toBe(2);
+    // 下一轮对阵已经存在时必须把视图切过去，否则用户会以为按钮没反应。
+    expect(state.viewRound).toBe(2);
   });
 
   it('reports an action error when the bracket round cannot be generated yet', () => {
