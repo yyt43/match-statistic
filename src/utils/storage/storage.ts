@@ -1,7 +1,7 @@
 import type { TournamentCompetition, TournamentGroup, TournamentStatus, GameType, PairingType, Player, Match } from '../../types';
 import { notifyStorageStatus, getStorageStatus, estimateDataSize } from './storageStatus';
 import { idbDelete, idbGet, idbSet, isIndexedDbAvailable } from './indexedDb';
-import { broadcastCompetitionSaved } from './storageSync';
+import { broadcastCompetitionSaved, canWriteCompetition } from './storageSync';
 import { validateCompetitionData } from '../schema';
 import { CURRENT_STORAGE_VERSION, migrateCompetitionData } from './migrations';
 import { repairCompetitionEliminationMatches, reconcileCompetitionRounds } from '../eliminationRepair';
@@ -355,6 +355,10 @@ async function persistStorageMeta(meta: StorageMeta): Promise<void> {
 }
 
 export function saveCompetition(competition: TournamentCompetition): void {
+  if (!canWriteCompetition()) {
+    notifyStorageStatus('error', { key: 'storageReadOnlyWriteBlocked' });
+    return;
+  }
   const rawSize = estimateDataSize(competition);
   const dataToSave = shouldCompress(rawSize) ? compressCompetition(competition) : competition;
   const envelope: StorageEnvelope = {
@@ -407,7 +411,7 @@ export function flushStorage(): Promise<void> {
   return writeQueue;
 }
 
-export type LoadCompetitionStatus = 'ok' | 'empty' | 'corrupt';
+export type LoadCompetitionStatus = 'ok' | 'empty' | 'corrupt' | 'recovery';
 
 export interface LoadCompetitionResult {
   status: LoadCompetitionStatus;
@@ -435,6 +439,7 @@ export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
 
   const candidates: StoredCandidate[] = [];
   const corruptSources: string[] = [];
+  let indexedDbMainNeedsRecovery = false;
 
   const addCandidate = (
     parsed: { competition: TournamentCompetition; savedAt?: string; wasMigrated: boolean } | null,
@@ -448,9 +453,11 @@ export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
   };
 
   // 只有确实存在记录、但解析/迁移/校验失败时才登记为损坏。
-  const addStored = (stored: unknown, source: StoredSource) => {
-    if (stored === null || stored === undefined) return;
-    addCandidate(prepareStoredCompetition(parseStoredValue(stored)), source);
+  const addStored = (stored: unknown, source: StoredSource): boolean => {
+    if (stored === null || stored === undefined) return true;
+    const parsed = prepareStoredCompetition(parseStoredValue(stored));
+    addCandidate(parsed, source);
+    return parsed !== null;
   };
 
   const addLocal = (key: string, source: StoredSource) => {
@@ -467,8 +474,11 @@ export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
 
   if (isIndexedDbAvailable()) {
     try {
-      addStored(await idbGet<unknown>(STORAGE_KEY), 'indexeddb-main');
+      if (!addStored(await idbGet<unknown>(STORAGE_KEY), 'indexeddb-main')) {
+        indexedDbMainNeedsRecovery = true;
+      }
     } catch (error) {
+      indexedDbMainNeedsRecovery = true;
       console.warn('[storage] IndexedDB read failed, falling back to localStorage', error);
     }
     try {
@@ -480,6 +490,24 @@ export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
 
   addLocal(STORAGE_KEY, 'local-main');
   addLocal(BACKUP_KEY, 'local-backup');
+
+  if (indexedDbMainNeedsRecovery) {
+    const timestamp = (savedAt?: string): number => {
+      if (!savedAt) return 0;
+      const value = Date.parse(savedAt);
+      return Number.isFinite(value) ? value : 0;
+    };
+    candidates.sort((a, b) => timestamp(b.savedAt) - timestamp(a.savedAt));
+    const fallback = candidates[0];
+    return {
+      status: 'recovery',
+      competition: fallback?.competition,
+      savedAt: fallback?.savedAt,
+      error: fallback
+        ? `IndexedDB primary record could not be verified; ${fallback.source} may be an older copy.`
+        : 'IndexedDB primary record could not be read or verified; no readable fallback copy is available.',
+    };
+  }
 
   if (candidates.length === 0) {
     return corruptSources.length > 0
@@ -526,7 +554,7 @@ export async function loadCompetitionResult(): Promise<LoadCompetitionResult> {
 
 export async function loadCompetition(): Promise<TournamentCompetition | null> {
   const result = await loadCompetitionResult();
-  return result.competition ?? null;
+  return result.status === 'ok' ? result.competition ?? null : null;
 }
 
 export interface StoredRawRecord {

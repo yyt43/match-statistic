@@ -2,6 +2,11 @@ const DB_NAME = 'match-statistic-storage';
 const DB_VERSION = 1;
 const STORE_NAME = 'key-value';
 
+interface IndexedDbWriterLease {
+  tabId: string;
+  expiresAt: number;
+}
+
 let databasePromise: Promise<IDBDatabase | null> | null = null;
 
 export function isIndexedDbAvailable(): boolean {
@@ -103,4 +108,103 @@ export function idbSet(key: string, value: unknown): Promise<void> {
 
 export function idbDelete(key: string): Promise<void> {
   return runRequest('readwrite', store => store.delete(key)).then(() => undefined);
+}
+
+/** Claim a writer lease in a readwrite transaction, which is atomic across tabs. */
+export async function claimIndexedDbWriterLease(
+  key: string,
+  tabId: string,
+  now: number,
+  expiresAt: number
+): Promise<boolean | null> {
+  const database = await openDatabase();
+  if (!database) return null;
+
+  return new Promise<boolean>((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(STORE_NAME, 'readwrite');
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+
+    let claimed = false;
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(claimed);
+    };
+    transaction.onabort = () => fail(transaction.error ?? new Error('IndexedDB lease transaction aborted'));
+    transaction.onerror = () => fail(transaction.error ?? new Error('IndexedDB lease transaction failed'));
+
+    try {
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key) as IDBRequest<IndexedDbWriterLease | undefined>;
+      request.onsuccess = () => {
+        const lease = request.result;
+        const heldByOther = lease
+          && typeof lease.tabId === 'string'
+          && typeof lease.expiresAt === 'number'
+          && lease.expiresAt > now
+          && lease.tabId !== tabId;
+        if (heldByOther) return;
+
+        claimed = true;
+        store.put({ tabId, expiresAt }, key);
+      };
+      request.onerror = () => fail(request.error ?? new Error('IndexedDB lease read failed'));
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
+/** Release a writer lease only when it still belongs to this tab. */
+export async function releaseIndexedDbWriterLease(key: string, tabId: string): Promise<void> {
+  const database = await openDatabase();
+  if (!database) return;
+
+  await new Promise<void>((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(STORE_NAME, 'readwrite');
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    transaction.onabort = () => fail(transaction.error ?? new Error('IndexedDB lease release aborted'));
+    transaction.onerror = () => fail(transaction.error ?? new Error('IndexedDB lease release failed'));
+
+    try {
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key) as IDBRequest<IndexedDbWriterLease | undefined>;
+      request.onsuccess = () => {
+        if (request.result?.tabId === tabId) store.delete(key);
+      };
+      request.onerror = () => fail(request.error ?? new Error('IndexedDB lease read failed'));
+    } catch (error) {
+      fail(error);
+    }
+  });
 }

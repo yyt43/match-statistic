@@ -32,13 +32,15 @@ export default function EntryPage() {
   const { language, setLanguage, t } = useLanguagePreference();
   const isEnglish = language === 'en';
   const competition = useTournamentStore(state => state.competition);
+  const isReadOnly = useTournamentStore(state => state.isReadOnly);
   const initCompetition = useTournamentStore(state => state.initCompetition);
   const importCompetition = useTournamentStore(state => state.importCompetition);
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
 
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
-  const [loadStatus, setLoadStatus] = useState<'loading' | 'ok' | 'empty' | 'corrupt'>('loading');
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ok' | 'empty' | 'corrupt' | 'recovery'>('loading');
   const [corruptReason, setCorruptReason] = useState<string | null>(null);
+  const [recoveryCompetition, setRecoveryCompetition] = useState<TournamentCompetition | null>(null);
   const [pendingKind, setPendingKind] = useState<EntryKind | null>(null);
   const [pendingImport, setPendingImport] = useState<TournamentCompetition | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export default function EntryPage() {
           // 数据损坏：不写入 store、不覆盖任何记录，提示用户导出原始数据。
           setLoadStatus(result.status);
           setCorruptReason(result.error ?? null);
+          setRecoveryCompetition(result.status === 'recovery' ? result.competition ?? null : null);
           return;
         }
         const loaded = await loadSavedCompetition();
@@ -79,7 +82,9 @@ export default function EntryPage() {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const payload = {
         exportedAt: new Date().toISOString(),
-        reason: 'stored-competition-data-corrupt',
+        reason: loadStatus === 'recovery'
+          ? 'indexeddb-primary-unverified'
+          : 'stored-competition-data-corrupt',
         records,
       };
       downloadBlob(
@@ -94,9 +99,23 @@ export default function EntryPage() {
   };
 
   /** 覆盖损坏数据前自动留一份原始记录。 */
-  const backupCorruptDataBeforeOverwrite = async () => {
-    if (loadStatus !== 'corrupt') return;
-    await downloadRecoveredData();
+  const backupCorruptDataBeforeOverwrite = async (): Promise<boolean> => {
+    if (loadStatus !== 'corrupt' && loadStatus !== 'recovery') return true;
+    const exported = await downloadRecoveredData();
+    if (!exported) {
+      setImportError(isEnglish
+        ? 'Could not export the existing records. The event was not replaced.'
+        : '无法导出原始记录，本次未替换赛事。');
+    }
+    return exported;
+  };
+
+  const restoreRecoveryCopy = async () => {
+    if (!recoveryCompetition || isReadOnly) return;
+    const exported = await downloadRecoveredData();
+    if (!exported) return;
+    importCompetition(recoveryCompetition);
+    navigate('/workspace');
   };
 
   /** 离开页面时终止仍在解析的后台任务。 */
@@ -105,8 +124,9 @@ export default function EntryPage() {
   }, []);
 
   const openKind = async (kind: EntryKind) => {
+    if (isReadOnly) return;
     // 覆盖/离开前先备份损坏数据，包括进入多阶段设置页（那里也可能重新保存赛事）。
-    await backupCorruptDataBeforeOverwrite();
+    if (!await backupCorruptDataBeforeOverwrite()) return;
     if (kind === 'multi_stage') {
       navigate('/multi-stage');
       return;
@@ -116,7 +136,8 @@ export default function EntryPage() {
   };
 
   const chooseKind = (kind: EntryKind) => {
-    if (loadStatus === 'corrupt') {
+    if (isReadOnly) return;
+    if (loadStatus === 'corrupt' || loadStatus === 'recovery') {
       void openKind(kind);
       return;
     }
@@ -135,11 +156,13 @@ export default function EntryPage() {
   };
 
   const applyImported = (competition: TournamentCompetition) => {
+    if (isReadOnly) return;
     importCompetition(competition);
     navigate('/workspace');
   };
 
   const handleImportFile = async (file: File) => {
+    if (isReadOnly) return;
     importAbortRef.current?.abort();
     const controller = new AbortController();
     importAbortRef.current = controller;
@@ -148,7 +171,7 @@ export default function EntryPage() {
     try {
       const data = await importCompetitionFromFile(file, { signal: controller.signal });
       // 导入会覆盖当前存储，损坏状态下先自动下载原始数据。
-      await backupCorruptDataBeforeOverwrite();
+      if (!await backupCorruptDataBeforeOverwrite()) return;
       if (hasSavedEvent) {
         setPendingImport(data);
         return;
@@ -271,6 +294,41 @@ export default function EntryPage() {
             </section>
           )}
 
+          {loadStatus === 'recovery' && (
+            <section className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+              <div className="text-xs font-semibold text-amber-100">
+                {isEnglish ? 'The newest saved version could not be verified' : '无法确认最新赛事存档'}
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-100/80">
+                {isEnglish
+                  ? 'The browser database could not be read. Any available local copy may be older, so it was not opened automatically. Export the raw records before replacing them.'
+                  : '浏览器数据库读取失败。当前可读的本地副本可能不是最新版本，因此没有自动载入。替换赛事前会先导出原始记录。'}
+              </p>
+              {corruptReason && (
+                <p className="break-all text-[10px] text-amber-200/70">{corruptReason}</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => void downloadRecoveredData()}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-xs text-amber-100 transition-colors hover:bg-amber-500/25"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {isEnglish ? 'Export raw records' : '导出原始数据'}
+                </button>
+                {recoveryCompetition && (
+                  <button
+                    onClick={() => void restoreRecoveryCopy()}
+                    disabled={isReadOnly}
+                    className="flex items-center gap-1.5 rounded-lg border border-amber-300/50 bg-amber-300/15 px-3 py-2 text-xs text-amber-50 transition-colors hover:bg-amber-300/25"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    {isEnglish ? 'Use available local copy' : '使用可读的本地副本'}
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
           <section className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/50 p-3">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-slate-300">
@@ -287,6 +345,7 @@ export default function EntryPage() {
               type="file"
               accept=".json"
               className="hidden"
+              disabled={isReadOnly}
               onChange={event => {
                 const file = event.target.files?.[0];
                 if (fileInputRef.current) fileInputRef.current.value = '';
@@ -295,7 +354,7 @@ export default function EntryPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isImporting}
+              disabled={isImporting || isReadOnly}
               className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FileUp className="h-3.5 w-3.5" />
@@ -382,6 +441,7 @@ export default function EntryPage() {
 
                 <button
                   onClick={() => chooseKind(option.kind)}
+                  disabled={isReadOnly}
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 py-2.5 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30"
                 >
                   {isEnglish ? 'Open setup' : '进入设置'}

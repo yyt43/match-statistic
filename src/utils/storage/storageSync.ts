@@ -11,6 +11,17 @@ export const WRITER_LEASE_TTL_MS = 3000;
 /** 心跳续约间隔；需明显小于 TTL，保证正常运行时租约不会过期。 */
 export const WRITER_LEASE_HEARTBEAT_MS = 1000;
 
+export type WriterAccess = 'unmanaged' | 'owned' | 'readonly';
+let writerAccess: WriterAccess = 'unmanaged';
+
+export function setWriterAccess(access: WriterAccess): void {
+  writerAccess = access;
+}
+
+export function canWriteCompetition(): boolean {
+  return writerAccess !== 'readonly';
+}
+
 export const TAB_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto
   ? crypto.randomUUID()
   : Math.random().toString(36).slice(2);
