@@ -18,25 +18,56 @@ class FakeTransaction {
   onabort: RequestHandler = null;
   onerror: RequestHandler = null;
   error: Error | null = null;
+  private pendingRequests = 0;
+  private active = false;
+  private finished = false;
+  private readonly waitingRequests: Array<() => void> = [];
 
   constructor(
     private values: Map<string, unknown>,
     private writeDelayMs: number,
-    private failWrites: boolean
+    private failWrites: boolean,
+    private readonly onFinished: () => void
   ) {}
 
   objectStore(): FakeObjectStore {
     return new FakeObjectStore(this.values, this.writeDelayMs, this.failWrites, this);
   }
 
-  /** 真实 IndexedDB 在请求成功后的事件循环末尾触发 oncomplete。 */
-  complete(): void {
-    queueMicrotask(() => this.oncomplete?.());
+  scheduleRequest(run: () => void, delayMs = 0): void {
+    this.pendingRequests += 1;
+    const execute = () => setTimeout(() => {
+      if (this.finished) return;
+      run();
+      this.pendingRequests -= 1;
+      this.completeIfIdle();
+    }, delayMs);
+    if (this.active) execute();
+    else this.waitingRequests.push(execute);
+  }
+
+  activate(): void {
+    this.active = true;
+    this.waitingRequests.splice(0).forEach(execute => execute());
+  }
+
+  private completeIfIdle(): void {
+    if (!this.active || this.finished || this.pendingRequests !== 0) return;
+    this.finished = true;
+    queueMicrotask(() => {
+      this.oncomplete?.();
+      this.onFinished();
+    });
   }
 
   abort(error: Error): void {
     this.error = error;
-    queueMicrotask(() => this.onabort?.());
+    if (this.finished) return;
+    this.finished = true;
+    queueMicrotask(() => {
+      this.onabort?.();
+      this.onFinished();
+    });
   }
 }
 
@@ -50,17 +81,16 @@ class FakeObjectStore {
 
   get(key: string): FakeRequest<unknown> {
     const request = new FakeRequest<unknown>();
-    queueMicrotask(() => {
+    this.transaction.scheduleRequest(() => {
       request.result = this.values.get(key);
       request.onsuccess?.();
-      this.transaction.complete();
     });
     return request;
   }
 
   put(value: unknown, key: string): FakeRequest<string> {
     const request = new FakeRequest<string>();
-    setTimeout(() => {
+    this.transaction.scheduleRequest(() => {
       if (this.failWrites) {
         const error = new Error('QuotaExceededError');
         request.error = error;
@@ -71,14 +101,13 @@ class FakeObjectStore {
       this.values.set(key, value);
       request.result = key;
       request.onsuccess?.();
-      this.transaction.complete();
     }, this.writeDelayMs);
     return request;
   }
 
   delete(key: string): FakeRequest<undefined> {
     const request = new FakeRequest<undefined>();
-    setTimeout(() => {
+    this.transaction.scheduleRequest(() => {
       if (this.failWrites) {
         const error = new Error('QuotaExceededError');
         request.error = error;
@@ -89,7 +118,6 @@ class FakeObjectStore {
       this.values.delete(key);
       request.result = undefined;
       request.onsuccess?.();
-      this.transaction.complete();
     }, this.writeDelayMs);
     return request;
   }
@@ -98,6 +126,8 @@ class FakeObjectStore {
 class FakeDatabase {
   onversionchange: RequestHandler = null;
   objectStoreNames = { contains: () => true };
+  private transactionActive = false;
+  private readonly waitingTransactions: Array<() => void> = [];
 
   constructor(
     private values: Map<string, unknown>,
@@ -106,7 +136,18 @@ class FakeDatabase {
   ) {}
 
   transaction(): FakeTransaction {
-    return new FakeTransaction(this.values, this.writeDelayMs, this.failWrites);
+    const release = () => {
+      this.transactionActive = false;
+      this.waitingTransactions.shift()?.();
+    };
+    const transaction = new FakeTransaction(this.values, this.writeDelayMs, this.failWrites, release);
+    const activate = () => {
+      this.transactionActive = true;
+      transaction.activate();
+    };
+    if (this.transactionActive) this.waitingTransactions.push(activate);
+    else activate();
+    return transaction;
   }
 
   close(): void {}
@@ -326,6 +367,60 @@ describe('storage consistency', () => {
       expect.arrayContaining(['local-main', 'local-backup'])
     );
     expect(records.find(record => record.source === 'local-main')?.raw).toBe('{not valid json');
+  });
+
+  it('requires explicit recovery when the IndexedDB primary cannot be read', async () => {
+    const saved = envelope('Older local copy', '2026-10-01T00:00:00.000Z');
+    values.set(STORAGE_KEY, JSON.stringify(saved));
+    values.set(BACKUP_KEY, JSON.stringify(saved));
+    vi.stubGlobal('indexedDB', {
+      open: () => {
+        throw new Error('IndexedDB read unavailable');
+      },
+    });
+    const { loadCompetition, loadCompetitionResult } = await import('./storage');
+
+    const result = await loadCompetitionResult();
+
+    expect(result.status).toBe('recovery');
+    expect(result.competition?.name).toBe('Older local copy');
+    expect(result.error).toContain('may be an older copy');
+    expect(await loadCompetition()).toBeNull();
+    expect(values.get(STORAGE_KEY)).toBe(JSON.stringify(saved));
+  });
+
+  it('claims and releases the fallback writer lease transactionally', async () => {
+    const indexedValues = new Map<string, unknown>();
+    stubIndexedDb(indexedValues);
+    const { claimIndexedDbWriterLease, releaseIndexedDbWriterLease } = await import('./indexedDb');
+    const now = 1_800_000_000_000;
+
+    const simultaneousClaims = await Promise.all([
+      claimIndexedDbWriterLease('writer-lock', 'tab-a', now, now + 3000),
+      claimIndexedDbWriterLease('writer-lock', 'tab-b', now, now + 3000),
+    ]);
+    expect(simultaneousClaims.filter(Boolean)).toHaveLength(1);
+    const winner = simultaneousClaims[0] ? 'tab-a' : 'tab-b';
+    const loser = winner === 'tab-a' ? 'tab-b' : 'tab-a';
+    await releaseIndexedDbWriterLease('writer-lock', winner);
+    expect(await claimIndexedDbWriterLease('writer-lock', loser, now, now + 3000)).toBe(true);
+  });
+
+  it('refuses to write from a tab without writer ownership', async () => {
+    const indexedValues = new Map<string, unknown>();
+    stubIndexedDb(indexedValues);
+    const { saveCompetition, flushStorage } = await import('./storage');
+    const { setWriterAccess } = await import('./storageSync');
+    const { getStorageStatus } = await import('./storageStatus');
+    setWriterAccess('readonly');
+
+    saveCompetition(createNewCompetition('Read-only write'));
+    await flushStorage();
+
+    expect(indexedValues.has(STORAGE_KEY)).toBe(false);
+    expect(values.has(STORAGE_KEY)).toBe(false);
+    expect(getStorageStatus().notice?.key).toBe('storageReadOnlyWriteBlocked');
+    setWriterAccess('unmanaged');
   });
 
   it('reports an empty result when nothing is stored', async () => {

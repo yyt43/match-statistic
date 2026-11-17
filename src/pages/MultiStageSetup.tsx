@@ -264,6 +264,7 @@ export default function MultiStageSetup() {
   const { language, setLanguage, t } = useLanguagePreference();
   const isEnglish = language === 'en';
   const initMultiStageCompetition = useTournamentStore(state => state.initMultiStageCompetition);
+  const isReadOnly = useTournamentStore(state => state.isReadOnly);
   const loadSavedCompetition = useTournamentStore(state => state.loadSavedCompetition);
   const competition = useTournamentStore(state => state.competition);
 
@@ -831,6 +832,7 @@ export default function MultiStageSetup() {
   };
 
   const doStartEvent = () => {
+    if (isReadOnly) return;
     const nextCompetition = createMultiStageCompetition(
       nameInput.trim() || '多阶段赛事',
       stages,
@@ -841,7 +843,7 @@ export default function MultiStageSetup() {
   };
 
   const startEvent = () => {
-    if (!canStartEvent) return;
+    if (!canStartEvent || isReadOnly) return;
     if (hasExistingEvent) {
       setShowReplaceConfirm(true);
       return;
@@ -1681,7 +1683,7 @@ export default function MultiStageSetup() {
             <button
               type="button"
               onClick={startEvent}
-              disabled={!canStartEvent}
+              disabled={!canStartEvent || isReadOnly}
               className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 px-4 py-2 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trophy className="h-4 w-4" />

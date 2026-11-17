@@ -14,7 +14,6 @@ import { StageGroupSwitcher } from '../components/competition/StageGroupSwitcher
 import { CommandPalette } from '../components/common/CommandPalette';
 import { useTournamentStore, useCurrentGroup } from '../store/useTournamentStore';
 import { useStorageSync } from '../hooks/useStorageSync';
-import { useWriterLock } from '../hooks/useWriterLock';
 import { generatePairings, getRoundGameType } from '../utils/swissPairing';
 import { getEliminationBracketView } from '../utils/elimination';
 import { Camera, Trophy, FileSpreadsheet, HelpCircle, FlaskConical, AlertTriangle, Scale, UserX, Users, Undo2, Redo2, Swords, Languages, RefreshCw } from 'lucide-react';
@@ -34,8 +33,6 @@ const PlayerPreviewModal = lazy(() => import('../components/players/PlayerPrevie
 const ONBOARDING_KEY = 'tournament-onboarding-v1';
 
 export default function Home() {
-  useWriterLock();
-
   const {
     competition,
     initCompetition,

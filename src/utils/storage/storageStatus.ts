@@ -9,6 +9,7 @@ export type StorageNoticeKey =
   | 'storageQuotaExceeded'
   | 'storageIndexedDbFallback'
   | 'storageSaveFailed'
+  | 'storageReadOnlyWriteBlocked'
   | 'storageCritical'
   | 'storageWarning'
   | 'storageUnexpected'

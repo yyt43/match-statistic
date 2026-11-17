@@ -1,5 +1,10 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { useTournamentStore } from '../store/useTournamentStore';
+import {
+  claimIndexedDbWriterLease,
+  isIndexedDbAvailable,
+  releaseIndexedDbWriterLease,
+} from '../utils/storage/indexedDb';
 import {
   canUseWriterLease,
   readWriterLease,
@@ -9,6 +14,7 @@ import {
   WRITER_LEASE_HEARTBEAT_MS,
   WRITER_LEASE_KEY,
   WRITER_LEASE_TTL_MS,
+  setWriterAccess,
   writeWriterLease,
 } from '../utils/storage/storageSync';
 
@@ -22,10 +28,13 @@ function hasWebLocks(): boolean {
 export function useWriterLock(): void {
   const setReadOnly = useTournamentStore(state => state.setReadOnly);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    setWriterAccess('readonly');
+    setReadOnly(true);
     // Prefer the Web Locks API: the browser releases the lock automatically when
     // the tab crashes, which is more reliable than the lease fallback below.
     if (hasWebLocks()) return holdWebLock(setReadOnly);
+    if (isIndexedDbAvailable()) return holdIndexedDbLease(setReadOnly);
     return holdWriterLease(setReadOnly);
   }, [setReadOnly]);
 }
@@ -33,10 +42,14 @@ export function useWriterLock(): void {
 function holdWebLock(setReadOnly: (readOnly: boolean) => void): () => void {
   let cancelled = false;
   let acquired = false;
+  let fallbackStarted = false;
   let releaseLock: (() => void) | null = null;
+  let fallbackCleanup: (() => void) | null = null;
+  setWriterAccess('readonly');
+  setReadOnly(true);
 
   const acquire = () => {
-    if (cancelled || acquired) return;
+    if (cancelled || acquired || fallbackStarted) return;
     void navigator.locks.request(
       WRITER_LOCK_NAME,
       { mode: 'exclusive', ifAvailable: true },
@@ -48,15 +61,25 @@ function holdWebLock(setReadOnly: (readOnly: boolean) => void): () => void {
         }
 
         acquired = true;
+        setWriterAccess('owned');
         setReadOnly(false);
         await new Promise<void>(resolve => {
           releaseLock = resolve;
           if (cancelled) resolve();
         });
         acquired = false;
+        setWriterAccess('readonly');
         releaseLock = null;
       }
-    ).catch(() => setReadOnly(true));
+    ).catch(() => {
+      if (cancelled || fallbackStarted) return;
+      fallbackStarted = true;
+      setWriterAccess('readonly');
+      setReadOnly(true);
+      fallbackCleanup = isIndexedDbAvailable()
+        ? holdIndexedDbLease(setReadOnly)
+        : holdWriterLease(setReadOnly);
+    });
   };
 
   // Defer the first request so React StrictMode's mount/unmount probe does not
@@ -71,11 +94,86 @@ function holdWebLock(setReadOnly: (readOnly: boolean) => void): () => void {
 
   return () => {
     cancelled = true;
+    setWriterAccess('readonly');
     window.clearTimeout(initialAcquireTimer);
     window.clearInterval(retryTimer);
     window.removeEventListener('focus', handleVisibility);
     document.removeEventListener('visibilitychange', handleVisibility);
     releaseLock?.();
+    fallbackCleanup?.();
+  };
+}
+
+function holdIndexedDbLease(setReadOnly: (readOnly: boolean) => void): () => void {
+  let cancelled = false;
+  let checking = false;
+  let fallbackActive = false;
+  let fallbackCleanup: (() => void) | null = null;
+  setReadOnly(true);
+  setWriterAccess('readonly');
+
+  const tick = async () => {
+    if (cancelled || checking || fallbackActive) return;
+    checking = true;
+    try {
+      const now = Date.now();
+      const claimed = await claimIndexedDbWriterLease(
+        WRITER_LEASE_KEY,
+        TAB_ID,
+        now,
+        now + WRITER_LEASE_TTL_MS
+      );
+      if (!cancelled) {
+        const readOnly = claimed !== true;
+        setWriterAccess(readOnly ? 'readonly' : 'owned');
+        setReadOnly(readOnly);
+      }
+    } catch {
+      if (!cancelled) {
+        fallbackActive = true;
+        setWriterAccess('readonly');
+        fallbackCleanup = holdWriterLease(setReadOnly);
+      }
+    } finally {
+      checking = false;
+    }
+  };
+
+  const initialTimer = window.setTimeout(() => void tick(), 0);
+  const heartbeatTimer = window.setInterval(() => void tick(), WRITER_LEASE_HEARTBEAT_MS);
+  const handleVisibility = () => {
+    if (document.visibilityState === 'visible') {
+      setWriterAccess('readonly');
+      setReadOnly(true);
+      void tick();
+    }
+  };
+  const handlePageShow = () => handleVisibility();
+  const handleUnload = () => {
+    setWriterAccess('readonly');
+    setReadOnly(true);
+    void releaseIndexedDbWriterLease(WRITER_LEASE_KEY, TAB_ID).catch(() => undefined);
+  };
+
+  window.addEventListener('focus', handleVisibility);
+  document.addEventListener('visibilitychange', handleVisibility);
+  window.addEventListener('pageshow', handlePageShow);
+  window.addEventListener('pagehide', handleUnload);
+  window.addEventListener('beforeunload', handleUnload);
+
+  return () => {
+    cancelled = true;
+    window.clearTimeout(initialTimer);
+    window.clearInterval(heartbeatTimer);
+    window.removeEventListener('focus', handleVisibility);
+    document.removeEventListener('visibilitychange', handleVisibility);
+    window.removeEventListener('pageshow', handlePageShow);
+    window.removeEventListener('pagehide', handleUnload);
+    window.removeEventListener('beforeunload', handleUnload);
+    handleUnload();
+    fallbackCleanup?.();
+    setWriterAccess('readonly');
+    setReadOnly(true);
   };
 }
 
@@ -89,6 +187,7 @@ function holdWriterLease(setReadOnly: (readOnly: boolean) => void): () => void {
   // Without localStorage there is no cross-tab coordination available at all.
   // Stay writable (as before) instead of locking the user out of a single tab.
   if (!canUseWriterLease()) {
+    setWriterAccess('unmanaged');
     setReadOnly(false);
     return () => undefined;
   }
@@ -98,6 +197,7 @@ function holdWriterLease(setReadOnly: (readOnly: boolean) => void): () => void {
   const applyReadOnly = (readOnly: boolean) => {
     if (readOnlyApplied === readOnly) return;
     readOnlyApplied = readOnly;
+    setWriterAccess(readOnly ? 'readonly' : 'owned');
     setReadOnly(readOnly);
   };
 
