@@ -945,3 +945,75 @@ describe('轮空上限与不可配对保护（P1-2）', () => {
   });
 });
 
+/** 本场的两人胜场差（用于断言"跨战绩组"是否超出允许范围）。 */
+function scoreGapOf(match: Match, players: Player[]): number | null {
+  const p1 = players.find(p => p.id === match.player1Id);
+  const p2 = players.find(p => p.id === match.player2Id);
+  if (!p1 || !p2) return null;
+  return Math.abs(p1.wins - p2.wins);
+}
+
+function hasPair(matches: Match[], a: string, b: string): boolean {
+  return matches.some(match =>
+    (match.player1Id === a && match.player2Id === b)
+    || (match.player1Id === b && match.player2Id === a));
+}
+
+describe('收尾拆对必须守住战绩平衡（P1-3）', () => {
+  it('垫底两人的对局打过了：只拆相邻战绩组的对局，不拆榜首 4-0 争冠对局', () => {
+    // 4-0：t1、t2 未交手；1-3：m1、m2 未交手；0-4：b1、b2 已经打过 → 0-4 组排不出来，只能进最终下移组。
+    const players = [
+      makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
+      makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
+      makePlayer('m1', 'mid1', { wins: 1, losses: 3 }),
+      makePlayer('m2', 'mid2', { wins: 1, losses: 3 }),
+      makePlayer('b1', 'bot1', { wins: 0, losses: 4, playedAgainst: ['b2'] }),
+      makePlayer('b2', 'bot2', { wins: 0, losses: 4, playedAgainst: ['b1'] }),
+    ];
+
+    const { matches } = generateSwissPairings(players, 5, 'bo1');
+
+    // 争冠对局必须原样保留
+    expect(hasPair(matches, 't1', 't2')).toBe(true);
+    // 本轮任何一场都不能跨 2 个以上战绩组
+    for (const match of matches) {
+      expect(scoreGapOf(match, players)).toBeLessThanOrEqual(1);
+    }
+    // 垫底两人被安放到 1-3 组（各拆一个），没有重复交手
+    expect(hasPair(matches, 'b1', 'm1') || hasPair(matches, 'b1', 'm2')).toBe(true);
+    expect(matches).toHaveLength(3);
+  });
+
+  it('除榜首对局外无可拆的对局：宁可报错，也不生成 0-4 打 4-0', () => {
+    const players = [
+      makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
+      makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
+      makePlayer('b1', 'bot1', { wins: 0, losses: 4, playedAgainst: ['b2'] }),
+      makePlayer('b2', 'bot2', { wins: 0, losses: 4, playedAgainst: ['b1'] }),
+    ];
+
+    expect(() => generateSwissPairings(players, 5, 'bo1')).toThrow(PairingBlockedError);
+  });
+
+  it('轮空改派同样只动相邻战绩组的对局', () => {
+    // 5 人：4-0 两人、1-3 两人、0-4 一人且本赛事已经轮空过 → 走"拆一对换轮空"的分支。
+    const players = [
+      makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
+      makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
+      makePlayer('m1', 'mid1', { wins: 1, losses: 3 }),
+      makePlayer('m2', 'mid2', { wins: 1, losses: 3 }),
+      makePlayer('b1', 'bot1', { wins: 0, losses: 4 }),
+    ];
+    const allMatches: Match[] = [makeMatch('bye-old', 1, 'b1', 'bye', 'player1', true)];
+
+    const { matches } = generateSwissPairings(players, 5, 'bo1', undefined, allMatches);
+
+    expect(hasPair(matches, 't1', 't2')).toBe(true);
+    expect(matches.filter(match => match.isBye)).toHaveLength(1);
+    for (const match of matches) {
+      if (match.isBye) continue;
+      expect(scoreGapOf(match, players)).toBeLessThanOrEqual(1);
+    }
+  });
+});
+

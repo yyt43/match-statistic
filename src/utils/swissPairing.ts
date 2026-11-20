@@ -429,10 +429,30 @@ function canFace(first: PlayerState, second: PlayerState): boolean {
 }
 
 /**
+ * 战绩组跨度：两人胜场数之差。
+ * 收尾修复（拆对重组）时用它衡量这次拆对会不会破坏瑞士轮的成绩平衡。
+ */
+function scoreGap(first: PlayerState, second: PlayerState): number {
+  return Math.abs(first.player.wins - second.player.wins);
+}
+
+/**
+ * 拆对重组允许的最大战绩组跨度。
+ * 1 = 只允许动用"相邻战绩组"的对局（例如用 1-3 组的对局来安放 0-4 的选手），
+ * 绝不会为了塞进垫底选手而拆散 4-0 的争冠对局（跨度 4）。
+ */
+const MAX_SWAP_SCORE_GAP = 1;
+
+/**
  * 把已配对的一场拆开，分别与两名剩余者配对，从而消除两个剩余者。
- * 无法修复时返回 false。
+ *
+ * 拆对必须守住战绩平衡（P1-3）：只允许拆开与剩余者成绩相邻（胜场差 ≤ MAX_SWAP_SCORE_GAP）
+ * 的对局；同样可行时优先挑跨度最小的、其次挑排名最低的那场，避免动到榜首争冠对局。
+ * 无法修复时返回 false，由调用方报错，而不是硬凑一场跨战绩组的对阵。
  */
 function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boolean {
+  let best: { matchIndex: number; firstIndex: number; secondIndex: number; gap: number } | null = null;
+
   for (let matchIndex = 0; matchIndex < context.matches.length; matchIndex += 1) {
     const match = context.matches[matchIndex];
     if (match.isBye) continue;
@@ -442,21 +462,34 @@ function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boole
 
     for (let a = 0; a < remaining.length; a += 1) {
       if (!canFace(remaining[a], first)) continue;
+      const gapA = scoreGap(remaining[a], first);
+      if (gapA > MAX_SWAP_SCORE_GAP) continue;
       for (let b = 0; b < remaining.length; b += 1) {
         if (a === b) continue;
         if (!canFace(remaining[b], second)) continue;
-        context.matches.splice(
-          matchIndex,
-          1,
-          createMatch(remaining[a], first, context.round),
-          createMatch(remaining[b], second, context.round)
-        );
-        [a, b].sort((x, y) => y - x).forEach(index => remaining.splice(index, 1));
-        return true;
+        const gap = Math.max(gapA, scoreGap(remaining[b], second));
+        if (gap > MAX_SWAP_SCORE_GAP) continue;
+        if (!best || gap < best.gap || (gap === best.gap && matchIndex > best.matchIndex)) {
+          best = { matchIndex, firstIndex: a, secondIndex: b, gap };
+        }
       }
     }
   }
-  return false;
+
+  if (!best) return false;
+
+  const { matchIndex, firstIndex, secondIndex } = best;
+  const match = context.matches[matchIndex];
+  const first = context.stateMap.get(match.player1Id)!;
+  const second = context.stateMap.get(match.player2Id)!;
+  context.matches.splice(
+    matchIndex,
+    1,
+    createMatch(remaining[firstIndex], first, context.round),
+    createMatch(remaining[secondIndex], second, context.round)
+  );
+  [firstIndex, secondIndex].sort((x, y) => y - x).forEach(index => remaining.splice(index, 1));
+  return true;
 }
 
 /**
@@ -469,6 +502,9 @@ function trySwapBye(
 ): boolean {
   if (remaining.length !== 1) return false;
   const candidate = remaining[0];
+  // 与 tryPairSwap 同一把尺子：只在相邻战绩组里换人，别为了消掉一个剩余者去拆榜首对局。
+  let best: { matchIndex: number; partnerFirst: boolean; gap: number } | null = null;
+
   for (let matchIndex = 0; matchIndex < context.matches.length; matchIndex += 1) {
     const match = context.matches[matchIndex];
     if (match.isBye) continue;
@@ -476,20 +512,36 @@ function trySwapBye(
     const second = context.stateMap.get(match.player2Id);
     if (!first || !second) continue;
 
-    const options: Array<[PlayerState, PlayerState]> = [[first, second], [second, first]];
-    for (const [partner, spare] of options) {
+    const options: Array<[PlayerState, PlayerState, boolean]> = [
+      [first, second, true],
+      [second, first, false],
+    ];
+    for (const [partner, spare, partnerIsFirst] of options) {
       if (!canFace(candidate, partner)) continue;
       if (context.byeHistory.has(spare.player.id)) continue;
-      context.matches.splice(
-        matchIndex,
-        1,
-        createMatch(candidate, partner, context.round),
-        createByeMatch(spare, context.round, context.byeWins)
-      );
-      return true;
+      const gap = scoreGap(candidate, partner);
+      if (gap > MAX_SWAP_SCORE_GAP) continue;
+      if (!best || gap < best.gap || (gap === best.gap && matchIndex > best.matchIndex)) {
+        best = { matchIndex, partnerFirst: partnerIsFirst, gap };
+      }
     }
   }
-  return false;
+
+  if (!best) return false;
+
+  const { matchIndex, partnerFirst } = best;
+  const match = context.matches[matchIndex];
+  const first = context.stateMap.get(match.player1Id)!;
+  const second = context.stateMap.get(match.player2Id)!;
+  const partner = partnerFirst ? first : second;
+  const spare = partnerFirst ? second : first;
+  context.matches.splice(
+    matchIndex,
+    1,
+    createMatch(candidate, partner, context.round),
+    createByeMatch(spare, context.round, context.byeWins)
+  );
+  return true;
 }
 
 // ===== 瑞士轮主配对函数 =====
@@ -664,13 +716,13 @@ export function generateSwissPairings(
     const names = remaining.map(state => state.player.name).join('、');
     if (remaining.length === 1) {
       throw new PairingBlockedError(
-        `本轮无法完成配对：${names} 本赛事已经轮空过，且无法调整对阵避免重复轮空。请减少轮次或调整参赛名单。`,
-        `Cannot generate this round: ${names} already received a bye in this competition and the schedule cannot avoid a second bye. Reduce the number of rounds or adjust the roster.`
+        `本轮无法完成配对：${names} 本赛事已经轮空过，且无法在不动跨战绩组对局的前提下调整对阵。请减少轮次或调整参赛名单。`,
+        `Cannot generate this round: ${names} already received a bye in this competition and the schedule cannot avoid a second bye without breaking a match across distant score groups. Reduce the number of rounds or adjust the roster.`
       );
     }
     throw new PairingBlockedError(
-      `本轮无法完成配对：${names} 之间排不出合法对阵（会重复交手或需要额外轮空）。请减少轮次或调整参赛名单。`,
-      `Cannot generate this round: no valid pairing exists for ${names} without repeating an earlier match or adding extra byes. Reduce the number of rounds or adjust the roster.`
+      `本轮无法完成配对：${names} 排不出合法对阵（会重复交手、需要额外轮空，或只能靠拆散跨战绩组的对局硬凑）。请减少轮次或调整参赛名单。`,
+      `Cannot generate this round: no valid pairing exists for ${names} without repeating an earlier match, adding extra byes, or breaking a match across distant score groups. Reduce the number of rounds or adjust the roster.`
     );
   }
 
