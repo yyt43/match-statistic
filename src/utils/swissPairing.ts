@@ -438,17 +438,38 @@ function scoreGap(first: PlayerState, second: PlayerState): number {
 
 /**
  * 拆对重组允许的最大战绩组跨度。
- * 1 = 只允许动用"相邻战绩组"的对局（例如用 1-3 组的对局来安放 0-4 的选手），
- * 绝不会为了塞进垫底选手而拆散 4-0 的争冠对局（跨度 4）。
+ * 1 = 只允许动用胜场差为 1 的相邻战绩组对局，
+ * 绝不会为了给末位选手补位而拆散榜首的争冠对局。
  */
 const MAX_SWAP_SCORE_GAP = 1;
+
+/**
+ * 规则5：把一次上下交叉匹配记到双方账上——下移的一方 downMatchCount +1 并获得向上优先，
+ * 被向上匹配的一方 upMatchCount +1 并获得向下优先。
+ *
+ * 收尾拆对产生的也是这类对局，必须同样落账：否则下一轮选人时这些对局等于没发生过，
+ * 上下优先权的分配会被系统性地低估。谁是「下移」一方：胜场更多的；胜场相同时排名靠前（rank 更小）的。
+ */
+function recordCrossGroupPairing(first: PlayerState, second: PlayerState): void {
+  const firstIsDown = first.player.wins > second.player.wins
+    || (first.player.wins === second.player.wins && first.rank < second.rank);
+  const down = firstIsDown ? first : second;
+  const up = firstIsDown ? second : first;
+  down.downMatchCount += 1;
+  down.hasUpPriority = true;
+  down.hasDownPriority = false;
+  up.upMatchCount += 1;
+  up.hasDownPriority = true;
+  up.hasUpPriority = false;
+}
 
 /**
  * 把已配对的一场拆开，分别与两名剩余者配对，从而消除两个剩余者。
  *
  * 拆对必须守住战绩平衡（P1-3）：只允许拆开与剩余者成绩相邻（胜场差 ≤ MAX_SWAP_SCORE_GAP）
  * 的对局；同样可行时优先挑跨度最小的、其次挑排名最低的那场，避免动到榜首争冠对局。
- * 无法修复时返回 false，由调用方报错，而不是硬凑一场跨战绩组的对阵。
+ * 换上的两场按规则5落账（下移方得向上优先、被向上匹配方得向下优先）。
+ * 无法修复时返回 false，由调用方报错，而不是硬凑一场跨多层战绩组的对阵。
  */
 function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boolean {
   let best: { matchIndex: number; firstIndex: number; secondIndex: number; gap: number } | null = null;
@@ -482,12 +503,17 @@ function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boole
   const match = context.matches[matchIndex];
   const first = context.stateMap.get(match.player1Id)!;
   const second = context.stateMap.get(match.player2Id)!;
+  const firstReplacement = remaining[firstIndex];
+  const secondReplacement = remaining[secondIndex];
   context.matches.splice(
     matchIndex,
     1,
-    createMatch(remaining[firstIndex], first, context.round),
-    createMatch(remaining[secondIndex], second, context.round)
+    createMatch(firstReplacement, first, context.round),
+    createMatch(secondReplacement, second, context.round)
   );
+  // 规则5：拆出来的两场同样是上下交叉匹配，双方都要落账，下一轮选人才不会失真。
+  recordCrossGroupPairing(firstReplacement, first);
+  recordCrossGroupPairing(secondReplacement, second);
   [firstIndex, secondIndex].sort((x, y) => y - x).forEach(index => remaining.splice(index, 1));
   return true;
 }
@@ -495,6 +521,7 @@ function tryPairSwap(remaining: PlayerState[], context: ByeRepairContext): boole
 /**
  * 唯一剩余者本赛事已经轮空过：拆一对已配对选手，
  * 让剩余者与其一配对，另一人改为本轮轮空（该人此前未轮空）。
+ * 新配对按规则5落账；改为轮空的一方不计上下匹配。
  */
 function trySwapBye(
   remaining: PlayerState[],
@@ -541,6 +568,8 @@ function trySwapBye(
     createMatch(candidate, partner, context.round),
     createByeMatch(spare, context.round, context.byeWins)
   );
+  // 规则5：换了轮空的那场对局也要记账；改为轮空的一方不计上下匹配。
+  recordCrossGroupPairing(candidate, partner);
   return true;
 }
 
@@ -716,12 +745,12 @@ export function generateSwissPairings(
     const names = remaining.map(state => state.player.name).join('、');
     if (remaining.length === 1) {
       throw new PairingBlockedError(
-        `本轮无法完成配对：${names} 本赛事已经轮空过，且无法在不动跨战绩组对局的前提下调整对阵。请减少轮次或调整参赛名单。`,
+        `本轮无法完成配对：${names} 本赛事已经轮空过，且无法在不动跨多层战绩组对局的前提下调整对阵。请减少轮次或调整参赛名单。`,
         `Cannot generate this round: ${names} already received a bye in this competition and the schedule cannot avoid a second bye without breaking a match across distant score groups. Reduce the number of rounds or adjust the roster.`
       );
     }
     throw new PairingBlockedError(
-      `本轮无法完成配对：${names} 排不出合法对阵（会重复交手、需要额外轮空，或只能靠拆散跨战绩组的对局硬凑）。请减少轮次或调整参赛名单。`,
+      `本轮无法完成配对：${names} 排不出合法对阵（会重复交手、需要额外轮空，或只能靠拆散跨多层战绩组的对局硬凑）。请减少轮次或调整参赛名单。`,
       `Cannot generate this round: no valid pairing exists for ${names} without repeating an earlier match, adding extra byes, or breaking a match across distant score groups. Reduce the number of rounds or adjust the roster.`
     );
   }
