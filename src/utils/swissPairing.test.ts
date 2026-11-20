@@ -960,8 +960,8 @@ function hasPair(matches: Match[], a: string, b: string): boolean {
 }
 
 describe('收尾拆对必须守住战绩平衡（P1-3）', () => {
-  it('垫底两人的对局打过了：只拆相邻战绩组的对局，不拆榜首 4-0 争冠对局', () => {
-    // 4-0：t1、t2 未交手；1-3：m1、m2 未交手；0-4：b1、b2 已经打过 → 0-4 组排不出来，只能进最终下移组。
+  it('末位两人的对局已经交过手：只拆相邻战绩组的对局，不动榜首争冠对局', () => {
+    // 各自内部的胜负场次如下，b1、b2 已经交过手 → 末位组排不出来，两人只能进最终下移组。
     const players = [
       makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
       makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
@@ -979,12 +979,12 @@ describe('收尾拆对必须守住战绩平衡（P1-3）', () => {
     for (const match of matches) {
       expect(scoreGapOf(match, players)).toBeLessThanOrEqual(1);
     }
-    // 垫底两人被安放到 1-3 组（各拆一个），没有重复交手
+    // 末位两人被安放到战绩高一级的那组，没有重复交手
     expect(hasPair(matches, 'b1', 'm1') || hasPair(matches, 'b1', 'm2')).toBe(true);
     expect(matches).toHaveLength(3);
   });
 
-  it('除榜首对局外无可拆的对局：宁可报错，也不生成 0-4 打 4-0', () => {
+  it('除榜首对局外无可拆的对局：宁可报错，也不生成跨多层战绩组的对阵', () => {
     const players = [
       makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
       makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
@@ -996,7 +996,7 @@ describe('收尾拆对必须守住战绩平衡（P1-3）', () => {
   });
 
   it('轮空改派同样只动相邻战绩组的对局', () => {
-    // 5 人：4-0 两人、1-3 两人、0-4 一人且本赛事已经轮空过 → 走"拆一对换轮空"的分支。
+    // 5 人：榜首两人、中段两人、末位一人且本赛事已经轮空过 → 走"拆一对换轮空"的分支。
     const players = [
       makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
       makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
@@ -1016,4 +1016,80 @@ describe('收尾拆对必须守住战绩平衡（P1-3）', () => {
     }
   });
 });
+
+describe('拆对留下的上下匹配记账（P1-4）', () => {
+  const byId = (players: Player[], id: string): Player => players.find(player => player.id === id)!;
+
+  it('拆对换上的两场按规则5落账：下移方得向上优先，被向上匹配方得向下优先', () => {
+    const players = [
+      makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
+      makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
+      makePlayer('m1', 'mid1', { wins: 1, losses: 3 }),
+      makePlayer('m2', 'mid2', { wins: 1, losses: 3 }),
+      makePlayer('b1', 'bot1', { wins: 0, losses: 4, playedAgainst: ['b2'] }),
+      makePlayer('b2', 'bot2', { wins: 0, losses: 4, playedAgainst: ['b1'] }),
+    ];
+
+    const { matches, updatedPlayers } = generateSwissPairings(players, 5, 'bo1');
+    expect(matches).toHaveLength(3);
+
+    // 末位两人被塞进中段的同一场对局，那场被拆成两场，双方都要落账。
+    for (const botId of ['b1', 'b2']) {
+      const botMatch = matches.find(match => match.player1Id === botId || match.player2Id === botId)!;
+      const opponentId = botMatch.player1Id === botId ? botMatch.player2Id : botMatch.player1Id;
+      const bot = byId(updatedPlayers, botId);
+      const mid = byId(updatedPlayers, opponentId);
+      // 胜场少的一方算向上匹配
+      expect(bot.upMatchCount).toBe(1);
+      expect(bot.hasDownPriority).toBe(true);
+      expect(bot.hasUpPriority).toBe(false);
+      // 胜场多的一方算向下匹配
+      expect(mid.downMatchCount).toBe(1);
+      expect(mid.hasUpPriority).toBe(true);
+      expect(mid.hasDownPriority).toBe(false);
+    }
+
+    // 榜首对局没被动，记账也不该留下痕迹
+    for (const id of ['t1', 't2']) {
+      const top = byId(updatedPlayers, id);
+      expect(top.downMatchCount).toBe(0);
+      expect(top.upMatchCount).toBe(0);
+      expect(top.hasDownPriority).toBe(false);
+      expect(top.hasUpPriority).toBe(false);
+    }
+  });
+
+  it('拆对换轮空：新配对照常记账，改轮空的一方不计上下匹配', () => {
+    const players = [
+      makePlayer('t1', 'top1', { wins: 4, losses: 0 }),
+      makePlayer('t2', 'top2', { wins: 4, losses: 0 }),
+      makePlayer('m1', 'mid1', { wins: 1, losses: 3 }),
+      makePlayer('m2', 'mid2', { wins: 1, losses: 3 }),
+      makePlayer('b1', 'bot1', { wins: 0, losses: 4 }),
+    ];
+    const allMatches: Match[] = [makeMatch('bye-old', 1, 'b1', 'bye', 'player1', true)];
+
+    const { matches, updatedPlayers } = generateSwissPairings(players, 5, 'bo1', undefined, allMatches);
+    expect(matches.filter(match => match.isBye)).toHaveLength(1);
+
+    const byeMatch = matches.find(match => match.isBye)!;
+    const spareId = byeMatch.player1Id;
+    const botMatch = matches.find(match => !match.isBye && (match.player1Id === 'b1' || match.player2Id === 'b1'))!;
+    const opponentId = botMatch.player1Id === 'b1' ? botMatch.player2Id : botMatch.player1Id;
+
+    const bot = byId(updatedPlayers, 'b1');
+    const opponent = byId(updatedPlayers, opponentId);
+    expect(bot.upMatchCount).toBe(1);
+    expect(bot.hasDownPriority).toBe(true);
+    expect(opponent.downMatchCount).toBe(1);
+    expect(opponent.hasUpPriority).toBe(true);
+
+    const spare = byId(updatedPlayers, spareId);
+    expect(spare.downMatchCount).toBe(0);
+    expect(spare.upMatchCount).toBe(0);
+    expect(spare.hasDownPriority).toBe(false);
+    expect(spare.hasUpPriority).toBe(false);
+  });
+});
+
 
