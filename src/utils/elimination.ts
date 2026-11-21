@@ -33,6 +33,31 @@ export function getEliminationBracketRounds(size: number): number {
   return size <= 1 ? 0 : Math.log2(size);
 }
 
+/**
+ * 按签表槽位（而不是名单顺序）成对读出对阵。
+ * 单败赛段的「第一轮打谁」由 slots 决定，名单顺序只是最终定稿前的临时排布；
+ * 用 players[i*2]/[i*2+1] 凑对会在签位被手动调整过之后显示成别人的对手。
+ * 签表缺失或与人数对不上时返回 null，调用方自行退回名单顺序。
+ */
+export function pairPlayersFromBracket(
+  bracket: EliminationBracket | undefined | null,
+  players: Player[]
+): Array<[Player | null, Player | null]> | null {
+  if (!bracket || !Array.isArray(bracket.slots)) return null;
+  if (bracket.size < 2 || bracket.slots.length !== bracket.size) return null;
+  const byId = new Map(players.map(player => [player.id, player]));
+  const pairs: Array<[Player | null, Player | null]> = [];
+  for (let index = 0; index < bracket.slots.length; index += 2) {
+    const first = bracket.slots[index];
+    const second = bracket.slots[index + 1];
+    pairs.push([
+      first ? byId.get(first) ?? null : null,
+      second ? byId.get(second) ?? null : null,
+    ]);
+  }
+  return pairs;
+}
+
 export function getEliminationByeWins(gameType: GameType): number {
   if (gameType === 'bo7') return 4;
   if (gameType === 'bo5') return 3;

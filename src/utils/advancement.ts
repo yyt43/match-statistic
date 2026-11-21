@@ -15,7 +15,12 @@ import type { AppLanguage } from '../i18n/data';
 import { buildRankedGroup } from '../store/competitionState';
 import { generateId } from '../store/tournamentFactory';
 import { getOrderedStages, getStageGroups } from './multiStage';
-import { getSameGroupMode, normalizeAdvancementPlan, normalizeSeatingPlan } from './advancementPlan';
+import {
+  getFillPolicy,
+  getSameGroupMode,
+  normalizeAdvancementPlan,
+  normalizeSeatingPlan,
+} from './advancementPlan';
 import { getEliminationBracketRounds } from './elimination';
 
 /**
@@ -740,10 +745,86 @@ function collectPlanSeats(
   return { pending, errors, stats };
 }
 
+/**
+ * 下游赛段（固定签位）里每个来源小组还剩哪些名次可用。
+ * 「落单者先直进下游」和「本赛段胜者接在后面」都要用同一份空闲名次，
+ * 否则同一小组的名次会被重复占用，下游签位就对不上人。
+ */
+function getDownstreamFreeRanks(
+  competition: TournamentCompetition,
+  stage: TournamentStage,
+  targets: TournamentStage[]
+): Map<string, number[]> | undefined {
+  if (targets.length === 0) return undefined;
+  const target = targets[0];
+  const seating = normalizeSeatingPlan(target);
+  if (seating.mode !== 'fixedSlots') return undefined;
+  const rules = seating.slots ?? [];
+  if (rules.length === 0) return undefined;
+
+  // 其它来源赛段（含已确认的小组赛直进席位）已经占用的「小组 + 名次」。
+  const occupied = new Set<string>();
+  (competition.stageAdvancements ?? []).forEach(record => {
+    if (record.sourceStageId === stage.id) return;
+    record.seats.forEach(seat => {
+      if (seat.targetStageId !== target.id) return;
+      const groupName = seat.originGroupName ?? seat.sourceGroupName;
+      const rank = seat.originRank ?? seat.finalRank;
+      if (groupName && rank !== undefined) occupied.add(`${groupName}:${rank}`);
+    });
+  });
+
+  const free = new Map<string, number[]>();
+  rules.forEach(rule => {
+    if (occupied.has(`${rule.sourceGroupName}:${rule.rank}`)) return;
+    free.set(rule.sourceGroupName, [...(free.get(rule.sourceGroupName) ?? []), rule.rank]);
+  });
+  free.forEach(ranks => ranks.sort((a, b) => a - b));
+  return free;
+}
+
+/**
+ * 落单者已经先一步直进下游时，本赛段打出来的胜者要接在它们后面排位。
+ * 例如某组第 3 名已经直接晋级，本组的 4/5 名配对打出的胜者就按「第 4 名」落位；
+ * 否则两个人的名次撞在一起，下游的固定签位会被同一名次重复占用。
+ * 返回在不下游没有对应签位、被剔除的席位（正常情况下应为空）。
+ */
+function assignDownstreamRanks(
+  competition: TournamentCompetition,
+  stage: TournamentStage,
+  seats: StageAdvancementSeat[],
+  targets: TournamentStage[]
+): StageAdvancementSeat[] {
+  if (seats.length === 0) return [];
+  const free = getDownstreamFreeRanks(competition, stage, targets);
+  if (!free) return [];
+
+  const byGroup = new Map<string, StageAdvancementSeat[]>();
+  seats.forEach(seat => {
+    const key = seat.originGroupName ?? seat.sourceGroupName;
+    byGroup.set(key, [...(byGroup.get(key) ?? []), seat]);
+  });
+  const dropped: StageAdvancementSeat[] = [];
+  byGroup.forEach((groupSeats, groupName) => {
+    const available = free.get(groupName) ?? [];
+    groupSeats.forEach((seat, index) => {
+      const rank = available[index];
+      if (rank === undefined) {
+        dropped.push(seat);
+        return;
+      }
+      seat.finalRank = rank;
+      seat.originRank = rank;
+    });
+  });
+  return dropped;
+}
+
 /** 由名次配对赛段（旧称突围赛）继续晋级时，取首轮胜者/轮空者并重排名次。 */
 function collectRankPairsSurvivors(
   competition: TournamentCompetition,
   stage: TournamentStage,
+  targets: TournamentStage[],
   language: AppLanguage
 ): { seats: StageAdvancementSeat[]; warnings: string[]; errors: string[] } {
   const seating = normalizeSeatingPlan(stage);
@@ -790,6 +871,9 @@ function collectRankPairsSurvivors(
         (match.result === 'player1' && match.player1Id === player.id)
         || (match.result === 'player2' && match.player2Id === player.id)
       );
+      // 还没打的场次不能提前算成晋级：否则预览会把同一场的两个人都写进下游，
+      // 下游固定签位装不下时还会把签表撑成更大的规模。
+      if (involved.length > 0 && involved.every(match => match.result === 'pending')) continue;
       if (involved.length > 0 && !won) continue;
 
       const origin = player.participantCode
@@ -814,15 +898,37 @@ function collectRankPairsSurvivors(
   }
   const seats: StageAdvancementSeat[] = [];
   // 每个来源小组能继续晋级的席位数：一条名次配对产生一个胜者。
-  // 没有录入首轮对阵时（例如刚确认完上游、还没开打），按名次取前 N 名作为暂定晋级者，
-  // 这也是旧实现 `.slice(0, 2)` 的等价行为。
+  // 但真正能落脚的是下游赛段留给该组的名次——落单者已经先占掉了本组靠前的名次，
+  // 这里若仍按配对数取人，多出来的会在下游挤成重复签位、把签表撑大。
+  // 没有录入首轮对阵时（刚确认上游、还没开打），按名次取前 N 名作为暂定晋级者。
+  const stagePlayed = getStageGroups(competition, stage)
+    .some(group => group.matches.some(match => match.result !== 'pending'));
   const survivorsPerGroup = Math.max(1, pairs.length);
-  byOrigin.forEach(groupSeats => {
+  const freeRanks = getDownstreamFreeRanks(competition, stage, targets);
+  const overflow: StageAdvancementSeat[] = [];
+  byOrigin.forEach((groupSeats, groupName) => {
     groupSeats.sort((a, b) => (a.originRank ?? 99) - (b.originRank ?? 99));
-    groupSeats.slice(0, survivorsPerGroup).forEach((seat, index) => {
+    const limit = freeRanks
+      ? Math.min(survivorsPerGroup, freeRanks.get(groupName)?.length ?? 0)
+      : survivorsPerGroup;
+    groupSeats.slice(0, limit).forEach((seat, index) => {
       seats.push({ ...seat, finalRank: base + index, originRank: base + index });
     });
+    if (stagePlayed) overflow.push(...groupSeats.slice(limit));
   });
+
+  const dropped = assignDownstreamRanks(competition, stage, seats, targets);
+  const homeless = [...overflow, ...dropped];
+  if (homeless.length > 0) {
+    const names = homeless.map(seat => `${seat.originGroupName ?? seat.sourceGroupName ?? ''} ${seat.name}`.trim());
+    warnings.push(
+      message(
+        language,
+        `有 ${names.length} 名选手在这里赢了却没有对应的下游签位：${names.join('、')}。请检查名次配对与下游固定签位是否匹配。`,
+        `${names.length} player(s) won here but have no downstream slot: ${names.join(', ')}. Check the rank pairings against the downstream fixed slots.`
+      )
+    );
+  }
 
   if (unresolved.length > 0) {
     warnings.push(
@@ -890,14 +996,47 @@ function reduceSameGroupFirstRound(seats: StageAdvancementSeat[]): void {
   });
 }
 
+/**
+ * fillPolicy=advance 时落单选手的去向：
+ * 只允许送去「本次计算会写入」的下游赛段，否则席位会落到没有落库记录的赛段上。
+ */
+function resolveForwardTargetId(
+  competition: TournamentCompetition,
+  stage: TournamentStage,
+  targets: TournamentStage[]
+): string | undefined {
+  const planned = [
+    ...new Set(
+      (normalizeAdvancementPlan(stage)?.slots ?? [])
+        .map(slot => slot.targetStageId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const candidateId = planned.length === 1
+    ? planned[0]
+    : resolveDefaultTargetStage(competition, stage.id)?.id;
+  if (!candidateId || candidateId === stage.id) return undefined;
+  return targets.some(target => target.id === candidateId) ? candidateId : undefined;
+}
+
+interface SeatingOptions {
+  /** fillPolicy=advance：本赛段里配不成对的选手直接送往下游赛段，不在本赛段轮空。 */
+  forwardSinglesTo?: string;
+  /** 收集被直接送往下游的席位，由调用方并进下游赛段的席位里重排一次。 */
+  forwarded?: PendingSeat[];
+}
+
 /** 把一个目标赛段收到的席位按它的落位方式排好（顺序 / 种子分散 / 组内配对 / 固定签位）。 */
 function applySeatingForTarget(
   targetStage: TournamentStage,
-  pending: PendingSeat[]
+  pending: PendingSeat[],
+  options: SeatingOptions = {}
 ): {
   seats: StageAdvancementSeat[];
   pairings: StageAdvancementPairing[];
   unresolvedSlots: number;
+  /** fixedSlots 下没等到人的签位，调用方可据此剔除「已被其它上游记录填上」的槽。 */
+  waitingSlots: number[];
 } {
   const seating = normalizeSeatingPlan(targetStage);
   const sameGroup = getSameGroupMode(seating);
@@ -905,7 +1044,7 @@ function applySeatingForTarget(
   const pairings: StageAdvancementPairing[] = [];
   let unresolvedSlots = 0;
 
-  if (pending.length === 0) return { seats, pairings, unresolvedSlots };
+  if (pending.length === 0) return { seats, pairings, unresolvedSlots, waitingSlots: [] };
 
   const keyOf = (seat: StageAdvancementSeat) => seat.originGroupName ?? seat.sourceGroupName;
   const rankOf = (seat: StageAdvancementSeat) => seat.originRank ?? seat.finalRank;
@@ -946,7 +1085,7 @@ function applySeatingForTarget(
         });
       });
     }
-    return { seats, pairings, unresolvedSlots };
+    return { seats, pairings, unresolvedSlots, waitingSlots: [...reservedSlots] };
   }
 
   if (sameGroup === 'rankPairs') {
@@ -998,12 +1137,24 @@ function applySeatingForTarget(
         });
         cursor += 2;
       });
+      // fillPolicy=advance：配不成对的人不在本赛段占签位，直接送往下游赛段，
+      // 下游赛段收到后按「来源小组 + 名次」落位，本赛段只保留真正的对局。
+      const forwardTargetId = options.forwarded && getFillPolicy(seating) === 'advance'
+        ? options.forwardSinglesTo
+        : undefined;
       singles.forEach(seat => {
+        if (forwardTargetId) {
+          options.forwarded?.push({
+            targetStageId: forwardTargetId,
+            seat: { ...seat, targetStageId: forwardTargetId, route: 'breakout_direct' },
+          });
+          return;
+        }
         seats.push({ ...seat, targetStageId: targetStage.id, targetSlot: cursor, route: 'breakout_direct' });
         cursor += 2;
       });
     });
-    return { seats, pairings, unresolvedSlots };
+    return { seats, pairings, unresolvedSlots, waitingSlots: [] };
   }
 
   // ordered / snake：按「来源小组顺序 → 名次」排成名单。
@@ -1027,14 +1178,32 @@ function applySeatingForTarget(
       seats.push({ ...seat, targetStageId: targetStage.id, targetSlot: slot, route: 'direct' });
     });
     if (sameGroup === 'avoid') reduceSameGroupFirstRound(seats);
-    return { seats, pairings, unresolvedSlots };
+    return { seats, pairings, unresolvedSlots, waitingSlots: [] };
   }
 
   ordered.forEach((seat, index) => {
     seats.push({ ...seat, targetStageId: targetStage.id, targetSlot: index, route: 'direct' });
   });
   if (sameGroup === 'avoid') reduceSameGroupFirstRound(seats);
-  return { seats, pairings, unresolvedSlots };
+  return { seats, pairings, unresolvedSlots, waitingSlots: [] };
+}
+
+/** 收集「别的上游赛段」已经占用的签位，用来判断某段预览里剩下的空位是不是真缺口。 */
+function getFilledSlotsByTarget(
+  competition: TournamentCompetition,
+  sourceStageId: string
+): Map<string, Set<number>> {
+  const filled = new Map<string, Set<number>>();
+  (competition.stageAdvancements ?? []).forEach(record => {
+    if (record.sourceStageId === sourceStageId) return;
+    record.seats.forEach(seat => {
+      if (seat.targetStageId == null || seat.targetSlot == null) return;
+      const slots = filled.get(seat.targetStageId) ?? new Set<number>();
+      slots.add(seat.targetSlot);
+      filled.set(seat.targetStageId, slots);
+    });
+  });
+  return filled;
 }
 
 /** 新模型的完整计算：按晋级计划选人，再按目标赛段的落位方式排位。 */
@@ -1052,7 +1221,7 @@ function computePlanBasedAdvancement(
   let selectionStats: StageAdvancementSelectionStat[] = [];
 
   if (getSameGroupMode(seating) === 'rankPairs') {
-    const survivors = collectRankPairsSurvivors(competition, sourceStage, language);
+    const survivors = collectRankPairsSurvivors(competition, sourceStage, targets, language);
     errors.push(...survivors.errors);
     warnings.push(...survivors.warnings);
     const plan = normalizeAdvancementPlan(sourceStage);
@@ -1076,22 +1245,70 @@ function computePlanBasedAdvancement(
     byTarget.set(entry.targetStageId, [...(byTarget.get(entry.targetStageId) ?? []), entry]);
   });
 
-  const seats: StageAdvancementSeat[] = [];
-  const pairings: StageAdvancementPairing[] = [];
+  let seats: StageAdvancementSeat[] = [];
+  let pairings: StageAdvancementPairing[] = [];
+  const unresolvedByTarget = new Map<string, number>();
+  const waitingByTarget = new Map<string, number[]>();
+  const forwarded: PendingSeat[] = [];
+
+  // 排一个目标赛段；acceptForwarded 时允许把「配不成对」的人直接送去下游。
+  const seatTarget = (
+    target: TournamentStage,
+    entries: PendingSeat[],
+    acceptForwarded: boolean
+  ): void => {
+    const seated = applySeatingForTarget(target, entries, {
+      forwardSinglesTo: acceptForwarded
+        ? resolveForwardTargetId(competition, target, targets)
+        : undefined,
+      forwarded: acceptForwarded ? forwarded : undefined,
+    });
+    seats = [...seats.filter(seat => seat.targetStageId !== target.id), ...seated.seats];
+    pairings = [
+      ...pairings.filter(pairing => pairing.targetStageId !== target.id),
+      ...seated.pairings,
+    ];
+    unresolvedByTarget.set(target.id, seated.unresolvedSlots);
+    waitingByTarget.set(target.id, seated.waitingSlots);
+  };
+
+  targets.forEach(target => seatTarget(target, byTarget.get(target.id) ?? [], true));
+
+  // 「直接晋级」的席位落到下游之后，下游的固定签位要跟着重排一次，
+  // 否则这些选手不占签位，下游会白白多出几个「等待上游结果」的空位。
+  const forwardedTargetIds = Array.from(
+    new Set(forwarded.map(entry => entry.targetStageId ?? ''))
+  ).filter(Boolean);
+  forwardedTargetIds.forEach(targetId => {
+    const target = targets.find(stage => stage.id === targetId);
+    if (!target) return;
+    seatTarget(
+      target,
+      [
+        ...(byTarget.get(targetId) ?? []),
+        ...forwarded.filter(entry => entry.targetStageId === targetId),
+      ],
+      false
+    );
+  });
+
+  // 别的上游赛段可能已经用晋级记录填上了这些签位（例如小组赛直进的 12 人），
+  // 那就不该再提示「等待上游结果」，否则会把已经排好的人算成缺口。
+  const filledByOthers = getFilledSlotsByTarget(competition, sourceStage.id);
   targets.forEach(target => {
-    const group = byTarget.get(target.id) ?? [];
-    const seated = applySeatingForTarget(target, group);
-    seats.push(...seated.seats);
-    pairings.push(...seated.pairings);
-    if (seated.unresolvedSlots > 0) {
-      warnings.push(
-        message(
-          language,
-          `赛段「${target.name}」还有 ${seated.unresolvedSlots} 个固定签位等待上游结果。`,
-          `Stage "${target.name}" still has ${seated.unresolvedSlots} fixed slot(s) waiting for upstream results.`
-        )
-      );
-    }
+    const waiting = waitingByTarget.get(target.id) ?? [];
+    const occupied = filledByOthers.get(target.id);
+    const unresolved = occupied && occupied.size > 0
+      ? waiting.filter(slot => !occupied.has(slot)).length
+      : unresolvedByTarget.get(target.id) ?? 0;
+    if (unresolved === 0) return;
+    warnings.push(
+      message(
+        language,
+        `赛段「${target.name}」还有 ${unresolved} 个固定签位等待上游结果。`,
+        `Stage "${target.name}" still has ${unresolved} fixed slot(s) waiting for upstream results.`
+      )
+    );
   });
 
   return {

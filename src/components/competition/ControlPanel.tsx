@@ -13,6 +13,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { GameType, PairingType, TiebreakRule, TiebreakTemplate, TournamentGroup } from '../../types';
 import { exportCompetitionToFile } from '../../utils/export/fileStorage';
 import { getSingleEliminationRounds } from '../../utils/swissPairing';
+import { pairPlayersFromBracket } from '../../utils/elimination';
 import { validateRoster } from '../../utils/playerProfiles';
 import {
   getDefaultTiebreakRules,
@@ -433,6 +434,18 @@ export function ControlPanel({
     : null;
 
   // 下一阶段的选手与对阵预览：只打一轮的赛段直接列出对阵，其余显示签表。
+  // 只打一轮的赛段，对阵以签表槽位为准；签位被手动调整过时不能再按名单顺序凑对。
+  const previewPairs = currentGroup.roundsLocked
+    ? pairPlayersFromBracket(currentGroup.eliminationBracket, currentGroup.players)
+      ?? Array.from(
+        { length: Math.ceil(currentGroup.players.length / 2) },
+        (_, index) => [
+          currentGroup.players[index * 2] ?? null,
+          currentGroup.players[index * 2 + 1] ?? null,
+        ] as const
+      )
+    : [];
+
   const stageBracketPreview = isSetup && currentGroup.players.length >= 2
     ? (
       <section className="mb-3 space-y-2 rounded-lg border-t border-slate-700/50 pt-3">
@@ -443,33 +456,26 @@ export function ControlPanel({
         </div>
         {currentGroup.roundsLocked ? (
           <ul className="space-y-1.5">
-            {Array.from(
-              { length: Math.ceil(currentGroup.players.length / 2) },
-              (_, index) => index
-            ).map(index => {
-              const first = currentGroup.players[index * 2];
-              const second = currentGroup.players[index * 2 + 1];
-              return (
-                <li
-                  key={`${first?.id ?? index}-pair`}
-                  className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-300"
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                    {first?.profile?.origin && (
-                      <span className="ml-1 text-[10px] text-slate-500">{first.profile.origin}</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-slate-500">vs</span>
-                  <span className="min-w-0 flex-1 truncate text-right">
-                    {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                    {second?.profile?.origin && (
-                      <span className="ml-1 text-[10px] text-slate-500">{second.profile.origin}</span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
+            {previewPairs.map(([first, second], index) => (
+              <li
+                key={`${first?.id ?? index}-pair`}
+                className="flex items-center gap-2 rounded bg-slate-800/50 px-2 py-1 text-[11px] text-slate-300"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                  {first?.profile?.origin && (
+                    <span className="ml-1 text-[10px] text-slate-500">{first.profile.origin}</span>
+                  )}
+                </span>
+                <span className="shrink-0 text-slate-500">vs</span>
+                <span className="min-w-0 flex-1 truncate text-right">
+                  {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                  {second?.profile?.origin && (
+                    <span className="ml-1 text-[10px] text-slate-500">{second.profile.origin}</span>
+                  )}
+                </span>
+              </li>
+            ))}
           </ul>
         ) : (
           currentGroup.eliminationBracket && (

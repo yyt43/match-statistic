@@ -14,7 +14,7 @@ import {
   getPlayerSchemaId,
 } from '../playerProfiles';
 
-export const CURRENT_STORAGE_VERSION = 8;
+export const CURRENT_STORAGE_VERSION = 9;
 
 type Migration = (competition: TournamentCompetition) => TournamentCompetition;
 
@@ -75,6 +75,22 @@ const migrations: Record<number, Migration> = {
   // tournaments intentionally keep no bracket and continue on the legacy path.
   6: competition => competition,
 
+  // Version 9 adds SeatingPlan.fillPolicy. Stages that pair by rank (the old
+  // "breakout" stage) used to park unpaired players in bye slots of their own
+  // bracket; the 0.7.3 default sends them straight to the downstream stage
+  // instead, so existing rank-paired stages are migrated to 'advance'.
+  8: competition => ({
+    ...competition,
+    stages: competition.stages?.map(stage => {
+      const seating = stage.seating;
+      if (!seating) return stage;
+      const rankPaired =
+        seating.sameGroup === 'rankPairs' || seating.mode === 'rankPairs';
+      if (!rankPaired || seating.fillPolicy) return stage;
+      return { ...stage, seating: { ...seating, fillPolicy: 'advance' as const } };
+    }),
+  }),
+
   // Version 8 changes double losses from the series maximum (2-2 in BO3)
   // to 0-0. Rankings are recalculated from matches after loading.
   7: competition => ({
@@ -134,6 +150,8 @@ function getMigration(version: number): Migration | undefined {
       return migrations[6];
     case 7:
       return migrations[7];
+    case 8:
+      return migrations[8];
     default:
       return undefined;
   }

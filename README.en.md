@@ -2,11 +2,11 @@
 
 [中文 README](./README.md)
 
-Current version: v0.7.2
+Current version: v0.7.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://yyt43.github.io/match-statistic/)
-[![Release](https://img.shields.io/badge/Release-v0.7.2-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.7.2)
+[![Release](https://img.shields.io/badge/Release-v0.7.3-orange)](https://github.com/yyt43/match-statistic/releases/tag/v0.7.3)
 
 ![Project preview](./docs/social-preview.png)
 
@@ -127,6 +127,8 @@ Excel imports support text pasting, single-sheet imports, and multi-sheet workbo
 - [Product Requirements (PRD)](docs/PRD.md)
 
 - [Technical Architecture](docs/ARCHITECTURE.md)
+
+- [Roadmap](docs/ROADMAP.md)
 
 - [Features](#features)
 - [Unified player workbook import](#unified-player-workbook-import)
