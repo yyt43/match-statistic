@@ -76,7 +76,7 @@ export function PlayerRanking() {
     }
     if (result === 'draw') {
       return (
-        <div className="w-4 h-4 rounded bg-orange-500 flex items-center justify-center text-[9px] font-bold text-white leading-none">
+        <div className="w-4 h-4 rounded bg-teal-500 flex items-center justify-center text-[9px] font-bold text-white leading-none">
           D
         </div>
       );

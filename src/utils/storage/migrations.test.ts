@@ -131,4 +131,38 @@ describe('storage migrations', () => {
       player2Games: 0,
     });
   });
+
+  it('defaults rank-pairs seating to advance when migrating version 8 data', () => {
+    const competition = createNewCompetition('Version 8 fill policy', 1, 8, 3, 'bo3');
+    competition.stages = [
+      {
+        id: 'stage-breakout',
+        name: '突围赛',
+        order: 2,
+        kind: 'single_elimination',
+        groupIds: [],
+        seating: { mode: 'ordered', sameGroup: 'rankPairs', pairs: [[3, 6], [4, 5]] },
+      },
+      {
+        id: 'stage-playoff',
+        name: '淘汰赛',
+        order: 3,
+        kind: 'single_elimination',
+        groupIds: [],
+        seating: {
+          mode: 'fixedSlots',
+          sameGroup: 'none',
+          slots: [{ sourceGroupName: 'A组', rank: 1, slot: 0 }],
+          fillPolicy: 'bye',
+        },
+      },
+    ];
+
+    const migrated = migrateCompetitionData(competition, 8);
+
+    // rankPairs 赛段在 0.7.2 之前是「轮空占位」，迁移后改为直接晋级下游。
+    expect(migrated.stages?.[0].seating?.fillPolicy).toBe('advance');
+    // 已明确写入的策略保持不变。
+    expect(migrated.stages?.[1].seating?.fillPolicy).toBe('bye');
+  });
 });

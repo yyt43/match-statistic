@@ -293,7 +293,7 @@ export function RankingImageView({ group }: RankingImageViewProps = {}) {
             <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#000', border: '1px solid #475569', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}><span data-image-text-offset-y={EXPORT_LEGEND_TEXT_OFFSET_Y}>{t.lossCell}</span></span>{t.lossLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#f97316', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}><span data-image-text-offset-y={EXPORT_LEGEND_TEXT_OFFSET_Y}>{t.drawCell}</span></span>{t.drawLegend}
+            <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#14b8a6', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}><span data-image-text-offset-y={EXPORT_LEGEND_TEXT_OFFSET_Y}>{t.drawCell}</span></span>{t.drawLegend}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ display: 'inline-flex', width: '14px', height: '14px', borderRadius: '3px', background: '#f59e0b', color: '#fff', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700 }}><span data-image-text-offset-y={EXPORT_LEGEND_TEXT_OFFSET_Y}>{t.byeCell}</span></span>{t.byeLegend}
@@ -342,7 +342,7 @@ function HistoryBadges({ history }: { history: { result: 'win' | 'loss' | 'draw'
       let borderColor: string | null = null;
       if (h.result === 'win') { bg = '#ef4444'; text = labels.win; }
       else if (h.result === 'loss') { bg = '#000'; text = labels.loss; borderColor = '#475569'; }
-      else if (h.result === 'draw') { bg = '#f97316'; text = labels.draw; }
+      else if (h.result === 'draw') { bg = '#14b8a6'; text = labels.draw; }
       else { bg = '#f59e0b'; text = labels.bye; }
       const radius = 3;
       ctx.beginPath();

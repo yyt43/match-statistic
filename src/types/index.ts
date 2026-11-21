@@ -286,7 +286,16 @@ export interface SeatingPlan {
   pairs?: Array<[number, number]>;
   /** mode=fixedSlots：来源小组名次 → 签位下标。 */
   slots?: Array<{ sourceGroupName: string; rank: number; slot: number }>;
+  /**
+   * 组内按名次配对时，某个来源小组人数不足、配不成对的那个人怎么办：
+   * - bye（默认）：留在本赛段占一个空对手的位置（轮空），赢下这场才算晋级；
+   * - advance：不在本赛段占位，直接送到下游赛段——适合「打一轮附加赛挑出剩下的席位」这类赛事。
+   */
+  fillPolicy?: FillPolicy;
 }
+
+/** 组内配对人数不足时的处理方式。 */
+export type FillPolicy = 'bye' | 'advance';
 
 export interface StageAdvancementSeat {
   playerId: string;

@@ -4,7 +4,7 @@ import { useTournamentStore } from '../../store/useTournamentStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { TournamentGroup } from '../../types';
 import { EliminationBracketTree } from './EliminationBracketTree';
-import { validateEliminationBracket } from '../../utils/elimination';
+import { pairPlayersFromBracket, validateEliminationBracket } from '../../utils/elimination';
 import { getPlayerDisplayName, validateRoster } from '../../utils/playerProfiles';
 import { useLanguagePreference } from '../../i18n/context';
 
@@ -69,6 +69,17 @@ export function EliminationBracketConfirmModal({
 
   const rosterValidation = useMemo(() => validateRoster(competition), [competition]);
   const bracket = group?.eliminationBracket;
+  // 只打一轮的赛段按签表槽位成对展示，签位被调整过时名单顺序已经不代表对阵。
+  const pairings = group?.roundsLocked
+    ? pairPlayersFromBracket(bracket, group.players)
+      ?? Array.from(
+        { length: Math.ceil(group.players.length / 2) },
+        (_, index) => [
+          group.players[index * 2] ?? null,
+          group.players[index * 2 + 1] ?? null,
+        ] as const
+      )
+    : null;
   const bracketError = bracket && group ? validateEliminationBracket(bracket, group.players) : null;
   const canConfirm = rosterValidation.valid && !bracketError && !!bracket;
 
@@ -252,33 +263,26 @@ export function EliminationBracketConfirmModal({
           ) : group.roundsLocked ? (
             // 只打一轮的赛段（突围赛）不是逐轮签表，直接列出对阵。
             <ul className="mx-auto max-w-2xl space-y-2">
-              {Array.from(
-                { length: Math.ceil(group.players.length / 2) },
-                (_, index) => index
-              ).map(index => {
-                const first = group.players[index * 2];
-                const second = group.players[index * 2 + 1];
-                return (
-                  <li
-                    key={`${first?.id ?? index}-pair`}
-                    className="flex items-center gap-3 rounded-lg bg-slate-800/60 px-3 py-2 text-sm text-slate-200"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                      {first?.profile?.origin && (
-                        <span className="ml-1.5 text-[11px] text-slate-500">{first.profile.origin}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-slate-500">vs</span>
-                    <span className="min-w-0 flex-1 truncate text-right">
-                      {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
-                      {second?.profile?.origin && (
-                        <span className="ml-1.5 text-[11px] text-slate-500">{second.profile.origin}</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
+              {(pairings ?? []).map(([first, second], index) => (
+                <li
+                  key={`${first?.id ?? index}-pair`}
+                  className="flex items-center gap-3 rounded-lg bg-slate-800/60 px-3 py-2 text-sm text-slate-200"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {first ? `${first.participantCode ?? ''} ${first.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    {first?.profile?.origin && (
+                      <span className="ml-1.5 text-[11px] text-slate-500">{first.profile.origin}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-500">vs</span>
+                  <span className="min-w-0 flex-1 truncate text-right">
+                    {second ? `${second.participantCode ?? ''} ${second.name}`.trim() : (isEnglish ? 'Bye' : '轮空')}
+                    {second?.profile?.origin && (
+                      <span className="ml-1.5 text-[11px] text-slate-500">{second.profile.origin}</span>
+                    )}
+                  </span>
+                </li>
+              ))}
             </ul>
           ) : (
             <EliminationBracketTree

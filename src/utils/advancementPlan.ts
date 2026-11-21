@@ -1,6 +1,7 @@
 import type {
   AdvanceSelector,
   AdvanceSlot,
+  FillPolicy,
   SameGroupMode,
   SeatingPlan,
   StageAdvancementPlan,
@@ -101,6 +102,7 @@ export function normalizeSeatingPlan(stage: SeatingPlanSource): SeatingPlan {
         mode: 'fixedSlots',
         sameGroup: 'none',
         slots: (seating.slots ?? []).map(slot => ({ ...slot })),
+        fillPolicy: seating.fillPolicy,
       };
     }
     const sameGroup: SameGroupMode = seating.sameGroup
@@ -111,9 +113,14 @@ export function normalizeSeatingPlan(stage: SeatingPlanSource): SeatingPlan {
           ? 'rankPairs'
           : 'none');
     if (seating.mode === 'rankPairs' || sameGroup === 'rankPairs') {
-      return { mode: 'ordered', sameGroup: 'rankPairs', pairs: normalizePairs(seating.pairs) };
+      return {
+        mode: 'ordered',
+        sameGroup: 'rankPairs',
+        pairs: normalizePairs(seating.pairs),
+        fillPolicy: seating.fillPolicy,
+      };
     }
-    return { mode: seating.mode, sameGroup };
+    return { mode: seating.mode, sameGroup, fillPolicy: seating.fillPolicy };
   }
   const seedRules = stage.seedRules ?? [];
   if (seedRules.length > 0) {
@@ -136,6 +143,15 @@ export function normalizeSeatingPlan(stage: SeatingPlanSource): SeatingPlan {
 /** 读取「同组处理」选项（兼容只写了 mode='rankPairs' 的旧数据）。 */
 export function getSameGroupMode(seating: SeatingPlan): SameGroupMode {
   return seating.sameGroup ?? (seating.mode === 'rankPairs' ? 'rankPairs' : 'none');
+}
+
+/**
+ * 读取「人数不足时怎么办」：缺省按旧语义轮空占位。
+ * 只有「组内按名次配对」的落位才有这个选择，其它落位一律轮空。
+ */
+export function getFillPolicy(seating: SeatingPlan): FillPolicy {
+  if (getSameGroupMode(seating) !== 'rankPairs') return 'bye';
+  return seating.fillPolicy === 'advance' ? 'advance' : 'bye';
 }
 
 /** 该赛段是否使用「组内按名次配对」的同组处理。 */

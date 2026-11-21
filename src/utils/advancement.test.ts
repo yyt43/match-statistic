@@ -787,3 +787,160 @@ describe('stage advancement', () => {
     expect(target.eliminationBracket).toBeUndefined();
   });
 });
+
+describe('rankPairs fill policy', () => {
+  // 每组打完：[5,4,4,4,4,3,2,1]，按胜场筛名次 3-6 后只剩 3/4/5 三人。
+  const fillPolicyRules: MultiStageDraftStage['advancementRules'] = [
+    { id: 'top-two', fromRank: 1, toRank: 2, targetStageId: 'stage-playoff' },
+    {
+      id: 'breakout-4-1',
+      fromRank: 3,
+      toRank: 6,
+      minWins: 4,
+      maxWins: 4,
+      targetStageId: 'stage-breakout',
+    },
+  ];
+
+  function buildFillPolicyCompetition(fillPolicy: 'bye' | 'advance'): TournamentCompetition {
+    const competition = finishGroupStage(buildCompetition(fillPolicyRules));
+    return {
+      ...competition,
+      stages: (competition.stages ?? []).map(stage =>
+        stage.id === 'stage-breakout' && stage.seating
+          ? { ...stage, seating: { ...stage.seating, fillPolicy } }
+          : stage
+      ),
+    };
+  }
+
+  it('sends unpaired players straight to the downstream stage when fillPolicy is advance', () => {
+    const competition = buildFillPolicyCompetition('advance');
+    const preview = computeStageAdvancement(competition, 'stage-group');
+
+    expect(preview.errors).toEqual([]);
+    // 每组 4v5 成一对、第 3 名单挑：四场对局，单挑的不在本赛段占签位。
+    expect(preview.breakoutPairings).toHaveLength(4);
+    const breakoutSeats = preview.seats.filter(seat => seat.targetStageId === 'stage-breakout');
+    const playoffSeats = preview.seats.filter(seat => seat.targetStageId === 'stage-playoff');
+    expect(breakoutSeats).toHaveLength(8);
+    expect(playoffSeats).toHaveLength(12);
+    expect(preview.warnings).toContain('赛段「淘汰赛」还有 4 个固定签位等待上游结果。');
+  });
+
+  it('seats the forwarded players on their own group rank slot', () => {
+    const competition = buildFillPolicyCompetition('advance');
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+    const stages = getOrderedStages(confirmed);
+    const breakoutGroup = getStageGroups(confirmed, stages[1])[0];
+    const playoffGroup = getStageGroups(confirmed, stages[2])[0];
+
+    expect(breakoutGroup.players).toHaveLength(8);
+    expect(breakoutGroup.eliminationBracket?.size).toBe(8);
+    expect(playoffGroup.players).toHaveLength(12);
+    expect(playoffGroup.eliminationBracket?.size).toBe(16);
+
+    const slots = playoffGroup.eliminationBracket?.slots ?? [];
+    const emptySlots = slots.flatMap((slot, index) => (slot ? [] : [index]));
+    expect(emptySlots).toEqual([1, 5, 9, 13]);
+
+    // 各组第 3 名落到自己组的第 3 名签位上（A组 7 / C组 3 / D组 11 / B组 15）。
+    const thirdPlaces: Record<string, string> = {};
+    for (const group of competition.groups) {
+      const player = buildRankedGroup(group).players[2];
+      if (player) thirdPlaces[group.name] = player.participantCode ?? player.name;
+    }
+    const codeAtSlot = (slot: number) => {
+      const playerId = slots[slot];
+      if (!playerId) return undefined;
+      const player = playoffGroup.players.find(item => item.id === playerId);
+      return player?.participantCode ?? player?.name;
+    };
+    expect(codeAtSlot(3)).toBe(thirdPlaces['C组']);
+    expect(codeAtSlot(7)).toBe(thirdPlaces['A组']);
+    expect(codeAtSlot(11)).toBe(thirdPlaces['D组']);
+    expect(codeAtSlot(15)).toBe(thirdPlaces['B组']);
+  });
+
+  it('keeps parking unpaired players in the current stage when fillPolicy is bye', () => {
+    const competition = buildFillPolicyCompetition('bye');
+    const preview = computeStageAdvancement(competition, 'stage-group');
+
+    const breakoutSeats = preview.seats.filter(seat => seat.targetStageId === 'stage-breakout');
+    const playoffSeats = preview.seats.filter(seat => seat.targetStageId === 'stage-playoff');
+    expect(breakoutSeats).toHaveLength(12);
+    expect(breakoutSeats.filter(seat => seat.route === 'breakout_direct')).toHaveLength(4);
+    expect(playoffSeats).toHaveLength(8);
+  });
+
+  /** 把突围赛的对局全部按 player2 胜出打完，得到可以直接确认的赛事对象。 */
+  function decideBreakout(confirmed: TournamentCompetition): TournamentCompetition {
+    const stages = getOrderedStages(confirmed);
+    const breakoutGroup = getStageGroups(confirmed, stages[1])[0];
+    return {
+      ...confirmed,
+      groups: confirmed.groups.map(group =>
+        group.id === breakoutGroup.id
+          ? {
+              ...group,
+              status: 'completed' as const,
+              currentRound: 1,
+              matches: group.matches.map(match => ({
+                ...match,
+                result: 'player2' as const,
+                player1Games: 0,
+                player2Games: 2,
+              })),
+            }
+          : group
+      ),
+    };
+  }
+
+  it('does not warn about playoff slots the group stage already filled', () => {
+    const competition = buildFillPolicyCompetition('advance');
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+    const stages = getOrderedStages(confirmed);
+    const preview = computeStageAdvancement(decideBreakout(confirmed), stages[1].id);
+
+    // 淘汰赛剩下的空位全由小组赛直进的 12 席填满，不该再提示「等待上游结果」。
+    expect(preview.errors).toEqual([]);
+    expect(preview.warnings).toEqual([]);
+  });
+
+  it('fills the remaining playoff slots with the breakout winners', () => {
+    const competition = buildFillPolicyCompetition('advance');
+    const confirmed = confirmStageAdvancement(
+      competition,
+      computeStageAdvancement(competition, 'stage-group')
+    );
+    const stages = getOrderedStages(confirmed);
+    const decided = decideBreakout(confirmed);
+
+    const preview = computeStageAdvancement(decided, stages[1].id);
+    expect(preview.errors).toEqual([]);
+    expect(preview.seats).toHaveLength(4);
+
+    const updated = confirmStageAdvancement(decided, preview);
+    const playoffGroup = getStageGroups(updated, stages[2])[0];
+    expect(playoffGroup.players).toHaveLength(16);
+    expect(playoffGroup.eliminationBracket?.slots.filter(Boolean)).toHaveLength(16);
+
+    // 突破赛胜者补的是各组第 4 名签位：A组 13 / B组 5 / C组 9 / D组 1。
+    const expectedSlots: Record<string, number> = { 'A组': 13, 'B组': 5, 'C组': 9, 'D组': 1 };
+    const record = (updated.stageAdvancements ?? []).find(
+      item => item.sourceStageId === stages[1].id
+    );
+    expect(record?.seats).toHaveLength(4);
+    for (const seat of record?.seats ?? []) {
+      expect(seat.targetSlot).toBe(expectedSlots[seat.originGroupName ?? '']);
+      expect(seat.originRank).toBe(4);
+    }
+  });
+});

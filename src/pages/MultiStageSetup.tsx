@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type {
   AdvanceSelector,
+  FillPolicy,
   GameType,
   PairingType,
   SameGroupMode,
@@ -37,6 +38,7 @@ import {
   createAdvanceSlot,
   createSelector,
   createWinsSelector,
+  getFillPolicy,
   getSameGroupMode,
   normalizeAdvancementPlan,
   normalizeSeatingPlan,
@@ -497,8 +499,8 @@ export default function MultiStageSetup() {
             ? ' Round 1 avoids same-group pairs by swapping a few slots.'
             : ' 首轮会自动交换少量签位，避免同组两人相遇。')}
           {seating.mode !== 'fixedSlots' && sameGroupMode === 'rankPairs' && (isEnglish
-            ? ' Same-group ranks play a play-in (3rd vs 6th, 4th vs 5th); winners take 3rd/4th place.'
-            : ' 同组名次先打附加赛（3 名对 6 名、4 名对 5 名），胜者拿该组第 3、4 名。')}
+            ? ' Same-group ranks play a play-in (3rd vs 6th, 4th vs 5th); winners take 3rd/4th place. Anyone left without a partner follows the policy below.'
+            : ' 同组名次先打附加赛（3 名对 6 名、4 名对 5 名），胜者拿该组第 3、4 名；没人可配的按下面的策略处理。')}
         </p>
 
         {sameGroupMode === 'rankPairs' && seating.mode !== 'fixedSlots' && (
@@ -539,6 +541,23 @@ export default function MultiStageSetup() {
             >
               {isEnglish ? 'Add pairing' : '添加配对'}
             </button>
+            <label className="flex flex-wrap items-center gap-1.5 border-t border-slate-700/40 pt-1.5 text-[11px] text-slate-400">
+              <span>{isEnglish ? 'Unpaired player' : '配不成对的选手'}</span>
+              <select
+                value={getFillPolicy(seating)}
+                onChange={event => changeFillPolicy(target.id, event.target.value === 'advance' ? 'advance' : 'bye')}
+                aria-label={isEnglish ? 'Where unpaired players go' : '配不成对选手的去向'}
+                className="rounded border border-slate-700/50 bg-slate-800/60 px-1.5 py-0.5 text-slate-200 outline-none focus:border-gold-500/40"
+              >
+                <option value="bye">{isEnglish ? 'Take a bye here' : '本赛段轮空占位'}</option>
+                <option value="advance">{isEnglish ? 'Advance straight' : '直接晋级下一赛段'}</option>
+              </select>
+            </label>
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              {isEnglish
+                ? 'With "advance straight" an odd player out is placed in the downstream stage at its source rank and takes no bye slot here, so the next bracket only waits for matches that are really played.'
+                : '选「直接晋级下一赛段」时，落单选手按其来源名次直接进入下游赛段，不再在本赛段占轮空位，下一阶段只会等真正要打的场次出结果。'}
+            </p>
           </div>
         )}
 
@@ -695,7 +714,7 @@ export default function MultiStageSetup() {
       }
       const sameGroup = getSameGroupMode(current);
       return sameGroup === 'rankPairs'
-        ? { mode, sameGroup, pairs: currentPairs }
+        ? { mode, sameGroup, pairs: currentPairs, fillPolicy: current.fillPolicy }
         : { mode, sameGroup };
     });
   };
@@ -709,9 +728,27 @@ export default function MultiStageSetup() {
         const pairs = current.pairs && current.pairs.length > 0
           ? current.pairs.map(pair => [...pair] as [number, number])
           : DEFAULT_RANK_PAIRS.map(pair => [...pair] as [number, number]);
-        return { mode: current.mode, sameGroup, pairs };
+        return { mode: current.mode, sameGroup, pairs, fillPolicy: current.fillPolicy };
       }
       return { mode: current.mode, sameGroup };
+    });
+  };
+
+  /** 名次配对后有多余人时，留在本赛段轮空占位，还是直接送去下游赛段。 */
+  const changeFillPolicy = (stageId: string, fillPolicy: FillPolicy) => {
+    updateSeating(stageId, stage => {
+      const current = normalizeSeatingPlan(stage);
+      if (getSameGroupMode(current) !== 'rankPairs') return stage.seating;
+      const pairs = (current.pairs && current.pairs.length > 0
+        ? current.pairs
+        : DEFAULT_RANK_PAIRS
+      ).map(pair => [...pair] as [number, number]);
+      return {
+        mode: current.mode === 'fixedSlots' ? 'ordered' : current.mode,
+        sameGroup: 'rankPairs',
+        pairs,
+        fillPolicy,
+      };
     });
   };
 
@@ -729,7 +766,12 @@ export default function MultiStageSetup() {
       const pair = pairs[pairIndex];
       if (!pair) return stage.seating;
       pair[side] = Math.max(1, Math.floor(value) || 1);
-      return { mode: current.mode === 'fixedSlots' ? 'ordered' : current.mode, sameGroup: 'rankPairs', pairs };
+      return {
+        mode: current.mode === 'fixedSlots' ? 'ordered' : current.mode,
+        sameGroup: 'rankPairs',
+        pairs,
+        fillPolicy: current.fillPolicy,
+      };
     });
   };
 
@@ -744,6 +786,7 @@ export default function MultiStageSetup() {
         mode: current.mode === 'fixedSlots' ? 'ordered' : current.mode,
         sameGroup: 'rankPairs',
         pairs: [...pairs, [first, first + 1]],
+        fillPolicy: current.fillPolicy,
       };
     });
   };
@@ -755,7 +798,9 @@ export default function MultiStageSetup() {
         .filter((_, index) => index !== pairIndex)
         .map(pair => [...pair] as [number, number]);
       const mode = current.mode === 'fixedSlots' ? 'ordered' : current.mode;
-      return pairs.length > 0 ? { mode, sameGroup: 'rankPairs', pairs } : { mode, sameGroup: 'none' };
+      return pairs.length > 0
+        ? { mode, sameGroup: 'rankPairs', pairs, fillPolicy: current.fillPolicy }
+        : { mode, sameGroup: 'none' };
     });
   };
 
