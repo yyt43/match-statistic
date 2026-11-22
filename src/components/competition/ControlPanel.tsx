@@ -479,7 +479,7 @@ export function ControlPanel({
           </ul>
         ) : (
           currentGroup.eliminationBracket && (
-            <div className="min-w-[520px] overflow-x-auto rounded-lg bg-slate-900/40 p-3">
+            <div className="rounded-lg bg-slate-900/40 p-3">
               <EliminationBracketTree group={currentGroup} isEnglish={isEnglish} />
             </div>
           )

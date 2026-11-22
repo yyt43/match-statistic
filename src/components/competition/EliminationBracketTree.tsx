@@ -1,7 +1,15 @@
-import { CircleDot, Trophy } from 'lucide-react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { CircleDot, Maximize2, Minus, Plus, Trophy } from 'lucide-react';
 import type { TournamentGroup } from '../../types';
 import { getEliminationBracketView, getVisibleBracketRounds } from '../../utils/elimination';
 import { getPlayerDisplayName } from '../../utils/playerProfiles';
+import {
+  BRACKET_MAX_ZOOM,
+  BRACKET_MIN_ZOOM,
+  BRACKET_ZOOM_STEP,
+  clampBracketZoom,
+  computeBracketFitZoom,
+} from '../../utils/bracketZoom';
 
 interface EliminationBracketTreeProps {
   group: TournamentGroup;
@@ -9,6 +17,8 @@ interface EliminationBracketTreeProps {
   editable?: boolean;
   selectedSlotIndex?: number | null;
   onSelectSlot?: (slotIndex: number) => void;
+  /** 是否显示缩放工具条；默认开启，签表较宽时自动按容器宽度适配。 */
+  zoomable?: boolean;
 }
 
 const NODE_WIDTH = 180;
@@ -20,6 +30,7 @@ const CHAMPION_WIDTH = 148;
 const CHAMPION_GAP = 28;
 const MATCH_NODE_HEIGHT = 128;
 const CHAMPION_NODE_HEIGHT = 96;
+
 
 function getColumnX(round: number): number {
   return (round - 1) * (NODE_WIDTH + COLUMN_GAP);
@@ -44,8 +55,25 @@ export function EliminationBracketTree({
   editable = false,
   selectedSlotIndex = null,
   onSelectSlot,
+  zoomable = true,
 }: EliminationBracketTreeProps) {
   const view = getEliminationBracketView(group);
+  // manualZoom 为 null 时跟随容器宽度自适应（默认），点击缩放按钮后固定。
+  const [manualZoom, setManualZoom] = useState<number | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const hasBracket = view.rounds.length > 0;
+
+  // 用 layout effect 在首帧绘制前测好宽度，避免先按 100% 画一次再跳成自适应。
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const measure = () => setViewportWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasBracket]);
   const playerMap = new Map(group.players.map(player => [player.id, player]));
 
   const playerLabel = (playerId: string | null, round: number) => {
@@ -98,9 +126,66 @@ export function EliminationBracketTree({
   const championX = getColumnX(finalRound.round) + NODE_WIDTH + CHAMPION_GAP;
   const champion = view.championId ? playerMap.get(view.championId) : undefined;
 
+  // 自适应：内容比容器宽时整体缩小到刚好铺满，放得下就保持 100%。
+  const fitZoom = computeBracketFitZoom(totalWidth, viewportWidth);
+  const zoom = zoomable ? (manualZoom ?? fitZoom) : 1;
+  const contentHeight = HEADER_HEIGHT + BODY_GAP + bodyHeight;
+  const isFit = manualZoom === null;
+
   return (
-    <div className="overflow-x-auto pb-2" data-testid="elimination-bracket-tree">
-      <div className="relative" style={{ width: totalWidth }}>
+    <div className="space-y-2" data-testid="elimination-bracket-tree">
+      {zoomable && (
+        <div className="flex items-center justify-end gap-1 text-slate-400">
+          <span className="mr-1 text-[11px] text-slate-500">
+            {isFit ? (isEnglish ? 'Fit' : '自适应') : (isEnglish ? 'Zoom' : '缩放')}
+          </span>
+          <button
+            type="button"
+            aria-label={isEnglish ? 'Zoom out' : '缩小'}
+            title={isEnglish ? 'Zoom out' : '缩小'}
+            onClick={() => setManualZoom(clampBracketZoom(zoom - BRACKET_ZOOM_STEP))}
+            disabled={zoom <= BRACKET_MIN_ZOOM + 0.001}
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-700/60 bg-slate-900/70 hover:border-gold-500/50 hover:text-gold-300 disabled:opacity-40"
+          >
+            <Minus className="h-3 w-3" />
+          </button>
+          <span className="min-w-[42px] text-center font-mono text-[11px] text-slate-300" data-testid="bracket-zoom-level">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            aria-label={isEnglish ? 'Zoom in' : '放大'}
+            title={isEnglish ? 'Zoom in' : '放大'}
+            onClick={() => setManualZoom(clampBracketZoom(zoom + BRACKET_ZOOM_STEP))}
+            disabled={zoom >= BRACKET_MAX_ZOOM - 0.001}
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-700/60 bg-slate-900/70 hover:border-gold-500/50 hover:text-gold-300 disabled:opacity-40"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            aria-label={isEnglish ? 'Fit to width' : '适应宽度'}
+            title={isEnglish ? 'Fit to width' : '适应宽度'}
+            onClick={() => setManualZoom(null)}
+            className="ml-0.5 flex h-6 items-center gap-1 rounded border border-slate-700/60 bg-slate-900/70 px-1.5 text-[11px] hover:border-gold-500/50 hover:text-gold-300"
+          >
+            <Maximize2 className="h-3 w-3" />
+            {isEnglish ? 'Fit' : '适应'}
+          </button>
+        </div>
+      )}
+      <div ref={viewportRef} className="overflow-auto pb-2">
+        <div
+          style={{
+            width: totalWidth * zoom,
+            height: contentHeight * zoom,
+            position: 'relative',
+          }}
+        >
+          <div
+            className="relative"
+            style={{ width: totalWidth, transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+          >
         <div className="relative" style={{ height: HEADER_HEIGHT }}>
           {rounds.map(round => (
             <div
@@ -246,6 +331,8 @@ export function EliminationBracketTree({
               </div>
             </div>
           )}
+          </div>
+          </div>
         </div>
       </div>
     </div>
