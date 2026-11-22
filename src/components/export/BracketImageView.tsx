@@ -10,15 +10,15 @@ interface BracketImageViewProps {
   isEnglish: boolean;
 }
 
-const NODE_WIDTH = 348;
-const COLUMN_GAP = 176;
-const ROW_HEIGHT = 152;
-const HEADER_HEIGHT = 32;
-const BODY_GAP = 16;
-const MATCH_NODE_HEIGHT = 108;
-const CHAMPION_WIDTH = 240;
-const CHAMPION_GAP = 72;
-const CHAMPION_NODE_HEIGHT = 124;
+const NODE_WIDTH = 404;
+const COLUMN_GAP = 188;
+const ROW_HEIGHT = 190;
+const HEADER_HEIGHT = 42;
+const BODY_GAP = 20;
+const MATCH_NODE_HEIGHT = 140;
+const CHAMPION_WIDTH = 300;
+const CHAMPION_GAP = 80;
+const CHAMPION_NODE_HEIGHT = 156;
 
 // 导出图会压成一张图发到群里，屏幕上的低对比配色在小尺寸下糊成一片，
 // 所以这里整体提亮：正文接近纯白，次要信息（编号/待定/页脚）也保持在可读灰阶。
@@ -191,10 +191,10 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
         <span
           style={{
             position: 'absolute',
-            left: 15,
-            top: 18,
-            width: 56,
-            fontSize: 12,
+            left: 18,
+            top: 24,
+            width: 74,
+            fontSize: 16,
             letterSpacing: '0.04em',
             color: COLORS.faint,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -205,27 +205,27 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
           <span
           style={{
             position: 'absolute',
-            left: 82,
-            right: 60,
-            top: 13,
+            left: 100,
+            right: 74,
+            top: 18,
             whiteSpace: 'nowrap',
-            fontSize: 17,
-            lineHeight: '25px',
+            fontSize: 24,
+            lineHeight: '33px',
             // 只有真正还空着的签位才压暗；已经确定对阵的选手一律用正文色，
             // 否则整张图在群里缩到手机宽度就成了灰糊。
             fontWeight: winner ? 700 : 600,
             color: !playerId ? COLORS.muted : winner ? COLORS.winnerText : COLORS.text,
           }}
         >
-          {truncateLabel(nameLabel, 11)}
+          {truncateLabel(nameLabel, 9)}
         </span>
         <span
           style={{
             position: 'absolute',
-            right: 17,
-            top: 13,
-            fontSize: scoreText.length > 2 ? 12 : 17,
-            lineHeight: '25px',
+            right: 20,
+            top: 18,
+            fontSize: scoreText.length > 2 ? 15 : 22,
+            lineHeight: '33px',
             letterSpacing: scoreText.length > 2 ? '0.04em' : '0.02em',
             fontWeight: winner ? 800 : 600,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -245,7 +245,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
         position: 'relative',
         boxSizing: 'content-box',
         width: totalWidth,
-        padding: '26px 28px 22px',
+        padding: '30px 34px 26px',
         background: COLORS.paper,
         color: COLORS.text,
         fontFamily: '"Inter", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -253,18 +253,18 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 360px', minWidth: 0 }}>
-          <div style={{ fontSize: 11.5, letterSpacing: '0.32em', color: COLORS.muted, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 13, letterSpacing: '0.32em', color: COLORS.muted, whiteSpace: 'nowrap' }}>
             MATCH STATISTIC · {isEnglish ? 'SINGLE ELIMINATION' : '单败淘汰'}
           </div>
-          <div style={{ marginTop: 8, fontSize: 29, fontWeight: 800, letterSpacing: '0.02em' }}>
+          <div style={{ marginTop: 10, fontSize: 34, fontWeight: 800, letterSpacing: '0.02em' }}>
             {group.name} · {isEnglish ? 'Bracket' : '淘汰签表'}
           </div>
-          <div style={{ marginTop: 6, fontSize: 13.5, color: COLORS.muted }}>
+          <div style={{ marginTop: 8, fontSize: 15, color: COLORS.muted }}>
             {bracketSize} {isEnglish ? 'players' : '强'} · {rounds.length} {isEnglish ? 'rounds' : '轮'}
             {gameTypes.length > 0 ? ` · ${gameTypes.join(' / ')}` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 6, fontSize: 12.5, color: COLORS.muted, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 6, fontSize: 14, color: COLORS.muted, flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <span style={{ width: 18, height: 2, background: COLORS.upper, borderRadius: 2 }} />
             {isEnglish ? 'Upper half' : '上半区'}
@@ -290,7 +290,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 left: getColumnX(round.round),
                 top: 0,
                 width: NODE_WIDTH,
-                fontSize: 14,
+                fontSize: 18,
                 fontWeight: 600,
                 letterSpacing: '0.12em',
                 color: COLORS.muted,
@@ -306,7 +306,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 left: championX,
                 top: 0,
                 width: CHAMPION_WIDTH,
-                fontSize: 14,
+                fontSize: 18,
                 fontWeight: 600,
                 letterSpacing: '0.12em',
                 color: COLORS.muted,
@@ -340,7 +340,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                     d={`M ${childX} ${firstChildY} H ${connectorX} V ${parentY}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={2.4}
+                    strokeWidth={3}
                     strokeOpacity={1}
                     strokeLinejoin="round"
                   />,
@@ -349,7 +349,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                     d={`M ${childX} ${secondChildY} H ${connectorX} V ${parentY}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={2.4}
+                    strokeWidth={3}
                     strokeOpacity={1}
                     strokeLinejoin="round"
                   />,
@@ -358,7 +358,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                     d={`M ${connectorX} ${parentY} H ${parentX}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={2.4}
+                    strokeWidth={3}
                     strokeOpacity={1}
                     strokeLinejoin="round"
                   />,
@@ -370,7 +370,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 d={`M ${getColumnX(finalRound.round) + NODE_WIDTH} ${finalCenterY} H ${championX}`}
                 fill="none"
                 stroke={COLORS.championBorder}
-                strokeWidth={2.4}
+                strokeWidth={3}
               />
             )}
           </svg>
@@ -386,8 +386,8 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                   top: getNodeTop(round.round, node.matchIndex, MATCH_NODE_HEIGHT),
                   width: NODE_WIDTH,
                   height: MATCH_NODE_HEIGHT,
-                  borderRadius: 10,
-                  border: `1.5px solid ${COLORS.cardBorder}`,
+                  borderRadius: 12,
+                  border: `2px solid ${COLORS.cardBorder}`,
                   background: COLORS.card,
                   boxShadow: `0 8px 22px ${COLORS.cardShadow}`,
                   overflow: 'hidden',
@@ -420,7 +420,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
               }}
             >
               {champion && (
-                <div style={{ fontSize: 12, letterSpacing: '0.24em', color: COLORS.championLabel }}>
+                <div style={{ fontSize: 14, letterSpacing: '0.24em', color: COLORS.championLabel }}>
                   {isEnglish ? 'CHAMPION' : '冠军'}
                 </div>
               )}
@@ -428,7 +428,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 style={{
                   maxWidth: CHAMPION_WIDTH - 24,
                   whiteSpace: 'nowrap',
-                  fontSize: 23,
+                  fontSize: 30,
                   fontWeight: 800,
                   color: COLORS.championName,
                 }}
@@ -440,7 +440,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
         </div>
       </div>
 
-      <div style={{ marginTop: 28, display: 'flex', justifyContent: 'space-between', fontSize: 11.5, letterSpacing: '0.14em', color: COLORS.faint }}>
+      <div style={{ marginTop: 32, display: 'flex', justifyContent: 'space-between', fontSize: 13, letterSpacing: '0.14em', color: COLORS.faint }}>
         <span>MATCH STATISTIC</span>
         <span>
           {isEnglish ? 'Data as of ' : '数据截至 '}
