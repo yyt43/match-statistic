@@ -16,9 +16,9 @@ const ROW_HEIGHT = 190;
 const HEADER_HEIGHT = 42;
 const BODY_GAP = 20;
 const MATCH_NODE_HEIGHT = 140;
-const CHAMPION_WIDTH = 300;
+const CHAMPION_WIDTH = 320;
 const CHAMPION_GAP = 80;
-const CHAMPION_NODE_HEIGHT = 156;
+const CHAMPION_NODE_HEIGHT = 168;
 
 // 导出图会压成一张图发到群里，屏幕上的低对比配色在小尺寸下糊成一片，
 // 所以这里整体提亮：正文接近纯白，次要信息（编号/待定/页脚）也保持在可读灰阶。
@@ -122,6 +122,9 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
   const finalCenterY = getNodeCenterY(finalRound.round, 0);
   const championX = getColumnX(finalRound.round) + NODE_WIDTH + CHAMPION_GAP;
   const champion = view.championId ? playerMap.get(view.championId) : undefined;
+  // 冠军名按字数自适应：短名字放大到更饱满，长名字收一档避免顶满整格。
+  const championLen = champion ? Array.from(champion.name).length : (isEnglish ? 8 : 2);
+  const championFontSize = championLen <= 2 ? 56 : championLen === 3 ? 52 : championLen === 4 ? 48 : championLen === 5 ? 42 : 36;
   const gameTypes = rounds
     .map(round => formatGameType(group.roundGameTypes?.[round.round - 1] ?? group.gameType))
     .filter((value, index, list) => list.indexOf(value) === index);
@@ -416,24 +419,24 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 8,
+                gap: 10,
               }}
             >
               {champion && (
-                <div style={{ fontSize: 14, letterSpacing: '0.24em', color: COLORS.championLabel }}>
+                <div style={{ fontSize: 16, letterSpacing: '0.24em', color: COLORS.championLabel }}>
                   {isEnglish ? 'CHAMPION' : '冠军'}
                 </div>
               )}
               <div
                 style={{
-                  maxWidth: CHAMPION_WIDTH - 24,
+                  maxWidth: CHAMPION_WIDTH - 28,
                   whiteSpace: 'nowrap',
-                  fontSize: 30,
+                  fontSize: championFontSize,
                   fontWeight: 800,
                   color: COLORS.championName,
                 }}
               >
-                {champion ? truncateLabel(champion.name, 8) : isEnglish ? 'Champion' : '冠军'}
+                {champion ? truncateLabel(champion.name, 6) : isEnglish ? 'Champion' : '冠军'}
               </div>
             </div>
           )}
