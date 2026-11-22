@@ -20,24 +20,27 @@ const CHAMPION_WIDTH = 220;
 const CHAMPION_GAP = 70;
 const CHAMPION_NODE_HEIGHT = 108;
 
+// 导出图会压成一张图发到群里，屏幕上的低对比配色在小尺寸下糊成一片，
+// 所以这里整体提亮：正文接近纯白，次要信息（编号/待定/页脚）也保持在可读灰阶。
 const COLORS = {
-  paper: '#0B1020',
-  card: '#111B31',
-  cardBorder: '#22304D',
-  cardShadow: 'rgba(2, 6, 23, 0.55)',
-  winnerRow: 'rgba(52, 211, 153, 0.10)',
-  winnerBorder: 'rgba(52, 211, 153, 0.35)',
-  winnerText: '#6EE7B7',
-  text: '#E2E8F0',
-  muted: '#7C8DAE',
-  faint: '#4A5A78',
-  upper: '#34D399',
-  lower: '#F5B731',
-  neutral: '#64748B',
-  championFill: '#134E3B',
-  championBorder: '#1F7A5A',
-  championLabel: '#A7F3D0',
-  championName: '#F0FDF4',
+  paper: '#080E1D',
+  card: '#16203A',
+  cardBorder: '#2E3F63',
+  cardShadow: 'rgba(1, 4, 12, 0.6)',
+  divider: 'rgba(86, 108, 150, 0.45)',
+  winnerRow: 'rgba(52, 211, 153, 0.16)',
+  winnerBorder: 'rgba(52, 211, 153, 0.75)',
+  winnerText: '#7CF3C0',
+  text: '#EEF3FB',
+  muted: '#9DB0CE',
+  faint: '#8296BA',
+  upper: '#3FE0A6',
+  lower: '#F7C142',
+  neutral: '#8CA0C0',
+  championFill: '#14523E',
+  championBorder: '#2A9C74',
+  championLabel: '#B4F5D8',
+  championName: '#FFFFFF',
 };
 
 interface RoundColumn {
@@ -71,13 +74,17 @@ function roundLabel(round: RoundColumn['round'], bracketSize: number, isEnglish:
   return isEnglish ? `Round of ${playersInRound}` : `1/${matchesInRound} 决赛`;
 }
 
+/**
+ * 连接线配色：同一个节点覆盖的首轮签位整体落在上半区就是绿色、下半区就是金色，
+ * 决赛（只剩一个节点）用中性灰。
+ *
+ * 旧实现用 round 反推「节点相对本轮的偏移」，从 1/4 决赛开始就判错，
+ * 结果上半区整片是灰线、只有下半区有金色，和图例对不上。
+ */
 function branchColor(round: number, matchIndex: number, bracketSize: number): string {
-  const upperLimit = bracketSize / 2 ** (round + 1);
-  if (matchIndex >= upperLimit && matchIndex < upperLimit * 2) {
-    // 上半区（绿色）与下半区（金色）；决赛及更后为中性灰。
-    return matchIndex < bracketSize / 2 ** round / 2 ? COLORS.upper : COLORS.lower;
-  }
-  return COLORS.neutral;
+  const nodeCount = bracketSize / 2 ** round;
+  if (nodeCount <= 1) return COLORS.neutral;
+  return matchIndex < nodeCount / 2 ? COLORS.upper : COLORS.lower;
 }
 
 function formatGameType(value: string | undefined): string {
@@ -155,6 +162,17 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
   const renderRow = (node: RoundColumn['nodes'][number], playerId: string | null, score: number | undefined, side: 1 | 2) => {
     const winner = isWinner(node.match, playerId);
     const isPending = !node.match || node.match.result === 'pending';
+    // 有结果就显示局分；没有局分但比赛已经结束的弃权场次用文字标注，
+    // 否则那一列空着会让人以为「打完了却没有比分」。
+    // 轮空场次没有真实局分（记录里的胜局数是按赛制补的），两边都留空更不容易误读。
+    const scoreText = isPending || score === undefined || node.match?.isBye
+      // 赛前弃赛是「输的一边没打」，只在负方那一行标注，胜方照样是空列。
+      ? (!isPending && node.match?.preDrop && !winner ? (isEnglish ? 'W/O' : '弃权') : '')
+      : String(score);
+    // 轮空场次的空签位直接写「轮空」，比一个「待定」更能说明这里不会有人来。
+    const nameLabel = !playerId && node.match?.isBye
+      ? (isEnglish ? 'BYE' : '轮空')
+      : displayName(playerId);
     // 用绝对定位排三列，而不是 flex：html2canvas 对 flex 行的文字测量不稳定，
     // 导出时会按错误的行高裁剪中文字形（上半截可见、下半截丢失）。
     return (
@@ -175,8 +193,8 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
             position: 'absolute',
             left: 14,
             top: 16,
-            width: 46,
-            fontSize: 10,
+            width: 50,
+            fontSize: 10.5,
             letterSpacing: '0.04em',
             color: COLORS.faint,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -187,31 +205,35 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
           <span
           style={{
             position: 'absolute',
-            left: 70,
-            right: 52,
+            left: 74,
+            right: 54,
             top: 12,
             whiteSpace: 'nowrap',
             fontSize: 15,
             lineHeight: '22px',
-            fontWeight: winner ? 700 : 500,
-            color: isPending ? COLORS.muted : winner ? COLORS.winnerText : COLORS.text,
+            // 只有真正还空着的签位才压暗；已经确定对阵的选手一律用正文色，
+            // 否则整张图在群里缩到手机宽度就成了灰糊。
+            fontWeight: winner ? 700 : 600,
+            color: !playerId ? COLORS.muted : winner ? COLORS.winnerText : COLORS.text,
           }}
         >
-          {truncateLabel(displayName(playerId), 14)}
+          {truncateLabel(nameLabel, 14)}
         </span>
         <span
           style={{
             position: 'absolute',
             right: 16,
             top: 12,
-            fontSize: 14,
+            fontSize: scoreText.length > 2 ? 10 : 15,
             lineHeight: '22px',
-            fontWeight: 600,
+            letterSpacing: scoreText.length > 2 ? '0.04em' : '0.02em',
+            fontWeight: winner ? 800 : 600,
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            color: winner ? COLORS.winnerText : COLORS.muted,
+            color: winner ? COLORS.winnerText : COLORS.text,
+            opacity: scoreText ? 1 : 0,
           }}
         >
-          {!isPending && score !== undefined ? score : ''}
+          {scoreText}
         </span>
       </div>
     );
@@ -268,7 +290,8 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 left: getColumnX(round.round),
                 top: 0,
                 width: NODE_WIDTH,
-                fontSize: 12,
+                fontSize: 12.5,
+                fontWeight: 600,
                 letterSpacing: '0.12em',
                 color: COLORS.muted,
               }}
@@ -283,7 +306,8 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 left: championX,
                 top: 0,
                 width: CHAMPION_WIDTH,
-                fontSize: 12,
+                fontSize: 12.5,
+                fontWeight: 600,
                 letterSpacing: '0.12em',
                 color: COLORS.muted,
               }}
@@ -316,24 +340,27 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                     d={`M ${childX} ${firstChildY} H ${connectorX} V ${parentY}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={1.6}
-                    strokeOpacity={0.8}
+                    strokeWidth={2.4}
+                    strokeOpacity={1}
+                    strokeLinejoin="round"
                   />,
                   <path
                     key={`${node.id}-b`}
                     d={`M ${childX} ${secondChildY} H ${connectorX} V ${parentY}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={1.6}
-                    strokeOpacity={0.8}
+                    strokeWidth={2.4}
+                    strokeOpacity={1}
+                    strokeLinejoin="round"
                   />,
                   <path
                     key={`${node.id}-c`}
                     d={`M ${connectorX} ${parentY} H ${parentX}`}
                     fill="none"
                     stroke={color}
-                    strokeWidth={1.6}
-                    strokeOpacity={0.8}
+                    strokeWidth={2.4}
+                    strokeOpacity={1}
+                    strokeLinejoin="round"
                   />,
                 ];
               })
@@ -343,7 +370,7 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                 d={`M ${getColumnX(finalRound.round) + NODE_WIDTH} ${finalCenterY} H ${championX}`}
                 fill="none"
                 stroke={COLORS.championBorder}
-                strokeWidth={1.8}
+                strokeWidth={2.4}
               />
             )}
           </svg>
@@ -360,14 +387,14 @@ export function BracketImageView({ group, isEnglish }: BracketImageViewProps) {
                   width: NODE_WIDTH,
                   height: MATCH_NODE_HEIGHT,
                   borderRadius: 10,
-                  border: `1px solid ${COLORS.cardBorder}`,
+                  border: `1.5px solid ${COLORS.cardBorder}`,
                   background: COLORS.card,
-                  boxShadow: `0 6px 18px ${COLORS.cardShadow}`,
+                  boxShadow: `0 8px 22px ${COLORS.cardShadow}`,
                   overflow: 'hidden',
                 }}
               >
                 {renderRow(node, node.player1Id, node.match?.player1Games, 1)}
-                <div style={{ position: 'absolute', top: MATCH_NODE_HEIGHT / 2, left: 0, right: 0, height: 1, background: COLORS.cardBorder, opacity: 0.7 }} />
+                <div style={{ position: 'absolute', top: MATCH_NODE_HEIGHT / 2, left: 0, right: 0, height: 1, background: COLORS.divider }} />
                 {renderRow(node, node.player2Id, node.match?.player2Games, 2)}
               </div>
             ))
