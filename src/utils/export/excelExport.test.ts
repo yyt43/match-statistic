@@ -6,9 +6,9 @@ import { getMatchTableData, getRankingTableData, sanitizeSheetName, finalizeShee
 function createGroup(languagePlayers = ['Alice', 'Bob']): TournamentGroup {
   const players = createPlayersFromNames(languagePlayers);
   players[0].participantCode = 'A01';
-  players[0].profile = { uid: '180748058' };
+  players[0].profile = { uid: '810000001' };
   players[1].participantCode = 'A02';
-  players[1].profile = { uid: '338916899' };
+  players[1].profile = { uid: '810000002' };
   const match: Match = {
     id: 'match-1',
     round: 1,
@@ -46,8 +46,8 @@ describe('excel export data', () => {
     expect(en.headers).toContain('Rank');
     expect(en.headers.slice(0, 4)).toEqual(['Rank', 'Participant code', 'Player', 'UID']);
     expect(en.headers).toContain('Match History');
-    expect(zh.rows[0].slice(0, 4)).toEqual([1, 'A01', 'Alice', '180748058']);
-    expect(en.rows[0].slice(0, 4)).toEqual([1, 'A01', 'Alice', '180748058']);
+    expect(zh.rows[0].slice(0, 4)).toEqual([1, 'A01', 'Alice', '810000001']);
+    expect(en.rows[0].slice(0, 4)).toEqual([1, 'A01', 'Alice', '810000001']);
   });
 
   it('builds localized match table rows', () => {
@@ -77,8 +77,8 @@ describe('excel export data', () => {
       'UID 2',
       'Result',
     ]);
-    expect(zh.rows[0]).toEqual([1, 'A01', 'Alice', '180748058', '1-0', 'A02', 'Bob', '338916899', '选手1胜']);
-    expect(en.rows[0]).toEqual([1, 'A01', 'Alice', '180748058', '1-0', 'A02', 'Bob', '338916899', 'Player 1 win']);
+    expect(zh.rows[0]).toEqual([1, 'A01', 'Alice', '810000001', '1-0', 'A02', 'Bob', '810000002', '选手1胜']);
+    expect(en.rows[0]).toEqual([1, 'A01', 'Alice', '810000001', '1-0', 'A02', 'Bob', '810000002', 'Player 1 win']);
   });
 
   it('exports a 0-0 double loss and marks older positive scores as legacy', () => {

@@ -33,20 +33,20 @@ function withParticipantCodes(competition: ReturnType<typeof poetryCompetition>)
 describe('player profile schema', () => {
   it('accepts a complete poem cup roster with unique UIDs', () => {
     const competition = withParticipantCodes(poetryCompetition());
-    competition.groups[0].players[0].profile = { uid: '180748058', qq: '2957815893' };
-    competition.groups[0].players[1].profile = { uid: '338916899', qq: '1615852778' };
-    competition.groups[1].players[0].profile = { uid: '346732256', qq: '2133152813' };
-    competition.groups[1].players[1].profile = { uid: '283093920', qq: '639177928' };
+    competition.groups[0].players[0].profile = { uid: '810000001', qq: '81000001' };
+    competition.groups[0].players[1].profile = { uid: '810000002', qq: '81000002' };
+    competition.groups[1].players[0].profile = { uid: '810000003', qq: '81000003' };
+    competition.groups[1].players[1].profile = { uid: '810000004', qq: '81000004' };
 
     expect(validateRoster(competition).valid).toBe(true);
   });
 
   it('rejects duplicate UIDs and duplicate participant codes', () => {
     const competition = withParticipantCodes(poetryCompetition());
-    competition.groups[0].players[0].profile = { uid: '180748058', qq: '2957815893' };
-    competition.groups[0].players[1].profile = { uid: '180748058', qq: '1615852778' };
-    competition.groups[1].players[0].profile = { uid: '346732256', qq: '2133152813' };
-    competition.groups[1].players[1].profile = { uid: '283093920', qq: '639177928' };
+    competition.groups[0].players[0].profile = { uid: '810000001', qq: '81000001' };
+    competition.groups[0].players[1].profile = { uid: '810000001', qq: '81000002' };
+    competition.groups[1].players[0].profile = { uid: '810000003', qq: '81000003' };
+    competition.groups[1].players[1].profile = { uid: '810000004', qq: '81000004' };
     competition.groups[1].players[1].participantCode = 'A01';
 
     const summary = validateRoster(competition);
@@ -58,7 +58,7 @@ describe('player profile schema', () => {
   });
 
   it('normalizes common UID input separators', () => {
-    expect(normalizeUid(' 180-748-058 ')).toBe('180748058');
+    expect(normalizeUid(' 810-000-001 ')).toBe('810000001');
   });
 
   it('accepts participant codes from A01 through Z99', () => {

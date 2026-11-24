@@ -240,7 +240,7 @@ Example:
 
 | Participant code | Game UID | Result | Screenshot |
 | --- | --- | --- | --- |
-| A05 | 180748058 | 我以 2-1 获胜 | A-R1-03_01.jpg |
+| A05 | 810000001 | 我以 2-1 获胜 | A-R1-03_01.jpg |
 
 The importer supports multiple sheets, flexible column order, descriptive long headers, winner-perspective results, optional screenshots, conflict detection, and code-plus-UID identity verification. Code and UID mismatches are held for referee review.
 
