@@ -78,9 +78,9 @@ describe('competition schema', () => {
     const competition = validCompetition();
     competition.playerSchemaId = 'poetryCupS2';
     competition.groups[0].players[0].participantCode = 'A01';
-    competition.groups[0].players[0].profile = { uid: '180748058' };
+    competition.groups[0].players[0].profile = { uid: '810000001' };
     competition.groups[0].players[1].participantCode = 'A01';
-    competition.groups[0].players[1].profile = { uid: '180748058' };
+    competition.groups[0].players[1].profile = { uid: '810000001' };
 
     const result = validateCompetitionData(competition);
     expect(result.success).toBe(false);
