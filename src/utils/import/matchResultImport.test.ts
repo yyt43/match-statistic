@@ -13,9 +13,9 @@ function competitionWithMatch() {
   competition.playerFields = getDefaultPlayerFields('poetryCupS2');
   const group = competition.groups[0];
   group.players[0].participantCode = 'A01';
-  group.players[0].profile = { uid: '180748058', qq: '2957815893' };
+  group.players[0].profile = { uid: '810000001', qq: '81000001' };
   group.players[1].participantCode = 'A02';
-  group.players[1].profile = { uid: '338916899', qq: '1615852778' };
+  group.players[1].profile = { uid: '810000002', qq: '81000002' };
   group.currentRound = 1;
   group.status = 'in_progress';
   group.matches = [{
@@ -32,7 +32,7 @@ function row(overrides: Partial<MatchSubmissionRow> = {}): MatchSubmissionRow {
   return {
     rowNumber: 2,
     participantCode: 'A01',
-    uid: '180748058',
+    uid: '810000001',
     resultOption: '我以 2-1 获胜',
     evidenceRef: 'A-R1-01_01.png',
     ...overrides,
@@ -85,7 +85,7 @@ describe('match result import', () => {
   it('converts winner-perspective score for the right player', () => {
     const preview = buildMatchImportPreview(
       competitionWithMatch(),
-      [row({ participantCode: 'A02', uid: '338916899' })]
+      [row({ participantCode: 'A02', uid: '810000002' })]
     );
     expect(preview.ready[0].result).toBe('player2');
     expect(preview.ready[0].canonicalScore).toBe('1-2');
@@ -125,7 +125,7 @@ describe('match result import', () => {
 
     const crossPlayer = buildMatchImportPreview(
       competitionWithMatch(),
-      [row({ uid: '338916899' })]
+      [row({ uid: '810000002' })]
     );
     expect(crossPlayer.ready).toHaveLength(0);
     expect(crossPlayer.issues.some(issue => issue.code === 'UID_CODE_MISMATCH')).toBe(true);
@@ -138,9 +138,9 @@ describe('match result import', () => {
     for (const [groupIndex, prefix] of ['A', 'B'].entries()) {
       const group = competition.groups[groupIndex];
       group.players[0].participantCode = `${prefix}01`;
-      group.players[0].profile = { uid: groupIndex === 0 ? '180748058' : '346732256' };
+      group.players[0].profile = { uid: groupIndex === 0 ? '810000001' : '810000003' };
       group.players[1].participantCode = `${prefix}02`;
-      group.players[1].profile = { uid: groupIndex === 0 ? '338916899' : '283093920' };
+      group.players[1].profile = { uid: groupIndex === 0 ? '810000002' : '810000004' };
       group.currentRound = 1;
       group.status = 'in_progress';
       group.matches = [{
@@ -157,7 +157,7 @@ describe('match result import', () => {
       row({
         rowNumber: 3,
         participantCode: 'B01',
-        uid: '346732256',
+        uid: '810000003',
         resultOption: '我以 2-0 获胜',
       }),
     ]);

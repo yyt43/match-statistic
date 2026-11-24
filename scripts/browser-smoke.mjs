@@ -27,10 +27,10 @@ XLSX.utils.book_append_sheet(
   rosterWorkbook,
   XLSX.utils.aoa_to_sheet([
     ['游戏昵称', '选手编号', 'UID', 'QQ'],
-    ['Alice', 'A01', '180748058', '2957815893'],
-    ['Bob', 'A02', '338916899', '1615852778'],
-    ['Charlie', 'A03', '346732256', '2133152813'],
-    ['Diana', 'A04', '283093920', '639177928'],
+    ['Alice', 'A01', '810000001', '81000001'],
+    ['Bob', 'A02', '810000002', '81000002'],
+    ['Charlie', 'A03', '810000003', '81000003'],
+    ['Diana', 'A04', '810000004', '81000004'],
   ]),
   '小组01'
 );
@@ -116,7 +116,7 @@ try {
   await page.locator('input[type="file"][accept=".xlsx,.xls,.csv"]').last().setInputFiles(rosterFile);
   await waitForText(page, 'Imported 4 player profiles across 1 group.');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === 'Alice'));
-  await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '180748058'));
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('input')).some(input => input.value === '810000001'));
   if (
     await page.getByText('Leaderboard', { exact: true }).count() > 0
     || await page.getByText('Match list', { exact: true }).count() > 0
