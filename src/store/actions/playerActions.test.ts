@@ -19,10 +19,10 @@ describe('player profile store actions', () => {
     const store = useTournamentStore.getState();
     store.setPlayerSchema('poetryCupS2');
     store.importPlayerProfiles([
-      { name: 'A', participantCode: 'A01', profile: { uid: '180748058', qq: '2957815893' } },
-      { name: 'B', participantCode: 'A02', profile: { uid: '338916899', qq: '1615852778' } },
-      { name: 'C', participantCode: 'B01', profile: { uid: '346732256', qq: '2133152813' } },
-      { name: 'D', participantCode: 'B02', profile: { uid: '283093920', qq: '639177928' } },
+      { name: 'A', participantCode: 'A01', profile: { uid: '810000001', qq: '81000001' } },
+      { name: 'B', participantCode: 'A02', profile: { uid: '810000002', qq: '81000002' } },
+      { name: 'C', participantCode: 'B01', profile: { uid: '810000003', qq: '81000003' } },
+      { name: 'D', participantCode: 'B02', profile: { uid: '810000004', qq: '81000004' } },
     ], true);
 
     const updated = useTournamentStore.getState().competition;
@@ -287,8 +287,8 @@ describe('player profile store actions', () => {
     useTournamentStore.setState({ competition });
     const store = useTournamentStore.getState();
     store.importPlayerProfiles([
-      { name: 'A', participantCode: 'A01', profile: { uid: '180748058', qq: '2957815893' } },
-      { name: 'B', participantCode: 'A02', profile: { uid: '338916899', qq: '1615852778' } },
+      { name: 'A', participantCode: 'A01', profile: { uid: '810000001', qq: '81000001' } },
+      { name: 'B', participantCode: 'A02', profile: { uid: '810000002', qq: '81000002' } },
     ], false);
 
     const lockResult = useTournamentStore.getState().lockRoster();
@@ -299,6 +299,6 @@ describe('player profile store actions', () => {
     });
     expect(changed).toBe(false);
     expect(useTournamentStore.getState().competition.groups[0].players[0].profile?.uid)
-      .toBe('180748058');
+      .toBe('810000001');
   });
 });
