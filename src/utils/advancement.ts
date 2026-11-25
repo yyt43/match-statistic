@@ -129,14 +129,8 @@ export function isStageComplete(
 ): boolean {
   const groups = getStageGroups(competition, stage);
   if (groups.length === 0) return false;
-  return groups.every(group => {
-    if (group.status === 'completed') return true;
-    // 兜底：最后一轮全部录完即视为完成，避免状态未及时翻转导致无法晋级。
-    if (group.totalRounds <= 0 || group.currentRound < group.totalRounds) return false;
-    const lastRoundMatches = group.matches.filter(match => match.round === group.currentRound);
-    return lastRoundMatches.length > 0
-      && lastRoundMatches.every(match => match.result !== 'pending');
-  });
+  // 录满最后一轮不再自动视为完成：必须由用户在控制面板确认结束比赛。
+  return groups.every(group => group.status === 'completed');
 }
 
 /** 上级赛段是否还没确认晋级，用于阻止下游提前开赛。 */
@@ -200,6 +194,18 @@ export function getStageResultLockMessage(
     en: 'The downstream stage has started or already has results, so this stage is locked. Clear the downstream data and revert the advancement first.',
   };
 }
+
+/** 比赛已确认结束后，常规赛果必须先在控制面板撤回结束才能修改。 */
+export const COMPETITION_FINISHED_LOCK: StageLockMessage = {
+  zh: '比赛已确认结束。请先在控制面板点「撤回比赛结束」再修改赛果。',
+  en: 'The tournament is confirmed finished. Revert the finish in the control panel before changing results.',
+};
+
+/** 未录完最后一轮时点击「确认结束比赛」的提示。 */
+export const CONFIRM_FINISH_REQUIRES_FINAL_ROUND: StageLockMessage = {
+  zh: '只有最后一轮全部录完后才能确认结束比赛。',
+  en: 'You can confirm the finish only after every match of the final round has a result.',
+};
 
 export function findAdvancementRecord(
   competition: TournamentCompetition,

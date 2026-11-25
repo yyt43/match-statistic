@@ -88,8 +88,8 @@ export function StageAdvancementPanel() {
       {!stageComplete && (
         <p className="text-[10px] text-amber-400">
           {isEnglish
-            ? 'Finish every group of this stage first.'
-            : '请先完成本赛段全部小组的比赛。'}
+            ? 'Finish every group of this stage first, then confirm the finish in the control panel.'
+            : '请先完成本赛段全部小组的比赛，并在控制面板确认结束比赛。'}
         </p>
       )}
       {locked && (

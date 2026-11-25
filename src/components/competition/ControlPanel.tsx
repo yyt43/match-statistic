@@ -34,6 +34,7 @@ import { StageAdvancementPanel } from './StageAdvancementPanel';
 import { FinalStandingsPanel } from './FinalStandingsPanel';
 import { getCompetitionKind, getOrderedStages, getStageGroups } from '../../utils/multiStage';
 import { getUnconfirmedUpstreamStageIds } from '../../utils/advancement';
+import { isFinalRoundScored } from '../../store/competitionState';
 
 const QuickScoreModal = lazy(() =>
   import('../matches/QuickScoreModal').then(module => ({ default: module.QuickScoreModal }))
@@ -153,6 +154,8 @@ export function ControlPanel({
     undoLastRound,
     returnToPreviousRound,
     returnToSetup,
+    confirmGroupFinish,
+    undoGroupFinish,
     resetCompetition,
     updateCompetitionName,
     applyGroupConfiguration,
@@ -167,6 +170,8 @@ export function ControlPanel({
     undoLastRound: state.undoLastRound,
     returnToPreviousRound: state.returnToPreviousRound,
     returnToSetup: state.returnToSetup,
+    confirmGroupFinish: state.confirmGroupFinish,
+    undoGroupFinish: state.undoGroupFinish,
     resetCompetition: state.resetCompetition,
     updateCompetitionName: state.updateCompetitionName,
     applyGroupConfiguration: state.applyGroupConfiguration,
@@ -188,6 +193,7 @@ export function ControlPanel({
   );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showStorageHealth, setShowStorageHealth] = useState(false);
   const [showHistoryManager, setShowHistoryManager] = useState(false);
@@ -268,6 +274,8 @@ export function ControlPanel({
   const isSetup = currentGroup.status === 'setup';
   const isInProgress = currentGroup.status === 'in_progress';
   const isCompleted = currentGroup.status === 'completed';
+  // 最后一轮录满后不再自动结束，这里给用户一个显式的确认入口。
+  const canConfirmFinish = isFinalRoundScored(currentGroup);
   const roundUndoMode = resolveRoundUndoMode(currentGroup.currentRound, currentGroup.matches);
   // 底部录分入口只看当前小组：后续赛段还没开赛时不应出现录入按钮。
   const currentGroupHasRound = currentGroup.currentRound > 0;
@@ -981,6 +989,22 @@ export function ControlPanel({
                   {isEnglish ? 'Please finish all matches in the current round first.' : '请先完成当前轮所有比赛'}
                 </div>
               )}
+
+              {canConfirmFinish && (
+                <>
+                  <div className="text-center text-xs text-amber-300 bg-amber-500/10 rounded-lg py-2 px-3 leading-relaxed">
+                    <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
+                    {t.finishReadyHint}
+                  </div>
+                  <button
+                    onClick={() => setShowFinishConfirm(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/20 py-2 text-sm font-medium text-gold-400 transition-colors hover:bg-gold-500/30"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    {t.confirmFinishNow}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -996,6 +1020,14 @@ export function ControlPanel({
               <p className="text-xs text-slate-500 mt-0.5">
                 {formatText(t.matchEndedRounds, { rounds: currentGroup.totalRounds })}
               </p>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">{t.undoFinishHint}</p>
+              <button
+                onClick={() => undoGroupFinish()}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-orange-500/25 bg-orange-500/10 py-2 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
+              >
+                <Undo2 className="w-4 h-4" />
+                {t.undoFinishTournament}
+              </button>
               {currentGroup.pairingType === 'swiss' && <PlayoffPanel key={currentGroup.id} />}
             </div>
           )}
@@ -1008,11 +1040,11 @@ export function ControlPanel({
 
       {/* 底部固定操作区：开赛、录分、导入结果和生成下一轮始终可见 */}
       {(
-        currentGroupHasRound
+        (currentGroupHasRound && !isCompleted)
         || (isInProgress && isCurrentRoundComplete && currentGroup.currentRound < currentGroup.totalRounds)
       ) && (
         <div className="shrink-0 space-y-2 border-t border-slate-700/50 bg-slate-800/60 p-3">
-          {currentGroupHasRound && (
+          {currentGroupHasRound && !isCompleted && (
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setShowQuickScore(true)}
@@ -1058,6 +1090,19 @@ export function ControlPanel({
           )}
         </div>
       )}
+
+      {/* 结束比赛确认 */}
+      <ConfirmDialog
+        isOpen={showFinishConfirm}
+        onClose={() => setShowFinishConfirm(false)}
+        title={t.confirmFinishTitle}
+        message={formatText(t.confirmFinishMsg, { round: currentGroup.currentRound })}
+        confirmText={t.confirmFinishNow}
+        onConfirm={() => {
+          setShowFinishConfirm(false);
+          confirmGroupFinish();
+        }}
+      />
 
       {/* 重置确认（统一使用自制 ConfirmDialog） */}
       <ConfirmDialog

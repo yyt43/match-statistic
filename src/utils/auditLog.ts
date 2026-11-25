@@ -14,6 +14,8 @@ export type AuditAction =
   | 'history-jump'
   | 'tournament-reset'
   | 'tournament-import'
+  | 'tournament-finish'
+  | 'tournament-undo-finish'
   | 'player-drop'
   | 'player-restore'
   | 'roster-lock'
