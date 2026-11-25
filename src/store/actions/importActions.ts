@@ -12,6 +12,7 @@ import { applyMatchResultFast, recalculateRanking } from '../gameFlow';
 import { logAudit } from '../../utils/auditLog';
 import { clearPlayoffs } from '../../utils/playoffs';
 import {
+  COMPETITION_FINISHED_LOCK,
   getStageResultLockMessage,
   type StageLockMessage,
 } from '../../utils/advancement';
@@ -136,6 +137,11 @@ export function createImportActions(
         const lockedMessage = getStageResultLockMessage(competition, group.stageId);
         if (lockedMessage) {
           blockedLock = lockedMessage;
+          continue;
+        }
+        // 已确认结束的小组不再接受导入，需先撤回结束。
+        if (group.status === 'completed') {
+          blockedLock = COMPETITION_FINISHED_LOCK;
           continue;
         }
         const matchIndex = group.matches.findIndex(match => match.id === candidate.matchId);

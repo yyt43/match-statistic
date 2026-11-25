@@ -55,6 +55,10 @@ export function AuditLogManager({ isOpen, onClose }: AuditLogManagerProps) {
         return t.auditTournamentReset;
       case 'tournament-import':
         return formatText(t.auditTournamentImport, { name: String(details.name ?? '') });
+      case 'tournament-finish':
+        return formatText(t.auditTournamentFinish, { name: String(details.name ?? '') });
+      case 'tournament-undo-finish':
+        return formatText(t.auditTournamentUndoFinish, { name: String(details.name ?? '') });
       case 'player-drop':
         return formatText(t.auditPlayerDrop, { name: String(details.name ?? '') });
       case 'player-restore':

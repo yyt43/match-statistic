@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { TournamentCompetition, TournamentGroup } from '../types';
-import { collectPreDroppedPlayerIds, normalizeCompetitionGroups, replaceGroupAtIndex, resolveViewRound } from './competitionState';
+import {
+  collectPreDroppedPlayerIds,
+  getGroupTotalRounds,
+  isFinalRoundScored,
+  normalizeCompetitionGroups,
+  replaceGroupAtIndex,
+  resolveViewRound,
+} from './competitionState';
 
 function makeGroup(overrides: Partial<TournamentGroup> = {}): TournamentGroup {
   return {
@@ -107,5 +114,37 @@ describe('competition state helpers', () => {
     ];
 
     expect(collectPreDroppedPlayerIds(matches)).toEqual(new Set(['b', 'f']));
+  });
+
+  it('isFinalRoundScored only accepts a fully recorded last round of a running group', () => {
+    const matches = [
+      { id: 'm1', round: 1, player1Id: 'a', player2Id: 'b', result: 'player1' as const },
+      { id: 'm2', round: 1, player1Id: 'c', player2Id: 'd', result: 'pending' as const },
+    ];
+    const running = makeGroup({ currentRound: 1, totalRounds: 1, status: 'in_progress', matches });
+    expect(isFinalRoundScored(running)).toBe(false);
+
+    const scored = makeGroup({
+      currentRound: 1,
+      totalRounds: 1,
+      status: 'in_progress',
+      matches: [matches[0], { ...matches[1], result: 'player2' as const }],
+    });
+    expect(isFinalRoundScored(scored)).toBe(true);
+    // 还没打到最后一轮时不算完成。
+    expect(isFinalRoundScored(makeGroup({ currentRound: 1, totalRounds: 3, status: 'in_progress', matches: [matches[0]] }))).toBe(false);
+    // 已结束或未开赛都返回 false。
+    expect(isFinalRoundScored({ ...scored, status: 'completed' })).toBe(false);
+    expect(isFinalRoundScored({ ...scored, status: 'setup' })).toBe(false);
+  });
+
+  it('getGroupTotalRounds prefers the elimination bracket size for single elimination', () => {
+    const bracketGroup = makeGroup({
+      pairingType: 'single_elimination',
+      totalRounds: 2,
+      eliminationBracket: { size: 8, matches: [], createdAt: '2024-01-01T00:00:00.000Z' } as never,
+    });
+    expect(getGroupTotalRounds(bracketGroup)).toBe(3);
+    expect(getGroupTotalRounds(makeGroup({ totalRounds: 5 }))).toBe(5);
   });
 });

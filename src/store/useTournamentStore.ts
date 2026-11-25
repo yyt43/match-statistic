@@ -28,7 +28,7 @@ import {
   type EliminationBracketView,
 } from '../utils/elimination';
 import { saveSnapshot } from '../utils/storage/snapshot';
-import { evaluateGroupStatus, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
+import { isFinalRoundScored, isRoundComplete, replaceGroupAtIndex, updateGroupAtIndex } from './competitionState';
 import { applyMatchResultFast, generateNextRoundFast, recalculateRanking, yieldToMain } from './gameFlow';
 import { createNewCompetition } from './tournamentFactory';
 import { applyMatchResultToMap, revertMatchResult } from './matchResultMutators';
@@ -37,6 +37,8 @@ import { generateNextRoundForCompetition, startAllGroupsInCompetition, startTour
 import { getCurrentStageGroupIndices } from '../utils/multiStage';
 import { reconcileCompetitionRounds } from '../utils/eliminationRepair';
 import {
+  COMPETITION_FINISHED_LOCK,
+  CONFIRM_FINISH_REQUIRES_FINAL_ROUND,
   getStageResultLockMessage,
   getUnconfirmedUpstreamStageIds,
   type StageLockMessage,
@@ -278,6 +280,8 @@ export interface CompetitionState {
   undoLastRound: () => void;
   returnToPreviousRound: () => void;
   returnToSetup: () => void;
+  confirmGroupFinish: (groupIdx?: number) => void;
+  undoGroupFinish: (groupIdx?: number) => void;
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => void;
   randomGenerateAllGroups: () => Promise<void>;
   randomGenerateCurrentRoundAllGroups: () => Promise<void>;
@@ -344,6 +348,7 @@ export function useIsCurrentRoundComplete(): boolean {
   return currentMatches.length > 0 && currentMatches.every(m => m.result !== 'pending');
 }
 
+/** 比赛已确认结束后，常规赛果必须先在控制面板撤回结束才能修改。 */
 function hasPlayoffData(group: TournamentGroup): boolean {
   return (group.playoffBrackets?.length ?? 0) > 0 || group.matches.some(match => match.isPlayoff);
 }
@@ -1224,6 +1229,69 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
     void logAudit('round-undo', 'Round 1 returned to setup', { round: 1 });
   },
 
+  /** 确认结束比赛：最后一轮录满后由用户手动确认，之后赛果进入锁定状态。 */
+  confirmGroupFinish: (groupIdx?: number) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group) return;
+    const lockedMessage = getStageResultLockMessage(competition, group.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
+    if (group.status === 'completed') return;
+    if (!isFinalRoundScored(group)) {
+      set({ actionError: CONFIRM_FINISH_REQUIRES_FINAL_ROUND });
+      return;
+    }
+
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = { ...group, status: 'completed' };
+    const updated = { ...competition, groups: updatedGroups };
+    set(
+      { competition: updated, actionError: null },
+      { label: `确认结束比赛·${group.name}` }
+    );
+    void logAudit('tournament-finish', `Group ${group.name} confirmed finished`, {
+      name: group.name,
+      groupId: group.id,
+      round: group.currentRound,
+    });
+    try {
+      void saveSnapshot(updated, `${group.name}·确认结束`, { replaceSameLabel: true });
+    } catch { /* 快照失败不影响主流程 */ }
+  },
+
+  /** 撤回比赛结束：回到进行中，允许继续修正最后一轮赛果。 */
+  undoGroupFinish: (groupIdx?: number) => {
+    const { competition } = get();
+    const idx = groupIdx ?? competition.currentGroupIndex;
+    const group = competition.groups[idx];
+    if (!group || group.status !== 'completed') return;
+    const lockedMessage = getStageResultLockMessage(competition, group.stageId);
+    if (lockedMessage) {
+      set({ actionError: lockedMessage });
+      return;
+    }
+
+    const updatedGroups = [...competition.groups];
+    updatedGroups[idx] = { ...group, status: 'in_progress' };
+    const updated = { ...competition, groups: updatedGroups };
+    set(
+      {
+        competition: updated,
+        actionError: null,
+        viewRound: group.currentRound > 0 ? group.currentRound : 0,
+      },
+      { label: `撤回比赛结束·${group.name}` }
+    );
+    void logAudit('tournament-undo-finish', `Group ${group.name} finish reverted`, {
+      name: group.name,
+      groupId: group.id,
+    });
+  },
+
   updateMatchResult: (matchId: string, result: MatchResult, player1Games?: number, player2Games?: number, preDrop?: boolean) => {
     const { competition } = get();
     const idx = competition.currentGroupIndex;
@@ -1244,6 +1312,12 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       && (storedMatch.result !== result
         || storedMatch.player1Games !== player1Games
         || storedMatch.player2Games !== player2Games)) {
+      return;
+    }
+
+    // 比赛已确认结束：只允许改加赛，常规赛果需先撤回结束。
+    if (storedGroup.status === 'completed' && !storedMatch.isPlayoff) {
+      set({ actionError: COMPETITION_FINISHED_LOCK });
       return;
     }
 
@@ -1352,7 +1426,6 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       ...group,
       matches: updatedMatches,
       players: updatedPlayers,
-      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
     set(
@@ -1525,7 +1598,6 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       ...group,
       matches: updatedMatches,
       players: updatedPlayers,
-      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
     const shouldResetViewRound = playoffsCleared && groupIdx === competition.currentGroupIndex;
@@ -1633,7 +1705,6 @@ export const useTournamentStore = create<CompetitionState>((rawSet, get) => {
       ...group,
       matches: updatedMatches,
       players: updatedPlayers,
-      status: evaluateGroupStatus({ ...group, matches: updatedMatches, players: updatedPlayers }),
     };
     const updated = { ...competition, groups: updatedGroups };
     set({ competition: updated }, { label: '批量调整对阵' });

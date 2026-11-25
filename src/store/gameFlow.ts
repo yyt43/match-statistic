@@ -4,7 +4,6 @@ import { normalizeResultScore } from '../utils/matchResult';
 import {
   createEliminationFirstRoundMatches,
   createEliminationNextRoundMatches,
-  getEliminationBracketRounds,
 } from '../utils/elimination';
 
 export function generateNextRoundFast(group: TournamentGroup): TournamentGroup {
@@ -237,17 +236,11 @@ export function applyMatchResultFast(
     preDrop: !!preDrop,
   };
 
-  const allCurrentRoundMatches = updatedMatches.filter(m => m.round === group.currentRound);
-  const allDone = allCurrentRoundMatches.length > 0 && allCurrentRoundMatches.every(m => m.result !== 'pending');
-  const isLastRound = group.eliminationBracket
-    ? group.currentRound >= getEliminationBracketRounds(group.eliminationBracket.size)
-    : group.currentRound >= group.totalRounds;
-
+  // 录满最后一轮不再自动结束比赛，是否结束由用户确认（store.confirmGroupFinish）。
   return {
     ...group,
     matches: updatedMatches,
     players: Array.from(playerMap.values()),
-    status: allDone && isLastRound ? 'completed' as const : group.status,
   };
 }
 

@@ -112,20 +112,13 @@ export function generateNextRoundForCompetition(
   const allMatches = [...group.matches, ...matches];
   updatedPlayers = calculateAllWinRates(updatedPlayers, allMatches, group.gameType);
 
-  const isBracketComplete = isEliminationGroup
-    && nextRound === getSingleEliminationRounds(group.eliminationBracket!.size);
-
   const updatedGroups = [...competition.groups];
   const updatedGroup = {
     ...group,
     currentRound: nextRound,
     matches: allMatches,
     players: updatedPlayers,
-    status: isBracketComplete && allMatches
-      .filter(match => match.round === nextRound)
-      .every(match => match.result !== 'pending')
-      ? 'completed' as TournamentStatus
-      : group.status,
+    status: group.status,
   };
   updatedGroups[groupIdx] = updatedGroup;
   return { ...competition, groups: updatedGroups };

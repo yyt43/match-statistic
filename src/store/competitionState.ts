@@ -1,4 +1,5 @@
-import type { TournamentCompetition, TournamentGroup, TournamentStatus } from '../types';
+import type { TournamentCompetition, TournamentGroup } from '../types';
+import { getEliminationBracketRounds } from '../utils/elimination';
 import { calculateAllWinRates, getRankedPlayers } from '../utils/swissPairing';
 import { getDefaultTiebreakTemplate, normalizeTiebreakRules } from '../utils/tiebreak';
 import { getDefaultPlayerFields, getPlayerSchemaId } from '../utils/playerProfiles';
@@ -29,10 +30,24 @@ export function isRoundComplete(group: TournamentGroup, round: number = group.cu
   return matches.length > 0 && matches.every(match => match.result !== 'pending');
 }
 
-export function evaluateGroupStatus(group: TournamentGroup): TournamentStatus {
-  const hasCompletedRound = isRoundComplete(group, group.currentRound);
-  const isLastRound = group.currentRound >= group.totalRounds;
-  return hasCompletedRound && isLastRound ? 'completed' : group.status;
+/** 小组实际轮数：单败淘汰按签表规模推导，其余用开赛时设定的轮数。 */
+export function getGroupTotalRounds(group: TournamentGroup): number {
+  if (group.pairingType === 'single_elimination' && group.eliminationBracket) {
+    const bracketRounds = getEliminationBracketRounds(group.eliminationBracket.size);
+    if (bracketRounds > 0) return bracketRounds;
+  }
+  return group.totalRounds;
+}
+
+/**
+ * 最后一轮是否已全部录完、可以确认结束比赛。
+ * 录满不再自动结束：必须由用户点「确认结束比赛」，以便核对或修改最后一轮赛果。
+ */
+export function isFinalRoundScored(group: TournamentGroup): boolean {
+  if (group.status !== 'in_progress') return false;
+  const totalRounds = getGroupTotalRounds(group);
+  if (totalRounds <= 0 || group.currentRound < totalRounds) return false;
+  return isRoundComplete(group, group.currentRound);
 }
 
 export function normalizeCompetitionGroups(competition: TournamentCompetition): TournamentCompetition {
