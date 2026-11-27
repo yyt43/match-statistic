@@ -182,7 +182,7 @@ const POETRY_CUP_S3_RULE_TEXT = {
     '突围赛只设一个小组，最多 16 人（每个来源小组最多 4 人），只打一轮；配对按来源小组进行：4 人时 3 对 6、4 对 5；3 人时 4 对 5、第 3 名单挑即直接晋级；2 人或 1 人时全部直接晋级。',
     '配不成对的选手不再在本赛段轮空占位，而是直接晋级淘汰赛（落位按其在来源小组的名次），所以突围赛只保留真正要打的场次。',
     '淘汰赛共 16 人：小组赛直进 8 人 + 突围赛产出 8 人（其中未配对的选手整轮直接晋级，不与队友自相消耗）。',
-    '淘汰赛固定签位：A1-D4、B2-C3、C1-B4、D2-A3、B1-C4、A2-D3、D1-A4、C2-B3，人数不足时按实际人数轮空。',
+    '淘汰赛固定签位：A1-B4、C2-D3、B1-C4、D2-A3、C1-D4、A2-B3、D1-A4、B2-C3，人数不足时按实际人数轮空。',
     '淘汰赛逐轮赛制：BO3、BO5、BO5、BO7。',
   ],
   en: [
@@ -192,7 +192,7 @@ const POETRY_CUP_S3_RULE_TEXT = {
     'The breakout stage is a single group holding at most 16 entrants (at most 4 per source group) and plays a single round; pairings follow the source group: with 4 entrants it pairs 3 vs 6 and 4 vs 5; with 3 entrants 4 meets 5 and rank 3 advances; with 2 or 1 entrants everyone advances.',
     'An entrant without a partner no longer takes a bye slot in this stage: it advances straight to the playoffs at its source rank, so only real matches stay in the breakout bracket.',
     'The playoffs hold 16 players: 8 direct qualifiers from the group stage plus 8 produced by the breakout stage (the unpaired ones pass through without consuming a teammate).',
-    'Playoff seeds: A1-D4, B2-C3, C1-B4, D2-A3, B1-C4, A2-D3, D1-A4, C2-B3, with byes by actual player count.',
+    'Playoff seeds: A1-B4, C2-D3, B1-C4, D2-A3, C1-D4, A2-B3, D1-A4, B2-C3, with byes by actual player count.',
     'Playoff series by round: BO3, BO5, BO5, BO7.',
   ],
 } as const;
