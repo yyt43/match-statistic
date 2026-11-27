@@ -847,7 +847,7 @@ describe('rankPairs fill policy', () => {
     const emptySlots = slots.flatMap((slot, index) => (slot ? [] : [index]));
     expect(emptySlots).toEqual([1, 5, 9, 13]);
 
-    // 各组第 3 名落到自己组的第 3 名签位上（A组 7 / C组 3 / D组 11 / B组 15）。
+    // 各组第 3 名落到共鸣杯固定签位（A组 7 / B组 11 / C组 15 / D组 3）。
     const thirdPlaces: Record<string, string> = {};
     for (const group of competition.groups) {
       const player = buildRankedGroup(group).players[2];
@@ -859,10 +859,10 @@ describe('rankPairs fill policy', () => {
       const player = playoffGroup.players.find(item => item.id === playerId);
       return player?.participantCode ?? player?.name;
     };
-    expect(codeAtSlot(3)).toBe(thirdPlaces['C组']);
+    expect(codeAtSlot(3)).toBe(thirdPlaces['D组']);
     expect(codeAtSlot(7)).toBe(thirdPlaces['A组']);
-    expect(codeAtSlot(11)).toBe(thirdPlaces['D组']);
-    expect(codeAtSlot(15)).toBe(thirdPlaces['B组']);
+    expect(codeAtSlot(11)).toBe(thirdPlaces['B组']);
+    expect(codeAtSlot(15)).toBe(thirdPlaces['C组']);
   });
 
   it('keeps parking unpaired players in the current stage when fillPolicy is bye', () => {
@@ -932,8 +932,8 @@ describe('rankPairs fill policy', () => {
     expect(playoffGroup.players).toHaveLength(16);
     expect(playoffGroup.eliminationBracket?.slots.filter(Boolean)).toHaveLength(16);
 
-    // 突破赛胜者补的是各组第 4 名签位：A组 13 / B组 5 / C组 9 / D组 1。
-    const expectedSlots: Record<string, number> = { 'A组': 13, 'B组': 5, 'C组': 9, 'D组': 1 };
+    // 突破赛胜者补的是各组第 4 名签位：A组 13 / B组 1 / C组 5 / D组 9。
+    const expectedSlots: Record<string, number> = { 'A组': 13, 'B组': 1, 'C组': 5, 'D组': 9 };
     const record = (updated.stageAdvancements ?? []).find(
       item => item.sourceStageId === stages[1].id
     );

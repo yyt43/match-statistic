@@ -9,7 +9,9 @@ import { createNewGroup, generateId } from './tournamentFactory';
 import { getDefaultPlayerFields, getParticipantCodePrefix } from '../utils/playerProfiles';
 import {
   POETRY_CUP_S3_NAME,
+  RESONANCE_CUP_NAME,
   createPoetryCupS3DraftStages,
+  createResonanceCupDraftStages,
   getDraftGroupNames,
   type MultiStageDraftStage,
 } from '../utils/multiStage';
@@ -89,6 +91,7 @@ export function createMultiStageCompetition(
           stage.fixedRounds ?? group.totalRounds,
           stage.gameType
         ),
+        tiebreakRules: stage.tiebreakRules ? [...stage.tiebreakRules] : group.tiebreakRules,
       });
       groupIds.push(group.id);
       playerIndex += playerCount;
@@ -158,6 +161,15 @@ export function createMultiStageCompetition(
 }
 
 /** 诗意杯 S3：锁定的小组赛 → 突围赛 → 淘汰赛三赛段模板。 */
+export function createResonanceCupCompetition(
+  name: string = RESONANCE_CUP_NAME
+): TournamentCompetition {
+  return createMultiStageCompetition(name, createResonanceCupDraftStages(), {
+    workflow: 'resonance_cup',
+    locked: true,
+  });
+}
+
 export function createPoetryCupS3Competition(
   name: string = POETRY_CUP_S3_NAME
 ): TournamentCompetition {

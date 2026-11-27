@@ -6,12 +6,13 @@ import type {
   StageAdvancementRule,
   StageBreakoutConfig,
   StageSeedRule,
+  TiebreakRule,
   TournamentCompetition,
   TournamentGroup,
   TournamentStage,
 } from '../types';
 
-export type CompetitionKind = 'single_stage' | 'multi_stage' | 'poetry_cup_s3';
+export type CompetitionKind = 'single_stage' | 'multi_stage' | 'poetry_cup_s3' | 'resonance_cup';
 
 /** 设置向导里单个赛段的草稿配置。 */
 export interface MultiStageDraftStage {
@@ -28,6 +29,7 @@ export interface MultiStageDraftStage {
   roundsManual?: boolean;
   gameType: GameType;
   roundGameTypes: GameType[];
+  tiebreakRules?: TiebreakRule[];
   /** 名单来自哪些上游赛段；缺省表示手动导入。 */
   sourceStageIds?: string[];
   /** 该赛段的晋级计划：谁晋级、去哪个赛段（优先于旧 advancementRules）。 */
@@ -43,6 +45,29 @@ export interface MultiStageDraftStage {
 }
 
 export const POETRY_CUP_S3_NAME = '诗意杯S3';
+export const RESONANCE_CUP_NAME = '共鸣杯';
+
+/** 共鸣杯与诗意杯新建预设共用的 16 人淘汰赛签位。 */
+export const RESONANCE_CUP_SEED_RULES: StageSeedRule[] = [
+  { sourceGroupName: 'A组', rank: 1, targetSlot: 0 },
+  { sourceGroupName: 'B组', rank: 4, targetSlot: 1 },
+  { sourceGroupName: 'C组', rank: 2, targetSlot: 2 },
+  { sourceGroupName: 'D组', rank: 3, targetSlot: 3 },
+  { sourceGroupName: 'B组', rank: 1, targetSlot: 4 },
+  { sourceGroupName: 'C组', rank: 4, targetSlot: 5 },
+  { sourceGroupName: 'D组', rank: 2, targetSlot: 6 },
+  { sourceGroupName: 'A组', rank: 3, targetSlot: 7 },
+  { sourceGroupName: 'C组', rank: 1, targetSlot: 8 },
+  { sourceGroupName: 'D组', rank: 4, targetSlot: 9 },
+  { sourceGroupName: 'A组', rank: 2, targetSlot: 10 },
+  { sourceGroupName: 'B组', rank: 3, targetSlot: 11 },
+  { sourceGroupName: 'D组', rank: 1, targetSlot: 12 },
+  { sourceGroupName: 'A组', rank: 4, targetSlot: 13 },
+  { sourceGroupName: 'B组', rank: 2, targetSlot: 14 },
+  { sourceGroupName: 'C组', rank: 3, targetSlot: 15 },
+];
+
+export const S3_SEED_RULES = RESONANCE_CUP_SEED_RULES;
 
 /** 赛段草稿里每个小组的显示名（与创建赛事时的命名规则一致）。 */
 export function getDraftGroupNames(stage: MultiStageDraftStage): string[] {
@@ -55,29 +80,11 @@ export function getDraftGroupNames(stage: MultiStageDraftStage): string[] {
   });
 }
 
-/** S3 淘汰赛固定签位：来源小组名 + 组内名次 → 淘汰赛位置。 */
-export const S3_SEED_RULES: StageSeedRule[] = [
-  { sourceGroupName: 'A组', rank: 1, targetSlot: 0 },
-  { sourceGroupName: 'D组', rank: 4, targetSlot: 1 },
-  { sourceGroupName: 'B组', rank: 2, targetSlot: 2 },
-  { sourceGroupName: 'C组', rank: 3, targetSlot: 3 },
-  { sourceGroupName: 'C组', rank: 1, targetSlot: 4 },
-  { sourceGroupName: 'B组', rank: 4, targetSlot: 5 },
-  { sourceGroupName: 'D组', rank: 2, targetSlot: 6 },
-  { sourceGroupName: 'A组', rank: 3, targetSlot: 7 },
-  { sourceGroupName: 'B组', rank: 1, targetSlot: 8 },
-  { sourceGroupName: 'C组', rank: 4, targetSlot: 9 },
-  { sourceGroupName: 'A组', rank: 2, targetSlot: 10 },
-  { sourceGroupName: 'D组', rank: 3, targetSlot: 11 },
-  { sourceGroupName: 'D组', rank: 1, targetSlot: 12 },
-  { sourceGroupName: 'A组', rank: 4, targetSlot: 13 },
-  { sourceGroupName: 'C组', rank: 2, targetSlot: 14 },
-  { sourceGroupName: 'B组', rank: 3, targetSlot: 15 },
-];
-
 export function getCompetitionKind(competition: TournamentCompetition): CompetitionKind {
   if (competition.format !== 'multi_stage') return 'single_stage';
-  return competition.workflow === 'poetry_cup_s3' ? 'poetry_cup_s3' : 'multi_stage';
+  if (competition.workflow === 'poetry_cup_s3') return 'poetry_cup_s3';
+  if (competition.workflow === 'resonance_cup') return 'resonance_cup';
+  return 'multi_stage';
 }
 
 export function isMultiStageCompetition(competition: TournamentCompetition): boolean {
@@ -194,6 +201,51 @@ export function getPoetryCupS3Rules(isEnglish: boolean): string[] {
   return [...(isEnglish ? POETRY_CUP_S3_RULE_TEXT.en : POETRY_CUP_S3_RULE_TEXT.zh)];
 }
 
+/** 共鸣杯：四组瑞士轮直接进入 16 人淘汰赛。 */
+export function createResonanceCupDraftStages(): MultiStageDraftStage[] {
+  return [
+    {
+      id: 'resonance-group',
+      name: '晋级赛',
+      kind: 'swiss',
+      groupCount: 4,
+      groupNames: ['A组', 'B组', 'C组', 'D组'],
+      playerCountPerGroup: 32,
+      rounds: 5,
+      gameType: 'bo3',
+      roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
+      tiebreakRules: ['opponentWinRate', 'gameWinRate', 'opponentGameWinRate'],
+      advancementPlan: {
+        slots: [{
+          id: 'resonance-top-four',
+          targetStageId: 'resonance-playoff',
+          selectors: [{ fromRank: 1, toRank: 4 }],
+        }],
+      },
+    },
+    {
+      id: 'resonance-playoff',
+      name: '淘汰赛',
+      kind: 'single_elimination',
+      groupCount: 1,
+      playerCountPerGroup: 16,
+      rounds: 4,
+      gameType: 'bo5',
+      roundGameTypes: ['bo3', 'bo5', 'bo5', 'bo7'],
+      sourceStageIds: ['resonance-group'],
+      seating: {
+        mode: 'fixedSlots',
+        slots: RESONANCE_CUP_SEED_RULES.map(rule => ({
+          sourceGroupName: rule.sourceGroupName,
+          rank: rule.rank,
+          slot: rule.targetSlot,
+        })),
+      },
+      seedRules: RESONANCE_CUP_SEED_RULES,
+    },
+  ];
+}
+
 /** 诗意杯 S3 锁定的三个阶段模板。 */
 export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
   return [
@@ -207,6 +259,7 @@ export function createPoetryCupS3DraftStages(): MultiStageDraftStage[] {
       rounds: 5,
       gameType: 'bo3',
       roundGameTypes: ['bo3', 'bo3', 'bo3', 'bo3', 'bo3'],
+      tiebreakRules: ['opponentWinRate', 'gameWinRate', 'opponentGameWinRate'],
       advancementPlan: {
         slots: [
           {
