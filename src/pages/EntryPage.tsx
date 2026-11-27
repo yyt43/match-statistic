@@ -203,12 +203,12 @@ export default function EntryPage() {
       kind: 'multi_stage',
       title: isEnglish ? 'Multi-stage event' : '多阶段赛事',
       description: isEnglish
-        ? 'Configure stages and formats first, then work in the same workspace. Start blank or load the Poetry Cup S3 preset.'
-        : '先设置赛段与赛制，再进入相同的赛事工作区。可以从空白搭建，也可以直接套用诗意杯 S3 预设。',
+        ? 'Configure stages and formats first, then work in the same workspace. Start blank or load a built-in event preset.'
+        : '先设置赛段与赛制，再进入同一套赛事工作区。可以从空白搭建，也可以套用内置的诗意杯或共鸣杯预设。',
       highlights: isEnglish
-        ? ['Define stage order and formats', 'Several groups per stage', 'Poetry Cup S3 preset included']
-        : ['自定义赛段顺序与赛制', '每个赛段可包含多个小组', '内置诗意杯 S3 预设'],
-      badge: isEnglish ? 'Poetry Cup S3 preset' : '含诗意杯 S3 预设',
+        ? ['Define stage order and formats', 'Several groups per stage', 'Poetry Cup S3 and Resonance Cup presets included']
+        : ['自定义赛段顺序与赛制', '每个赛段可包含多个小组', '内置诗意杯 S3 与共鸣杯预设'],
+      badge: isEnglish ? 'Built-in event presets' : '含内置赛事预设',
     },
   ];
 
@@ -336,8 +336,8 @@ export default function EntryPage() {
               </div>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {isEnglish
-                  ? 'Choose an exported JSON file; the type is detected automatically.'
-                  : '选择导出的 JSON 文件，自动识别单阶段 / 多阶段 / 诗意杯 S3。'}
+                  ? 'Choose an exported JSON file; the event type is detected automatically.'
+                  : '选择导出的 JSON 文件，自动识别单阶段、多阶段、诗意杯 S3 或共鸣杯。'}
               </p>
             </div>
             <input
