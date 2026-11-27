@@ -3,8 +3,9 @@ import {
   createDefaultStageDraft,
   createMultiStageCompetition,
   createPoetryCupS3Competition,
+  createResonanceCupCompetition,
 } from './multiStageFactory';
-import { getCompetitionKind, getOrderedStages, getStageGroups } from '../utils/multiStage';
+import { getCompetitionKind, getOrderedStages, getStageGroups, RESONANCE_CUP_SEED_RULES, S3_SEED_RULES } from '../utils/multiStage';
 import { validateRoster } from '../utils/playerProfiles';
 import type { MultiStageDraftStage } from '../utils/multiStage';
 
@@ -42,6 +43,21 @@ describe('multi-stage factory', () => {
     expect(playoff.players).toHaveLength(0);
     expect(playoff.totalRounds).toBe(4);
     expect(playoff.roundGameTypes).toEqual(['bo3', 'bo5', 'bo5', 'bo7']);
+  });
+
+  it('builds the Resonance Cup preset with shared playoff seeds and tiebreaks', () => {
+    const resonance = createResonanceCupCompetition();
+    const stages = getOrderedStages(resonance);
+    const groups = getStageGroups(resonance, stages[0]);
+    const playoff = getStageGroups(resonance, stages[1])[0];
+
+    expect(getCompetitionKind(resonance)).toBe('resonance_cup');
+    expect(groups.map(group => group.players.length)).toEqual([32, 32, 32, 32]);
+    expect(groups.every(group => group.totalRounds === 5)).toBe(true);
+    expect(groups.every(group => group.tiebreakRules?.slice(0, 3).join(',') === 'opponentWinRate,gameWinRate,opponentGameWinRate')).toBe(true);
+    expect(playoff.roundGameTypes).toEqual(['bo3', 'bo5', 'bo5', 'bo7']);
+    expect(stages[1].seedRules).toEqual(RESONANCE_CUP_SEED_RULES);
+    expect(S3_SEED_RULES).toEqual(RESONANCE_CUP_SEED_RULES);
   });
 
   it('keeps participant codes unique across every stage of the template', () => {

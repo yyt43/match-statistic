@@ -29,7 +29,9 @@ import { useTournamentStore } from '../store/useTournamentStore';
 import { createDefaultStageDraft, createMultiStageCompetition } from '../store/multiStageFactory';
 import {
   POETRY_CUP_S3_NAME,
+  RESONANCE_CUP_NAME,
   createPoetryCupS3DraftStages,
+  createResonanceCupDraftStages,
   getDraftGroupNames,
   type MultiStageDraftStage,
 } from '../utils/multiStage';
@@ -273,7 +275,7 @@ export default function MultiStageSetup() {
   const [nameInput, setNameInput] = useState('新建赛事');
   const [stages, setStages] = useState<MultiStageDraftStage[]>(() => [createDefaultStageDraft(1)]);
   // 预设只影响草稿内容；套用后仍可在下面逐项修改。
-  const [preset, setPreset] = useState<'blank' | 'poetry_cup_s3'>('blank');
+  const [preset, setPreset] = useState<'blank' | 'poetry_cup_s3' | 'resonance_cup'>('blank');
   // 已有赛事（存档或内存中）时，开始搭建会覆盖它，需要二次确认。
   const [hasSavedEvent, setHasSavedEvent] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
@@ -862,14 +864,19 @@ export default function MultiStageSetup() {
   const ruleErrors = ruleIssues.filter(issue => issue.severity === 'error');
   const canStartEvent = !hasInvalidStage && ruleErrors.length === 0;
 
-  /** 切换起点：空白搭建或套用诗意杯 S3 预设；预设只是填充草稿，套用后仍可逐项修改。 */
-  const applyPreset = (next: 'blank' | 'poetry_cup_s3') => {
+  /** 切换起点：空白搭建或套用赛事预设；预设只是填充草稿，套用后仍可逐项修改。 */
+  const applyPreset = (next: 'blank' | 'poetry_cup_s3' | 'resonance_cup') => {
     setPreset(next);
     // 换起点后所有赛段先收起，只显示摘要行，方便整体浏览。
     setExpandedStageIds(new Set());
     if (next === 'poetry_cup_s3') {
       setStages(createPoetryCupS3DraftStages());
       setNameInput(current => (current.trim() && current !== '新建赛事' ? current : POETRY_CUP_S3_NAME));
+      return;
+    }
+    if (next === 'resonance_cup') {
+      setStages(createResonanceCupDraftStages());
+      setNameInput(current => (current.trim() && current !== '新建赛事' ? current : RESONANCE_CUP_NAME));
       return;
     }
     setStages([createDefaultStageDraft(1)]);
@@ -881,7 +888,11 @@ export default function MultiStageSetup() {
     const nextCompetition = createMultiStageCompetition(
       nameInput.trim() || '多阶段赛事',
       stages,
-      preset === 'poetry_cup_s3' ? { workflow: 'poetry_cup_s3' } : {}
+      preset === 'poetry_cup_s3'
+        ? { workflow: 'poetry_cup_s3' }
+        : preset === 'resonance_cup'
+          ? { workflow: 'resonance_cup' }
+          : {}
     );
     initMultiStageCompetition(nextCompetition);
     navigate('/workspace');
@@ -972,6 +983,7 @@ export default function MultiStageSetup() {
               {([
                 { id: 'blank' as const, label: isEnglish ? 'Blank setup' : '空白搭建' },
                 { id: 'poetry_cup_s3' as const, label: isEnglish ? 'Poetry Cup S3 preset' : '诗意杯 S3 预设' },
+                { id: 'resonance_cup' as const, label: isEnglish ? 'Resonance Cup preset' : '共鸣杯预设' },
               ]).map(option => (
                 <button
                   key={option.id}
@@ -990,8 +1002,8 @@ export default function MultiStageSetup() {
             </div>
             <p className="text-xs leading-relaxed text-slate-500">
               {isEnglish
-                ? 'The preset only fills in the stages below: group stage → breakout stage → playoffs, with their advancement and arrival settings. Every field stays editable.'
-                : '预设只会填充下面的赛段：小组赛 → 突围赛 → 淘汰赛，连同晋级去向与落位设置一起填好；套用后每一项仍然可以修改。'}
+                ? 'The preset fills the stages, advancement, and seating below. Every field stays editable.'
+                : '预设会填充赛段、晋级与落位设置；套用后每一项仍然可以修改。'}
             </p>
           </section>
 

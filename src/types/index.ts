@@ -202,7 +202,7 @@ export interface TournamentGroup {
 export type CompetitionFormat = 'legacy' | 'multi_stage';
 
 /** 专用流程标识，用于锁定模板（例如诗意杯 S3）。 */
-export type CompetitionWorkflow = 'standard' | 'poetry_cup_s3';
+export type CompetitionWorkflow = 'standard' | 'poetry_cup_s3' | 'resonance_cup';
 
 export type AdvancementRoute = 'direct' | 'breakout' | 'breakout_direct';
 
